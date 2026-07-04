@@ -7,12 +7,13 @@
 // signed-in user of this app (via Firebase Admin) before spending any of
 // your Gemini quota, so a stranger who finds the URL can't rack up usage.
 
-const admin = require('firebase-admin');
+const { initializeApp, getApps, cert } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 
-if (!admin.apps.length) {
+if (!getApps().length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  initializeApp({
+    credential: cert(serviceAccount),
   });
 }
 
@@ -34,7 +35,7 @@ module.exports = async function handler(req, res) {
     return;
   }
   try {
-    await admin.auth().verifyIdToken(idToken);
+    await getAuth().verifyIdToken(idToken);
   } catch (e) {
     res.status(401).json({ error: 'Invalid or expired auth token' });
     return;
