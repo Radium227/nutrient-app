@@ -4,17 +4,32 @@
 //
 // This function is the only thing on the server that knows the Gemini API
 // key. The browser never sees it. It also checks that the caller is a
-// signed-in user of this app (via Firebase Admin) before spending any of
-// your Gemini quota, so a stranger who finds the URL can't rack up usage.
+// signed-in user of this app before spending any of your Gemini quota, so
+// a stranger who finds the URL can't rack up usage.
+//
+// Auth check note: we verify the ID token via Firebase's own REST endpoint
+// instead of the firebase-admin SDK. firebase-admin pulls in a package
+// (jose v6) that's ESM-only, which breaks on some serverless Node runtimes
+// with a "require() of ES Module ... not supported" crash. Calling the
+// REST endpoint directly avoids that dependency entirely and needs no
+// service-account credentials.
 
-const { initializeApp, getApps, cert } = require('firebase-admin/app');
-const { getAuth } = require('firebase-admin/auth');
+// This is the public Firebase Web API key (same one baked into index.html's
+// firebaseConfig) — it's not secret, it just identifies the project.
+const FIREBASE_WEB_API_KEY = 'AIzaSyA5Jp_4A4hUTTn29_EsgbYxPqdWzomas3M';
 
-if (!getApps().length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
+async function isValidIdToken(idToken) {
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_WEB_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    }
+  );
+  if (!res.ok) return false;
+  const data = await res.json().catch(() => null);
+  return !!(data && Array.isArray(data.users) && data.users.length > 0);
 }
 
 // If Google renames/retires this model string later, this is the only
@@ -35,9 +50,13 @@ module.exports = async function handler(req, res) {
     return;
   }
   try {
-    await getAuth().verifyIdToken(idToken);
+    const ok = await isValidIdToken(idToken);
+    if (!ok) {
+      res.status(401).json({ error: 'Invalid or expired auth token' });
+      return;
+    }
   } catch (e) {
-    res.status(401).json({ error: 'Invalid or expired auth token' });
+    res.status(401).json({ error: 'Could not verify auth token' });
     return;
   }
 
