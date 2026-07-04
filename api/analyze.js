@@ -83,7 +83,7 @@ module.exports = async function handler(req, res) {
           contents: [{ role: 'user', parts }],
           generationConfig: {
             responseMimeType: 'application/json',
-            maxOutputTokens: 8192,
+            maxOutputTokens: 16384,
           },
         }),
       }
