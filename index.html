@@ -49,10 +49,10 @@ button{font-family:inherit; cursor:pointer;}
 input,select,textarea{font-family:inherit; color:var(--text);}
 ::-webkit-scrollbar{width:6px; height:6px;}
 ::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
- 
+
 /* ---------- App shell ---------- */
 #app{max-width:560px; margin:0 auto; position:relative;}
- 
+
 .topbar{
   position:sticky; top:0; z-index:20;
   background:linear-gradient(180deg, var(--bg) 70%, transparent);
@@ -66,16 +66,16 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .date-nav button{background:none;border:none;color:var(--text-dim);width:26px;height:26px;border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;}
 .date-nav button:active{background:var(--surface-2);}
 .date-nav .lbl{font-size:12.5px; color:var(--text); min-width:64px; text-align:center; font-weight:500;}
- 
+
 .view{padding:4px 18px 24px; display:none; animation:fadeIn .25s ease;}
 .view.active{display:block;}
 @keyframes fadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
- 
+
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-bottom:14px;}
 .card h2{font-size:15px; color:var(--text-dim); font-weight:500; letter-spacing:.3px; text-transform:uppercase; font-family:var(--font-body); margin-bottom:12px;}
 .section-title{font-size:22px; margin:22px 0 12px; letter-spacing:.2px;}
 .section-title:first-child{margin-top:2px;}
- 
+
 /* ---------- Calorie summary ---------- */
 .cal-row{display:flex; align-items:flex-end; gap:16px;}
 .cal-big{font-family:var(--font-display); font-size:44px; font-weight:600; line-height:1;}
@@ -94,7 +94,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .macro-chip .v{font-family:var(--font-mono); font-size:15px; margin-top:3px;}
 .macro-chip .bar{height:4px; background:var(--surface-3); border-radius:3px; margin-top:7px; overflow:hidden;}
 .macro-chip .bar span{display:block; height:100%; border-radius:3px;}
- 
+
 /* ---------- Water card ---------- */
 .water-card{padding-bottom:16px;}
 .water-head{display:flex; align-items:center; gap:12px;}
@@ -108,7 +108,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .water-quick button{flex:1; min-width:70px; background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:11px 6px; font-size:13px; font-weight:500; min-height:42px;}
 .water-quick button:active{background:var(--surface-3);}
 .water-quick button.ghost{background:none; color:var(--min); border-color:var(--min);}
- 
+
 /* ---------- Nutrient detail modal ---------- */
 .detail-gauge{margin-bottom:16px;}
 .detail-gauge-track{height:10px; border-radius:6px; background:var(--surface-3); overflow:hidden; position:relative;}
@@ -123,7 +123,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .contrib-row .camt{font-family:var(--font-mono); font-size:13px; color:var(--text-dim); margin-right:10px; white-space:nowrap;}
 .contrib-row .cpct{font-family:var(--font-mono); font-size:13px; color:var(--text-faint); min-width:38px; text-align:right;}
 .detail-edit-link{display:block; text-align:center; margin-top:16px; color:var(--min); font-size:13.5px; background:none; border:none; width:100%; padding:8px;}
- 
+
 /* ---------- Remaining nutrients modal ---------- */
 .remain-summary{text-align:center; margin-bottom:18px;}
 .remain-summary .big{font-family:var(--font-display); font-size:40px; font-weight:600;}
@@ -135,7 +135,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .remain-row .rbar{width:70px; height:6px; background:var(--surface-3); border-radius:4px; overflow:hidden; margin-right:8px;}
 .remain-row .rbar span{display:block; height:100%; border-radius:4px;}
 .remain-row .rpct{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); min-width:34px; text-align:right;}
- 
+
 /* ---------- Nutrient Spectrum (signature element) ---------- */
 .spectrum-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 16px; margin-bottom:14px;}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
@@ -146,7 +146,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .spectrum-legend{display:flex; gap:14px; margin-top:12px; flex-wrap:wrap;}
 .spectrum-legend .item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-faint);}
 .spectrum-legend .dot{width:7px;height:7px;border-radius:2px;}
- 
+
 /* ---------- Login screen ---------- */
 #loginScreen{position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:24px;}
 .login-card{width:100%; max-width:340px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:32px 26px; text-align:center;}
@@ -156,7 +156,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .login-status{margin-top:16px; font-size:12.5px; color:var(--text-faint); min-height:16px;}
 .settings-account-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
 .settings-account-row .email{font-size:13px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
- 
+
 /* ---------- Bottom nav ---------- */
 .bottomnav{
   position:fixed; bottom:0; left:0; right:0; z-index:30;
@@ -168,7 +168,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .navbtn{flex:1; background:none; border:none; color:var(--text-faint); display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 2px; font-size:10.5px; letter-spacing:.2px; border-radius:12px;}
 .navbtn.active{color:var(--macro);}
 .navbtn svg{width:20px; height:20px;}
- 
+
 .fab{
   position:fixed; right:calc(50% - 280px + 18px); bottom:74px; z-index:35;
   width:58px; height:58px; border-radius:50%;
@@ -177,7 +177,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   box-shadow:0 8px 24px rgba(255,143,94,0.35);
 }
 @media (max-width:596px){ .fab{right:18px;} }
- 
+
 /* ---------- Diary ---------- */
 .entry{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line);}
 .entry:last-child{border-bottom:none;}
@@ -191,13 +191,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .empty-state{text-align:center; padding:40px 16px; color:var(--text-faint);}
 .empty-state .icon{font-size:32px; margin-bottom:10px;}
 .empty-state .cta{margin-top:14px;}
- 
+
 .btn{background:var(--macro); color:#1a0d05; border:none; padding:11px 18px; border-radius:12px; font-weight:600; font-size:14px;}
 .btn.ghost{background:var(--surface-2); color:var(--text); border:1px solid var(--line);}
 .btn.small{padding:8px 14px; font-size:13px;}
 .btn.block{width:100%;}
 .btn:disabled{opacity:.5;}
- 
+
 /* ---------- Nutrients tab ---------- */
 .cat-group{margin-bottom:8px;}
 .cat-header{display:flex; align-items:center; gap:10px; padding:14px 4px 8px; cursor:pointer;}
@@ -213,14 +213,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .nutrient-row .pct{width:44px; text-align:right; font-family:var(--font-mono); font-size:11.5px; color:var(--text-faint);}
 .nutrient-row .bar-track{width:52px; height:5px; background:var(--surface-3); border-radius:3px; overflow:hidden; flex-shrink:0;}
 .nutrient-row .bar-fill{height:100%; border-radius:3px;}
- 
+
 /* ---------- Trends ---------- */
 .chart-card canvas{width:100% !important;}
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
 .stat-box{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
 .stat-box .l{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
 .stat-box .v{font-family:var(--font-mono); font-size:18px; margin-top:4px;}
- 
+
 /* ---------- Forms / Settings ---------- */
 .field{margin-bottom:14px;}
 .field label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px;}
@@ -235,7 +235,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .seg{display:flex; background:var(--surface-2); border-radius:10px; padding:3px; border:1px solid var(--line);}
 .seg button{flex:1; background:none; border:none; color:var(--text-dim); padding:12px 4px; border-radius:8px; font-size:14px; min-height:44px;}
 .seg button.active{background:var(--surface-3); color:var(--text); font-weight:500;}
- 
+
 @media (max-width:380px){
   .row2{flex-direction:column;}
   .result-card .rgrid{grid-template-columns:1fr 1fr;}
@@ -244,7 +244,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   .cal-remaining{padding:0 6px;}
   .cal-row{gap:8px;}
 }
- 
+
 /* ---------- Modal ---------- */
 .modal-backdrop{position:fixed; inset:0; background:rgba(5,10,8,0.72); z-index:50; display:none; align-items:flex-end; justify-content:center;}
 .modal-backdrop.open{display:flex;}
@@ -273,15 +273,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .result-card .rgrid .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase;}
 .result-card .rgrid .v{font-family:var(--font-mono); font-size:13px; margin-top:2px;}
 .error-box{background:var(--min-dim); color:#FFD9D0; border-radius:var(--radius-md); padding:12px 14px; font-size:13px; margin-bottom:10px; border:1px solid rgba(240,120,95,0.4);}
- 
+
 .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--surface-3); color:var(--text); padding:10px 18px; border-radius:999px; font-size:13px; z-index:60; opacity:0; transition:opacity .25s, transform .25s; border:1px solid var(--line); pointer-events:none;}
 .toast.show{opacity:1; transform:translate(-50%,-6px);}
- 
+
 .tag{display:inline-block; font-size:10.5px; padding:3px 8px; border-radius:999px; background:var(--surface-3); color:var(--text-dim); margin-left:8px;}
 </style>
 </head>
 <body>
- 
+
 <div id="loginScreen">
   <div class="login-card">
     <div class="brand"><span class="mark"></span><h1>Nutrient</h1></div>
@@ -293,9 +293,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="login-status" id="loginStatus"></div>
   </div>
 </div>
- 
+
 <div id="app" style="display:none;">
- 
+
   <div class="topbar">
     <div class="brand"><span class="mark"></span><h1>Nutrient</h1></div>
     <div class="date-nav">
@@ -304,7 +304,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <button onclick="shiftDate(1)">›</button>
     </div>
   </div>
- 
+
   <!-- DASHBOARD -->
   <div class="view active" id="view-dashboard">
     <div class="card">
@@ -326,7 +326,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div class="cal-bar"><div class="cal-bar-fill" id="calBarFill" style="width:0%"></div></div>
       <div class="macro-mini" id="macroMini"></div>
     </div>
- 
+
     <div class="card water-card">
       <div class="water-head">
         <div class="water-icon">💧</div>
@@ -343,7 +343,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <button class="ghost" onclick="promptCustomWater()">+ Custom</button>
       </div>
     </div>
- 
+
     <div class="spectrum-wrap" onclick="openRemainingModal()" style="cursor:pointer;">
       <div class="spectrum-head">
         <h2>Nutrient Spectrum</h2>
@@ -358,13 +358,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <div class="item"><span class="dot" style="background:var(--other)"></span>Other</div>
       </div>
     </div>
- 
+
     <div class="card">
       <h2>Today's log</h2>
       <div id="dashDiaryPreview"></div>
     </div>
   </div>
- 
+
   <!-- DIARY -->
   <div class="view" id="view-diary">
     <div class="section-title">Diary</div>
@@ -383,13 +383,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <button class="btn ghost small" style="margin-top:8px;" onclick="openWeightModal()">+ Log weight</button>
     </div>
   </div>
- 
+
   <!-- NUTRIENTS -->
   <div class="view" id="view-nutrients">
     <div class="section-title">Nutrients</div>
     <div id="nutrientGroups"></div>
   </div>
- 
+
   <!-- TRENDS -->
   <div class="view" id="view-trends">
     <div class="section-title">Trends</div>
@@ -406,11 +406,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
     </div>
   </div>
- 
+
   <!-- SETTINGS -->
   <div class="view" id="view-settings">
     <div class="section-title">Settings</div>
- 
+
     <div class="card">
       <h2>Account</h2>
       <div class="settings-account-row">
@@ -419,12 +419,12 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <div class="hint">Your diary is synced to the cloud under this account — sign in with the same Google account on any device to see it.</div>
     </div>
- 
+
     <div class="card">
       <h2>Meal analysis</h2>
       <div class="hint">Photo and text analysis is powered by Gemini, called through a small server function — your API key never touches the browser.</div>
     </div>
- 
+
     <div class="card">
       <h2>Profile &amp; targets</h2>
       <div class="row2">
@@ -458,15 +458,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <button class="btn block" onclick="saveProfile()">Save &amp; recalculate targets</button>
       <div class="hint" style="margin-top:10px;">Calorie &amp; macro targets default to your coach's plan. Hit this button to instead calculate them from your stats (Mifflin-St Jeor). Micronutrient targets are pre-set to your personalized plan — tap any nutrient in the Nutrients tab to override.</div>
     </div>
- 
+
     <div class="card">
       <h2>Data</h2>
       <button class="btn ghost block" onclick="exportData()">Export all data (JSON)</button>
     </div>
   </div>
- 
+
   <button class="fab" onclick="openAddModal()">+</button>
- 
+
   <div class="bottomnav">
     <div class="bottomnav-inner">
       <button class="navbtn active" data-view="dashboard" onclick="switchView('dashboard')">
@@ -492,18 +492,18 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     </div>
   </div>
 </div>
- 
+
 <!-- ADD MEAL MODAL -->
 <div class="modal-backdrop" id="addModal">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3>Log a meal</h3><button onclick="closeModal('addModal')">✕</button></div>
- 
+
     <div class="seg" style="margin-bottom:16px;">
       <button id="segPhoto" class="active" onclick="setAddMode('photo')">Photo</button>
       <button id="segText" onclick="setAddMode('text')">Describe</button>
     </div>
- 
+
     <div id="addPhotoPane">
       <label class="photo-drop" id="photoDropLabel">
         <span id="photoDropText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span></span>
@@ -516,7 +516,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <button class="btn block" id="analyzePhotoBtn" style="display:none;" onclick="analyzePhoto(pendingPhotoMime)">Analyze photo</button>
     </div>
- 
+
     <div id="addTextPane" style="display:none;">
       <div class="field">
         <label>What did you eat?</label>
@@ -524,11 +524,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <button class="btn block" onclick="analyzeText()">Analyze meal</button>
     </div>
- 
+
     <div id="analysisArea" style="margin-top:14px;"></div>
   </div>
 </div>
- 
+
 <!-- EXERCISE MODAL -->
 <div class="modal-backdrop" id="exerciseModal">
   <div class="modal">
@@ -542,7 +542,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <button class="btn block" onclick="saveExercise()">Add</button>
   </div>
 </div>
- 
+
 <!-- WEIGHT MODAL -->
 <div class="modal-backdrop" id="weightModal">
   <div class="modal">
@@ -552,7 +552,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <button class="btn block" onclick="saveWeight()">Save</button>
   </div>
 </div>
- 
+
 <!-- NUTRIENT TARGET EDIT MODAL -->
 <div class="modal-backdrop" id="targetModal">
   <div class="modal">
@@ -562,7 +562,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <button class="btn block" onclick="saveTargetOverride()">Save</button>
   </div>
 </div>
- 
+
 <!-- NUTRIENT DETAIL MODAL (breakdown by food) -->
 <div class="modal-backdrop" id="detailModal">
   <div class="modal">
@@ -571,7 +571,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div id="detailModalBody"></div>
   </div>
 </div>
- 
+
 <!-- OVERALL COMPLETION / REMAINING NUTRIENTS MODAL -->
 <div class="modal-backdrop" id="remainingModal">
   <div class="modal">
@@ -580,9 +580,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div id="remainingModalBody"></div>
   </div>
 </div>
- 
+
 <div class="toast" id="toast"></div>
- 
+
 <script>
 /* =========================================================
    NUTRIENT DEFINITIONS
@@ -611,9 +611,9 @@ const db = firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(err=>{
   console.warn('Offline persistence not enabled:', err.code);
 });
- 
+
 let currentUser = null;
- 
+
 function signInWithGoogle(){
   const statusEl = document.getElementById('loginStatus');
   statusEl.textContent = 'Opening sign-in…';
@@ -645,7 +645,7 @@ auth.onAuthStateChanged(async (user)=>{
     appEl.style.display = 'none';
   }
 });
- 
+
 const NUTRIENTS = [
   // General / macro
   {id:'calories', name:'Calories', unit:'kcal', cat:'macro', rda:2400},
@@ -674,7 +674,7 @@ const NUTRIENTS = [
   {id:'water', name:'Water', unit:'ml', cat:'other', rda:4000},
   {id:'alcohol', name:'Alcohol', unit:'g', cat:'other', rda:0},
   {id:'caffeine', name:'Caffeine', unit:'mg', cat:'other', rda:400},
- 
+
   // Vitamins
   {id:'vitaminA', name:'Vitamin A', unit:'mcg', cat:'vitamin', rda:1050},
   {id:'retinol', name:'Retinol', unit:'mcg', cat:'vitamin', rda:700},
@@ -692,7 +692,7 @@ const NUTRIENTS = [
   {id:'folateB9', name:'Folate (B9)', unit:'mcg', cat:'vitamin', rda:550},
   {id:'vitaminB12', name:'Vitamin B12', unit:'mcg', cat:'vitamin', rda:7.5},
   {id:'choline', name:'Choline', unit:'mg', cat:'vitamin', rda:800},
- 
+
   // Minerals
   {id:'calcium', name:'Calcium', unit:'mg', cat:'mineral', rda:1100},
   {id:'chromium', name:'Chromium', unit:'mcg', cat:'mineral', rda:42.5},
@@ -709,7 +709,7 @@ const NUTRIENTS = [
   {id:'sodium', name:'Sodium', unit:'mg', cat:'mineral', rda:3000},
   {id:'zinc', name:'Zinc', unit:'mg', cat:'mineral', rda:13.5},
   {id:'sulfur', name:'Sulfur', unit:'mg', cat:'mineral', rda:0},
- 
+
   // Amino acids (converted to mg; combined targets split evenly across the two acids given)
   {id:'histidine', name:'Histidine', unit:'mg', cat:'amino', rda:3000},
   {id:'isoleucine', name:'Isoleucine', unit:'mg', cat:'amino', rda:5000},
@@ -737,7 +737,7 @@ const CAT_META = {
   amino:{label:'Amino Acids', color:'var(--amino)'},
   other:{label:'Other', color:'var(--other)'},
 };
- 
+
 /* =========================================================
    STATE + STORAGE HELPERS
 ========================================================= */
@@ -750,7 +750,7 @@ let pendingPhotoBase64 = null;
 let pendingPhotoMime = null;
 let pendingResults = []; // parsed food items awaiting confirm
 let editingTargetId = null;
- 
+
 function todayStr(d){
   const dt = d?new Date(d):new Date();
   const y = dt.getFullYear();
@@ -766,10 +766,10 @@ function fmtDateLabel(dstr){
   if(diff===1) return 'Yesterday';
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric'});
 }
- 
+
 let storageHealthy = true;
 let storageWarned = false;
- 
+
 // Every value lives at users/{uid}/kv/{key} as {value: <JSON string>}.
 // This mirrors the old window.storage.get/set(key, value) shape exactly,
 // so everything downstream (loadDay, loadSettings, etc.) is unchanged.
@@ -821,7 +821,7 @@ async function listDayKeys(){
     .get();
   return snap.docs.map(d=>d.id);
 }
- 
+
 async function loadDay(dstr){
   if(dayCache[dstr]) return dayCache[dstr];
   const d = await storeGet('day:'+dstr) || {foods:[], exercises:[], weight:null};
@@ -831,7 +831,7 @@ async function loadDay(dstr){
 async function saveDay(dstr){
   await storeSet('day:'+dstr, dayCache[dstr]);
 }
- 
+
 const TARGETS_VERSION = 2; // bump whenever default NUTRIENTS targets change meaningfully
 async function loadSettings(){
   const p = await storeGet('profile');
@@ -848,7 +848,7 @@ async function loadSettings(){
     await storeSet('targetsVersion', {v: TARGETS_VERSION});
   }
 }
- 
+
 /* =========================================================
    TARGET CALCULATIONS
 ========================================================= */
@@ -864,7 +864,7 @@ function getTarget(id){
   const def = NUTRIENTS.find(n=>n.id===id);
   return def ? def.rda : 0;
 }
- 
+
 /* =========================================================
    TOTALS
 ========================================================= */
@@ -882,7 +882,7 @@ function computeTotals(day){
 function computeBurned(day){
   return (day.exercises||[]).reduce((s,e)=>s+(Number(e.calories)||0),0);
 }
- 
+
 /* =========================================================
    RENDER: NAV / VIEWS
 ========================================================= */
@@ -898,7 +898,7 @@ async function shiftDate(delta){
   currentDate = todayStr(d);
   await renderAll();
 }
- 
+
 async function renderAll(){
   document.getElementById('dateLabel').textContent = fmtDateLabel(currentDate);
   const day = await loadDay(currentDate);
@@ -906,7 +906,7 @@ async function renderAll(){
   renderDiary(day);
   renderNutrients(day);
 }
- 
+
 function renderDashboard(day){
   const totals = computeTotals(day);
   const burned = computeBurned(day);
@@ -922,7 +922,7 @@ function renderDashboard(day){
   const pct = calTarget>0 ? Math.min(100, (consumed/calTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
   document.getElementById('calBarFill').style.background = pct>=100 ? 'var(--complete)' : 'linear-gradient(90deg, var(--macro), #FFC08A)';
- 
+
   const macros = [
     {id:'protein', label:'Protein', color:'var(--macro)'},
     {id:'carbs', label:'Carbs', color:'var(--vit)'},
@@ -937,7 +937,7 @@ function renderDashboard(day){
       <div class="bar"><span style="width:${p}%; background:${barColor(p, m.color)}"></span></div>
     </div>`;
   }).join('');
- 
+
   // Water card
   const waterVal = totals.water||0;
   const waterTarget = getTarget('water')||4000;
@@ -946,7 +946,7 @@ function renderDashboard(day){
   document.getElementById('waterTargetLbl').textContent = 'of '+(waterTarget/1000)+' L';
   document.getElementById('waterBarFill').style.width = waterPct+'%';
   document.getElementById('waterBarFill').style.background = barColor(waterPct, 'var(--min)');
- 
+
   // spectrum / overall completion
   let bars = '';
   let metCount = 0, totalCount = 0, pctSum = 0;
@@ -964,7 +964,7 @@ function renderDashboard(day){
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
   document.getElementById('spectrumCount').textContent = `${overallPct}% complete · ${metCount}/${totalCount} at target`;
- 
+
   // diary preview
   const foods = day.foods||[];
   const preview = document.getElementById('dashDiaryPreview');
@@ -974,7 +974,7 @@ function renderDashboard(day){
     preview.innerHTML = foods.slice(-4).reverse().map(foodEntryHTML).join('');
   }
 }
- 
+
 function foodEntryHTML(f){
   return `<div class="entry">
     <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
@@ -986,13 +986,13 @@ function foodEntryHTML(f){
     <button class="del" onclick="deleteFood('${f.id}')">✕</button>
   </div>`;
 }
- 
+
 function renderDiary(day){
   const foods = day.foods||[];
   document.getElementById('foodList').innerHTML = foods.length
     ? foods.slice().reverse().map(foodEntryHTML).join('')
     : `<div class="empty-state">No food logged for this day yet.</div>`;
- 
+
   const exercises = day.exercises||[];
   document.getElementById('exerciseList').innerHTML = exercises.length
     ? exercises.map(e=>`<div class="entry">
@@ -1002,12 +1002,12 @@ function renderDiary(day){
         <button class="del" onclick="deleteExercise('${e.id}')">✕</button>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">No exercise logged.</div>`;
- 
+
   document.getElementById('weightToday').innerHTML = day.weight
     ? `<div class="entry"><div class="thumb">⚖️</div><div class="info"><div class="name">${day.weight} kg</div></div></div>`
     : `<div class="empty-state" style="padding:16px 0;">No weight logged for this day.</div>`;
 }
- 
+
 function renderNutrients(day){
   const totals = computeTotals(day);
   const groups = {};
@@ -1044,7 +1044,7 @@ function toggleCat(cat){
 function round1(v){ return Math.round(v*10)/10; }
 function barColor(pct, baseColor){ return pct>=100 ? 'var(--complete)' : baseColor; }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
- 
+
 /* =========================================================
    TRENDS
 ========================================================= */
@@ -1059,9 +1059,9 @@ async function renderTrends(){
   const weights = dayDatas.map(d=>d.weight);
   const intakes = dayDatas.map(d=>computeTotals(d).calories);
   const burns = dayDatas.map(d=>computeBurned(d));
- 
+
   const labels = days.map(d=>new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}));
- 
+
   const ctx1 = document.getElementById('weightChart');
   if(weightChartInst) weightChartInst.destroy();
   weightChartInst = new Chart(ctx1, {
@@ -1069,7 +1069,7 @@ async function renderTrends(){
     data:{labels, datasets:[{data:weights, borderColor:'#5FB2E8', backgroundColor:'rgba(95,178,232,0.15)', fill:true, tension:0.35, spanGaps:true, pointRadius:2}]},
     options:{plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{color:'#2C4941'}}, y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}}}
   });
- 
+
   const ctx2 = document.getElementById('calorieChart');
   if(calorieChartInst) calorieChartInst.destroy();
   calorieChartInst = new Chart(ctx2, {
@@ -1080,13 +1080,13 @@ async function renderTrends(){
     ]},
     options:{plugins:{legend:{labels:{color:'#EAF3EF'}}}, scales:{x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}}, y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}}}
   });
- 
+
   const validIntakes = intakes.filter(v=>v>0);
   const validBurns = burns.filter(v=>v>0);
   document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '—';
   document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '—';
 }
- 
+
 /* =========================================================
    ADD MEAL MODAL / GEMINI CALLS
 ========================================================= */
@@ -1114,7 +1114,7 @@ function setAddMode(mode){
   document.getElementById('addPhotoPane').style.display = mode==='photo' ? 'block':'none';
   document.getElementById('addTextPane').style.display = mode==='text' ? 'block':'none';
 }
- 
+
 function loadPhotoFile(file){
   if(!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
@@ -1161,12 +1161,12 @@ document.addEventListener('paste', (e)=>{
     }
   }
 });
- 
+
 const NUTRIENT_KEY_LIST = NUTRIENTS.map(n=>`${n.id} (${n.unit})`).join(', ');
- 
+
 function buildPrompt(context, notes){
   let p = `You are a professional nutrition analyst. Identify each distinct food/drink item in the ${context}, and estimate a realistic portion size in grams for what was actually consumed.
- 
+
 For each item, estimate values for whichever of these nutrient fields are actually present in meaningful amounts: ${NUTRIENT_KEY_LIST}. To keep your answer compact, OMIT any field that would be zero or negligible (under 1% of a typical daily value) — do not include it in the nutrients object at all. Only include fields with a real, non-trivial estimated amount.`;
   if(notes && notes.trim()){
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
@@ -1176,7 +1176,7 @@ For each item, estimate values for whichever of these nutrient fields are actual
 Keep the JSON as short as possible while remaining accurate, since your response has a strict length limit — never truncate mid-object; if you're running long, drop the least significant nutrient fields first rather than cutting the JSON off incomplete.`;
   return p;
 }
- 
+
 // Calls our own /api/analyze serverless function, which holds the Gemini
 // key server-side and forwards to the Gemini API. `content` keeps the same
 // shape the old direct-to-Claude call used: an array with a {type:'text'}
@@ -1247,7 +1247,7 @@ function repairTruncatedItemsJson(jsonStr){
   const rebuilt = jsonStr.slice(0, arrStart) + jsonStr.slice(arrStart, lastCompleteEnd+1) + ']}';
   try{ return JSON.parse(rebuilt); }catch(e){ return null; }
 }
- 
+
 async function analyzePhoto(mimeType){
   if(!pendingPhotoBase64){ return; }
   const notes = document.getElementById('photoNotesInput').value;
@@ -1264,7 +1264,7 @@ async function analyzePhoto(mimeType){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
   }
 }
- 
+
 async function analyzeText(){
   const desc = document.getElementById('textDescInput').value.trim();
   if(!desc){ return; }
@@ -1278,7 +1278,7 @@ async function analyzeText(){
     area.innerHTML = `<div class="error-box">Couldn't analyze that: ${escapeHtml(err.message)}</div>`;
   }
 }
- 
+
 function showResults(items, photoBase64, mimeType){
   pendingResults = items.map((it,i)=>({...it, _id:'r'+Date.now()+i}));
   const area = document.getElementById('analysisArea');
@@ -1302,7 +1302,7 @@ function showResults(items, photoBase64, mimeType){
     </div>
   `).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
- 
+
 async function confirmAddAll(photoTag){
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
@@ -1321,14 +1321,14 @@ async function confirmAddAll(photoTag){
   await renderAll();
   showToast('Added to diary');
 }
- 
+
 async function deleteFood(id){
   const day = await loadDay(currentDate);
   day.foods = day.foods.filter(f=>f.id!==id);
   await saveDay(currentDate);
   await renderAll();
 }
- 
+
 /* ---------- Water quick-add ---------- */
 const WATER_ENTRY_ID = 'water-quickadd';
 async function quickAddWater(ml){
@@ -1354,7 +1354,7 @@ function promptCustomWater(){
   if(!ml || ml<=0){ showToast('Enter a valid amount'); return; }
   quickAddWater(ml);
 }
- 
+
 /* =========================================================
    EXERCISE / WEIGHT
 ========================================================= */
@@ -1396,7 +1396,7 @@ async function saveWeight(){
   await renderAll();
   showToast('Weight logged');
 }
- 
+
 /* =========================================================
    NUTRIENT DETAIL (per-food breakdown) & OVERALL COMPLETION
 ========================================================= */
@@ -1437,7 +1437,7 @@ async function openNutrientDetail(id){
   `;
   openModal('detailModal');
 }
- 
+
 async function openRemainingModal(){
   const day = await loadDay(currentDate);
   const totals = computeTotals(day);
@@ -1467,7 +1467,7 @@ async function openRemainingModal(){
   `;
   openModal('remainingModal');
 }
- 
+
 /* =========================================================
    TARGET OVERRIDE MODAL
 ========================================================= */
@@ -1485,7 +1485,7 @@ async function saveTargetOverride(){
   closeModal('targetModal');
   await renderAll();
 }
- 
+
 /* =========================================================
    SETTINGS
 ========================================================= */
@@ -1518,7 +1518,7 @@ function fillSettingsForm(){
   document.getElementById('pActivity').value = profile.activity;
   document.getElementById('pGoal').value = profile.goal;
 }
- 
+
 async function exportData(){
   const keys = await listDayKeys().catch(()=>[]);
   const out = {profile, targetOverrides, days:{}};
@@ -1531,7 +1531,7 @@ async function exportData(){
   a.download = 'nutrient-export.json';
   a.click();
 }
- 
+
 /* =========================================================
    TOAST
 ========================================================= */
@@ -1543,11 +1543,11 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
 }
- 
+
 document.querySelectorAll('.modal-backdrop').forEach(m=>{
   m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('open'); });
 });
- 
+
 /* =========================================================
    INIT
    Actual startup now happens inside auth.onAuthStateChanged
