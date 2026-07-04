@@ -502,6 +502,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="seg" style="margin-bottom:16px;">
       <button id="segPhoto" class="active" onclick="setAddMode('photo')">Photo</button>
       <button id="segText" onclick="setAddMode('text')">Describe</button>
+      <button id="segSaved" onclick="setAddMode('saved')">Saved</button>
+    </div>
+
+    <div id="addSavedPane" style="display:none;">
+      <div id="savedListArea"></div>
     </div>
 
     <div id="addPhotoPane">
@@ -1111,8 +1116,12 @@ function setAddMode(mode){
   addMode = mode;
   document.getElementById('segPhoto').classList.toggle('active', mode==='photo');
   document.getElementById('segText').classList.toggle('active', mode==='text');
+  document.getElementById('segSaved').classList.toggle('active', mode==='saved');
   document.getElementById('addPhotoPane').style.display = mode==='photo' ? 'block':'none';
   document.getElementById('addTextPane').style.display = mode==='text' ? 'block':'none';
+  document.getElementById('addSavedPane').style.display = mode==='saved' ? 'block':'none';
+  document.getElementById('analysisArea').style.display = mode==='saved' ? 'none':'block';
+  if(mode==='saved') renderSavedList();
 }
 
 function loadPhotoFile(file){
@@ -1163,17 +1172,36 @@ document.addEventListener('paste', (e)=>{
 });
 
 const NUTRIENT_KEY_LIST = NUTRIENTS.map(n=>`${n.id} (${n.unit})`).join(', ');
+const NUTRIENT_CATS_FOR_PROMPT = [
+  {cat:'macro', label:'Macronutrients'},
+  {cat:'vitamin', label:'Vitamins'},
+  {cat:'mineral', label:'Minerals'},
+  {cat:'amino', label:'Amino acids (whenever the item contains any meaningful protein)'},
+  {cat:'other', label:'Other (water, alcohol, caffeine)'},
+];
+const NUTRIENT_CATEGORY_BLOCK = NUTRIENT_CATS_FOR_PROMPT.map(({cat,label})=>{
+  const keys = NUTRIENTS.filter(n=>n.cat===cat).map(n=>`${n.id} (${n.unit})`).join(', ');
+  return `- ${label}: ${keys}`;
+}).join('\n');
 
 function buildPrompt(context, notes){
   let p = `You are a professional nutrition analyst. Identify each distinct food/drink item in the ${context}, and estimate a realistic portion size in grams for what was actually consumed.
 
-For each item, estimate values for whichever of these nutrient fields are actually present in meaningful amounts: ${NUTRIENT_KEY_LIST}. To keep your answer compact, OMIT any field that would be zero or negligible (under 1% of a typical daily value) — do not include it in the nutrients object at all. Only include fields with a real, non-trivial estimated amount.`;
+For EVERY item, you must go through EACH of the following nutrient categories one by one and estimate every field that applies in a meaningful amount — do not skip a whole category just because it's more detailed than macros. This is a full nutrition-label-style breakdown, not just calories/protein/carbs/fat:
+
+${NUTRIENT_CATEGORY_BLOCK}
+
+Rules:
+1. Check every category above for every item — macros, vitamins, minerals, amino acids, and other — before moving to the next item. Vitamins and minerals are present in nearly all real food in at least trace amounts; estimate them like a proper nutrition database would (e.g. USDA FoodData Central), not just for foods that obviously advertise them.
+2. Amino acids are required whenever the item has any meaningful protein (meat, eggs, dairy, legumes, grains, nuts, etc.) — scale each of the 17 amino acids from the item's total protein grams using that food's typical amino acid composition profile.
+3. To keep the answer compact, OMIT a field entirely only if its true value is genuinely zero or negligible (under ~1% of daily value) for that specific item — don't omit a field just to save space if it realistically has a non-trivial amount.
+4. Only include fields with a real, non-trivial estimated amount — never invent precision you don't have; use your best nutritional-science estimate.`;
   if(notes && notes.trim()){
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
   }
   p += `\n\nRespond with ONLY valid, complete, compact JSON — no markdown fences, no commentary, no whitespace beyond single spaces — matching exactly this schema:
 {"items":[{"name":"string, short food name","gramsEstimate":number,"confidence":"high|medium|low","nutrients":{"<nutrientId>":number, ...only non-negligible fields...}}]}
-Keep the JSON as short as possible while remaining accurate, since your response has a strict length limit — never truncate mid-object; if you're running long, drop the least significant nutrient fields first rather than cutting the JSON off incomplete.`;
+Keep the JSON as short as possible while remaining accurate, since your response has a strict length limit — never truncate mid-object; if you're running long, drop the least significant nutrient fields first (starting with minor minerals/vitamins) rather than cutting the JSON off incomplete.`;
   return p;
 }
 
@@ -1299,8 +1327,75 @@ function showResults(items, photoBase64, mimeType){
         <div><div class="l">Fiber</div><div class="v">${round1(it.nutrients?.fiber||0)}g</div></div>
         <div><div class="l">Sodium</div><div class="v">${Math.round(it.nutrients?.sodium||0)}mg</div></div>
       </div>
+      <button class="btn ghost small" style="margin-top:8px;" onclick="savePreset('${it._id}')">☆ Save for quick re-add</button>
     </div>
   `).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+}
+
+/* =========================================================
+   SAVED PRESETS (stable daily meals / vitamins — one-click re-add)
+========================================================= */
+async function loadPresets(){
+  return (await storeGet('presets')) || [];
+}
+async function savePreset(resultId){
+  const it = pendingResults.find(r=>r._id===resultId);
+  if(!it) return;
+  const defaultName = it.name;
+  const name = prompt('Save as:', defaultName);
+  if(!name || !name.trim()) return;
+  const presets = await loadPresets();
+  presets.push({
+    id: 'p'+Date.now(),
+    name: name.trim(),
+    grams: it.gramsEstimate,
+    nutrients: it.nutrients||{}
+  });
+  await storeSet('presets', presets);
+  showToast('Saved — find it under the "Saved" tab');
+}
+async function renderSavedList(){
+  const area = document.getElementById('savedListArea');
+  const presets = await loadPresets();
+  if(presets.length===0){
+    area.innerHTML = `<div class="empty-state">No saved items yet. Analyze a meal or vitamin once, then tap "☆ Save for quick re-add" to keep it here for one-click logging.</div>`;
+    return;
+  }
+  area.innerHTML = presets.map(p=>`
+    <div class="result-card">
+      <div class="rname">${escapeHtml(p.name)}</div>
+      <div class="rmeta">~${p.grams||'?'}g · ${Math.round(p.nutrients?.calories||0)} kcal</div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn block" style="flex:1;" onclick="addPresetToLog('${p.id}')">+ Add to today</button>
+        <button class="btn ghost small" onclick="deletePreset('${p.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+async function addPresetToLog(id){
+  const presets = await loadPresets();
+  const p = presets.find(x=>x.id===id);
+  if(!p) return;
+  const day = await loadDay(currentDate);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  day.foods.push({
+    id: 'f'+Date.now()+Math.random().toString(36).slice(2,6),
+    name: p.name,
+    grams: p.grams,
+    time,
+    photo: null,
+    nutrients: p.nutrients||{}
+  });
+  await saveDay(currentDate);
+  closeModal('addModal');
+  await renderAll();
+  showToast('Added to diary');
+}
+async function deletePreset(id){
+  let presets = await loadPresets();
+  presets = presets.filter(p=>p.id!==id);
+  await storeSet('presets', presets);
+  renderSavedList();
 }
 
 async function confirmAddAll(photoTag){
