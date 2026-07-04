@@ -1,0 +1,9 @@
+{
+  "name": "nutrient-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nutrient — AI food diary with cloud sync",
+  "dependencies": {
+    "firebase-admin": "^14.0.0"
+  }
+}
