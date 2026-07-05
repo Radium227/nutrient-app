@@ -1686,9 +1686,9 @@ function openTargetModal(id){
 async function saveTargetOverride(){
   const v = Number(document.getElementById('targetInput').value);
   targetOverrides[editingTargetId] = v;
-  await storeSet('targetOverrides', targetOverrides);
   closeModal('targetModal');
   await renderAll();
+  storeSet('targetOverrides', targetOverrides);
 }
 
 /* =========================================================
@@ -1710,10 +1710,10 @@ async function saveProfile(){
   targetOverrides.protein = Math.round(profile.weight*2.0);
   targetOverrides.fat = Math.round(cals*0.30/9);
   targetOverrides.carbs = Math.round((cals - targetOverrides.protein*4 - targetOverrides.fat*9)/4);
-  await storeSet('targetOverrides', targetOverrides);
-  const ok = await storeSet('profile', profile);
-  showToast(ok ? 'Targets recalculated' : 'Recalculated for this session (cloud sync pending)');
+  showToast('Targets recalculated');
   await renderAll();
+  storeSet('targetOverrides', targetOverrides);
+  storeSet('profile', profile);
 }
 function fillSettingsForm(){
   document.getElementById('pAge').value = profile.age;
