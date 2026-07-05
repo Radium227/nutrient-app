@@ -1626,9 +1626,8 @@ async function logSavedMeal(id){
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name:meal.name, grams:meal.grams, time, photo:meal.photo||null, nutrients:{...meal.nutrients}});
   await saveDay(currentDate);
-  closeModal('addModal');
   await renderAll();
-  showToast('Added to diary');
+  showToast(`Added ${meal.name}`);
 }
 async function deleteSavedMealById(id){
   savedMeals = savedMeals.filter(m=>m.id!==id);
