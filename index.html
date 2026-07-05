@@ -858,8 +858,17 @@ async function saveDay(dstr){
 // this sync quietly in the background — this is what makes add/delete
 // actions feel instant instead of taking several seconds on slow mobile
 // connections.
+//
+// Saves for the same day are queued strictly one-at-a-time (rather than
+// fired in parallel) so that if you add/delete several things in quick
+// succession, an earlier, now-stale network request can never land after
+// a later one and silently overwrite newer data with older data. Each
+// queued save reads dayCache fresh at the moment it actually runs, so the
+// final save always reflects the true latest state.
+const _saveQueues = {};
 function saveDayBackground(dstr){
-  saveDay(dstr);
+  const prev = _saveQueues[dstr] || Promise.resolve();
+  _saveQueues[dstr] = prev.then(() => saveDay(dstr)).catch(()=>{});
 }
 
 const TARGETS_VERSION = 2; // bump whenever default NUTRIENTS targets change meaningfully
@@ -1459,8 +1468,9 @@ async function loadPresets(){
   presetsCache = (await storeGet('presets')) || [];
   return presetsCache;
 }
+let _presetsSaveQueue = Promise.resolve();
 function savePresetsBackground(){
-  storeSet('presets', presetsCache);
+  _presetsSaveQueue = _presetsSaveQueue.then(() => storeSet('presets', presetsCache)).catch(()=>{});
 }
 async function savePreset(resultId){
   const it = pendingResults.find(r=>r._id===resultId);
