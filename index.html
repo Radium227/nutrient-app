@@ -372,7 +372,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="view" id="view-diary">
     <div class="section-title">Diary</div>
     <div class="card">
-      <h2>Food</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Food</h2>
+        <button class="btn ghost small" id="selectModeBtn" onclick="toggleFoodSelectMode()">Select</button>
+      </div>
+      <div id="foodBulkBar" style="display:none; align-items:center; justify-content:space-between; margin:-4px 0 12px; padding:8px 12px; background:var(--surface-2); border-radius:8px;">
+        <span id="foodSelectedCount" style="font-size:13px; color:var(--text-dim);">0 selected</span>
+        <button class="btn ghost small" style="color:#FF8F5E;" onclick="deleteSelectedFoods()">Delete selected</button>
+      </div>
       <div id="foodList"></div>
     </div>
     <div class="card">
@@ -985,20 +992,51 @@ function renderDashboard(day){
   if(foods.length===0){
     preview.innerHTML = `<div class="empty-state"><div class="icon">🍽️</div>No meals logged yet.<br>Tap + to add your first meal.</div>`;
   } else {
-    preview.innerHTML = foods.slice(-4).reverse().map(foodEntryHTML).join('');
+    preview.innerHTML = foods.slice(-4).reverse().map(f=>foodEntryHTML(f, false)).join('');
   }
 }
 
-function foodEntryHTML(f){
-  return `<div class="entry">
+let foodSelectMode = false;
+let selectedFoodIds = new Set();
+
+function foodEntryHTML(f, allowSelect=true){
+  const useSelect = foodSelectMode && allowSelect;
+  const checked = selectedFoodIds.has(f.id) ? 'checked' : '';
+  return `<div class="entry" ${useSelect?`onclick="toggleFoodSelect('${f.id}')" style="cursor:pointer;"`:''}>
+    ${useSelect ? `<input type="checkbox" ${checked} style="margin-right:10px; width:20px; height:20px; flex:none;" onclick="event.stopPropagation(); toggleFoodSelect('${f.id}')">` : ''}
     <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
     <div class="info">
       <div class="name">${escapeHtml(f.name)}</div>
       <div class="meta">${f.isWater ? (f.grams||0)+' ml · ' : (f.grams?f.grams+'g · ':'')}${f.time||''}</div>
     </div>
     <div class="kcal">${f.isWater ? '0 kcal' : Math.round(f.nutrients?.calories||0)+' kcal'}</div>
-    <button class="del" onclick="deleteFood('${f.id}')">✕</button>
+    ${useSelect ? '' : `<button class="del" onclick="deleteFood('${f.id}')">✕</button>`}
   </div>`;
+}
+
+function toggleFoodSelectMode(){
+  foodSelectMode = !foodSelectMode;
+  selectedFoodIds.clear();
+  document.getElementById('selectModeBtn').textContent = foodSelectMode ? 'Cancel' : 'Select';
+  document.getElementById('foodBulkBar').style.display = foodSelectMode ? 'flex' : 'none';
+  loadDay(currentDate).then(renderDiary);
+}
+function toggleFoodSelect(id){
+  if(selectedFoodIds.has(id)) selectedFoodIds.delete(id); else selectedFoodIds.add(id);
+  document.getElementById('foodSelectedCount').textContent = selectedFoodIds.size + ' selected';
+  loadDay(currentDate).then(renderDiary);
+}
+async function deleteSelectedFoods(){
+  if(selectedFoodIds.size===0) return;
+  const day = await loadDay(currentDate);
+  day.foods = (day.foods||[]).filter(f=>!selectedFoodIds.has(f.id));
+  await saveDay(currentDate);
+  selectedFoodIds.clear();
+  foodSelectMode = false;
+  document.getElementById('selectModeBtn').textContent = 'Select';
+  document.getElementById('foodBulkBar').style.display = 'none';
+  await renderAll();
+  showToast('Deleted');
 }
 
 function renderDiary(day){
