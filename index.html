@@ -852,6 +852,15 @@ async function loadDay(dstr){
 async function saveDay(dstr){
   await storeSet('day:'+dstr, dayCache[dstr]);
 }
+// Fire the Firestore write without making the UI wait for the network
+// round-trip. storeSet already retries once and shows a toast if it
+// ultimately fails, so callers can update the screen immediately and let
+// this sync quietly in the background — this is what makes add/delete
+// actions feel instant instead of taking several seconds on slow mobile
+// connections.
+function saveDayBackground(dstr){
+  saveDay(dstr);
+}
 
 const TARGETS_VERSION = 2; // bump whenever default NUTRIENTS targets change meaningfully
 async function loadSettings(){
@@ -1030,13 +1039,13 @@ async function deleteSelectedFoods(){
   if(selectedFoodIds.size===0) return;
   const day = await loadDay(currentDate);
   day.foods = (day.foods||[]).filter(f=>!selectedFoodIds.has(f.id));
-  await saveDay(currentDate);
   selectedFoodIds.clear();
   foodSelectMode = false;
   document.getElementById('selectModeBtn').textContent = 'Select';
   document.getElementById('foodBulkBar').style.display = 'none';
   await renderAll();
   showToast('Deleted');
+  saveDayBackground(currentDate);
 }
 
 function renderDiary(day){
@@ -1430,8 +1439,14 @@ function showResults(items, photoBase64, mimeType){
 /* =========================================================
    SAVED PRESETS (stable daily meals / vitamins — one-click re-add)
 ========================================================= */
+let presetsCache = null;
 async function loadPresets(){
-  return (await storeGet('presets')) || [];
+  if(presetsCache) return presetsCache;
+  presetsCache = (await storeGet('presets')) || [];
+  return presetsCache;
+}
+function savePresetsBackground(){
+  storeSet('presets', presetsCache);
 }
 async function savePreset(resultId){
   const it = pendingResults.find(r=>r._id===resultId);
@@ -1446,8 +1461,8 @@ async function savePreset(resultId){
     grams: it.gramsEstimate,
     nutrients: it.nutrients||{}
   });
-  await storeSet('presets', presets);
   showToast('Saved — find it under the "Saved" tab');
+  savePresetsBackground();
 }
 async function renderSavedList(){
   const area = document.getElementById('savedListArea');
@@ -1481,16 +1496,16 @@ async function addPresetToLog(id){
     photo: null,
     nutrients: p.nutrients||{}
   });
-  await saveDay(currentDate);
   closeModal('addModal');
   await renderAll();
   showToast('Added to diary');
+  saveDayBackground(currentDate);
 }
 async function deletePreset(id){
-  let presets = await loadPresets();
-  presets = presets.filter(p=>p.id!==id);
-  await storeSet('presets', presets);
+  const presets = await loadPresets();
+  presetsCache = presets.filter(p=>p.id!==id);
   renderSavedList();
+  savePresetsBackground();
 }
 
 async function confirmAddAll(photoTag){
@@ -1506,17 +1521,17 @@ async function confirmAddAll(photoTag){
       nutrients: it.nutrients||{}
     });
   });
-  await saveDay(currentDate);
   closeModal('addModal');
   await renderAll();
   showToast('Added to diary');
+  saveDayBackground(currentDate);
 }
 
 async function deleteFood(id){
   const day = await loadDay(currentDate);
   day.foods = day.foods.filter(f=>f.id!==id);
-  await saveDay(currentDate);
   await renderAll();
+  saveDayBackground(currentDate);
 }
 
 /* ---------- Water quick-add ---------- */
@@ -1533,9 +1548,9 @@ async function quickAddWater(ml){
     entry = {id:WATER_ENTRY_ID, name:'Water', grams:ml, time, photo:null, isWater:true, nutrients:{water:ml}};
     day.foods.push(entry);
   }
-  await saveDay(currentDate);
   await renderAll();
   showToast(`+${ml>=1000?(ml/1000)+' L':ml+' ml'} water`);
+  saveDayBackground(currentDate);
 }
 function promptCustomWater(){
   const val = prompt('How much water (in ml)?', '250');
@@ -1562,15 +1577,15 @@ async function saveExercise(){
   const day = await loadDay(currentDate);
   day.exercises = day.exercises||[];
   day.exercises.push({id:'e'+Date.now(), name, minutes, calories});
-  await saveDay(currentDate);
   closeModal('exerciseModal');
   await renderAll();
+  saveDayBackground(currentDate);
 }
 async function deleteExercise(id){
   const day = await loadDay(currentDate);
   day.exercises = day.exercises.filter(e=>e.id!==id);
-  await saveDay(currentDate);
   await renderAll();
+  saveDayBackground(currentDate);
 }
 function openWeightModal(){
   document.getElementById('weightInput').value='';
@@ -1581,10 +1596,10 @@ async function saveWeight(){
   if(!w) return;
   const day = await loadDay(currentDate);
   day.weight = w;
-  await saveDay(currentDate);
   closeModal('weightModal');
   await renderAll();
   showToast('Weight logged');
+  saveDayBackground(currentDate);
 }
 
 /* =========================================================
