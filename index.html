@@ -1011,7 +1011,10 @@ let selectedFoodIds = new Set();
 function foodEntryHTML(f, allowSelect=true){
   const useSelect = foodSelectMode && allowSelect;
   const checked = selectedFoodIds.has(f.id) ? 'checked' : '';
-  return `<div class="entry" ${useSelect?`onclick="toggleFoodSelect('${f.id}')" style="cursor:pointer;"`:''}>
+  const clickAttr = useSelect
+    ? `onclick="toggleFoodSelect('${f.id}')" style="cursor:pointer;"`
+    : `onclick="openFoodDetail('${f.id}')" style="cursor:pointer;"`;
+  return `<div class="entry" ${clickAttr}>
     ${useSelect ? `<input type="checkbox" ${checked} style="margin-right:10px; width:20px; height:20px; flex:none;" onclick="event.stopPropagation(); toggleFoodSelect('${f.id}')">` : ''}
     <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
     <div class="info">
@@ -1019,7 +1022,7 @@ function foodEntryHTML(f, allowSelect=true){
       <div class="meta">${f.isWater ? (f.grams||0)+' ml · ' : (f.grams?f.grams+'g · ':'')}${f.time||''}</div>
     </div>
     <div class="kcal">${f.isWater ? '0 kcal' : Math.round(f.nutrients?.calories||0)+' kcal'}</div>
-    ${useSelect ? '' : `<button class="del" onclick="deleteFood('${f.id}')">✕</button>`}
+    ${useSelect ? '' : `<button class="del" onclick="event.stopPropagation(); deleteFood('${f.id}')">✕</button>`}
   </div>`;
 }
 
@@ -1103,7 +1106,18 @@ function toggleCat(cat){
   document.getElementById('chev-'+cat).parentElement.classList.toggle('collapsed');
 }
 function round1(v){ return Math.round(v*10)/10; }
-function barColor(pct, baseColor){ return pct>=100 ? 'var(--complete)' : baseColor; }
+function barColor(pct){
+  // Same red -> orange -> yellow -> green gradient for every nutrient bar,
+  // regardless of category. Under 20% stays solid red; from 20% to 100% it
+  // ramps smoothly through orange/yellow into green; 100%+ matches the same
+  // green used elsewhere for "complete".
+  if(pct>=100) return 'var(--complete)';
+  const p = Math.max(0, pct);
+  if(p<=20) return 'hsl(0,72%,55%)';
+  const t = Math.min(1, (p-20)/80);
+  const hue = t*148; // 148 = hue of --complete, so the ramp hands off smoothly at 100%
+  return `hsl(${hue},72%,50%)`;
+}
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 
 /* =========================================================
@@ -1639,6 +1653,56 @@ async function openNutrientDetail(id){
       ${rows}
     </div>
     <button class="detail-edit-link" onclick="closeModal('detailModal'); openTargetModal('${id}')">Edit target</button>
+  `;
+  openModal('detailModal');
+}
+
+async function openFoodDetail(foodId){
+  const day = await loadDay(currentDate);
+  const f = (day.foods||[]).find(x=>x.id===foodId);
+  if(!f) return;
+  const nutrients = f.nutrients || {};
+  const groups = {};
+  NUTRIENTS.forEach(n=>{
+    const v = nutrients[n.id];
+    if(v && v>0){ (groups[n.cat] = groups[n.cat]||[]).push({n, v}); }
+  });
+  let rowsHtml = '';
+  Object.keys(CAT_META).forEach(cat=>{
+    if(!groups[cat] || groups[cat].length===0) return;
+    const meta = CAT_META[cat];
+    rowsHtml += `<div class="cat-group">
+      <div class="cat-header" style="cursor:default;">
+        <span class="dot" style="background:${meta.color}"></span>
+        <h3>${meta.label}</h3>
+      </div>
+      <div class="cat-body">`;
+    groups[cat].sort((a,b)=>b.v-a.v).forEach(({n,v})=>{
+      const t = getTarget(n.id);
+      const pct = t>0 ? Math.min(999,(v/t)*100) : null;
+      rowsHtml += `<div class="nutrient-row" onclick="closeModal('detailModal'); openNutrientDetail('${n.id}')">
+        <div class="name">${n.name}</div>
+        ${t>0 ? `<div class="pct" style="${pct>=100?'color:var(--complete);font-weight:600;':''}">${Math.round(pct)}% of day</div>` : `<div class="pct">—</div>`}
+        <div class="vals">${round1(v)} ${n.unit}</div>
+      </div>`;
+    });
+    rowsHtml += `</div></div>`;
+  });
+  if(!rowsHtml){
+    rowsHtml = `<div class="empty-state" style="padding:16px 0;">No nutrient breakdown available for this item.</div>`;
+  }
+  document.getElementById('detailModalName').textContent = f.name;
+  document.getElementById('detailModalBody').innerHTML = `
+    <div class="detail-gauge">
+      <div class="detail-stat-row">
+        <div class="big">${f.isWater ? (f.grams||0)+' ml' : Math.round(nutrients.calories||0)+' kcal'}</div>
+      </div>
+      <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${f.grams && !f.isWater ? f.grams+'g · ':''}${f.time||''}</div>
+    </div>
+    <div class="contrib-list">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);margin-bottom:4px;">Full breakdown for this item</div>
+      ${rowsHtml}
+    </div>
   `;
   openModal('detailModal');
 }
