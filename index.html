@@ -516,6 +516,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="seg" style="margin-bottom:16px;">
       <button id="segPhoto" class="active" onclick="setAddMode('photo')">Photo</button>
       <button id="segText" onclick="setAddMode('text')">Describe</button>
+      <button id="segManual" onclick="setAddMode('manual')">Manual</button>
     </div>
 
     <div id="addPhotoPane">
@@ -537,6 +538,41 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <textarea id="textDescInput" placeholder="e.g. 2 fried eggs, a slice of whole wheat toast with butter, and a black coffee"></textarea>
       </div>
       <button class="btn block" onclick="analyzeText()">Analyze meal</button>
+    </div>
+
+    <div id="addManualPane" style="display:none;">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="manualName" placeholder="e.g. Protein shake">
+      </div>
+      <div class="row2" style="display:flex; gap:10px;">
+        <div class="field">
+          <label>Calories (kcal)</label>
+          <input type="number" inputmode="decimal" id="manualCalories" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Grams (optional)</label>
+          <input type="number" inputmode="decimal" id="manualGrams" placeholder="0">
+        </div>
+      </div>
+      <div class="row2" style="display:flex; gap:10px;">
+        <div class="field">
+          <label>Protein (g)</label>
+          <input type="number" inputmode="decimal" id="manualProtein" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Carbs (g)</label>
+          <input type="number" inputmode="decimal" id="manualCarbs" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Fat (g)</label>
+          <input type="number" inputmode="decimal" id="manualFat" placeholder="0">
+        </div>
+      </div>
+      <div class="detail-edit-link" style="text-align:left; padding:0 0 10px;" onclick="toggleManualAdvanced()" id="manualAdvancedToggle">+ Add more nutrients (fiber, sugar, sodium...)</div>
+      <div id="manualAdvancedFields" style="display:none;"></div>
+      <div class="hint" style="margin-bottom:12px;">Anything left blank counts as 0. Use this to log something without needing a photo or AI lookup — handy if the AI analyzer is rate-limited or you already know the numbers off a label.</div>
+      <button class="btn block" onclick="saveManualFood()">Add to diary</button>
     </div>
 
     <div id="analysisArea" style="margin-top:14px;"></div>
@@ -1167,8 +1203,11 @@ function setAddMode(mode){
   addMode = mode;
   document.getElementById('segPhoto').classList.toggle('active', mode==='photo');
   document.getElementById('segText').classList.toggle('active', mode==='text');
+  document.getElementById('segManual').classList.toggle('active', mode==='manual');
   document.getElementById('addPhotoPane').style.display = mode==='photo' ? 'block':'none';
   document.getElementById('addTextPane').style.display = mode==='text' ? 'block':'none';
+  document.getElementById('addManualPane').style.display = mode==='manual' ? 'block':'none';
+  document.getElementById('analysisArea').innerHTML = '';
 }
 
 function loadPhotoFile(file){
@@ -1378,6 +1417,78 @@ async function confirmAddAll(photoTag){
   showToast('Added to diary');
 }
 
+/* ---------- Manual entry (bypasses AI — also the fallback when the
+   analyzer is rate-limited) ---------- */
+const MANUAL_PRIMARY_IDS = ['calories','protein','carbs','fat'];
+function toggleManualAdvanced(){
+  const box = document.getElementById('manualAdvancedFields');
+  const toggle = document.getElementById('manualAdvancedToggle');
+  const showing = box.style.display !== 'none';
+  if(showing){
+    box.style.display = 'none';
+    toggle.textContent = '+ Add more nutrients (fiber, sugar, sodium...)';
+    return;
+  }
+  if(!box.dataset.built){
+    const extra = NUTRIENTS.filter(n=>!MANUAL_PRIMARY_IDS.includes(n.id));
+    box.innerHTML = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">` +
+      extra.map(n=>`<div class="field" style="margin-bottom:0;">
+        <label>${n.name} (${n.unit})</label>
+        <input type="number" inputmode="decimal" id="manual_${n.id}" placeholder="0">
+      </div>`).join('') + `</div>`;
+    box.dataset.built = '1';
+  }
+  box.style.display = 'block';
+  toggle.textContent = '− Hide extra nutrients';
+}
+async function saveManualFood(){
+  const name = document.getElementById('manualName').value.trim() || 'Manual entry';
+  const nutrients = {};
+  NUTRIENTS.forEach(n=>{
+    const el = document.getElementById(n.id==='calories'?'manualCalories':n.id==='protein'?'manualProtein':n.id==='carbs'?'manualCarbs':n.id==='fat'?'manualFat':'manual_'+n.id);
+    const v = el ? Number(el.value) : 0;
+    if(v) nutrients[n.id] = v;
+  });
+  if(Object.keys(nutrients).length===0){
+    showToast('Enter at least one value');
+    return;
+  }
+  const grams = Number(document.getElementById('manualGrams').value) || null;
+  const day = await loadDay(currentDate);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name, grams, time, photo:null, nutrients});
+  await saveDay(currentDate);
+  closeModal('addModal');
+  await renderAll();
+  showToast('Added to diary');
+}
+
+/* ---------- Manual quick-add for a single nutrient, from its detail view
+   (mirrors the water quick-add pattern, generalized to any nutrient) ---------- */
+async function promptManualNutrient(id){
+  const n = NUTRIENTS.find(x=>x.id===id);
+  if(!n) return;
+  const val = prompt(`Add how much ${n.name} (${n.unit})?`, '');
+  if(val===null) return;
+  const amount = Number(val);
+  if(!amount){ showToast('Enter a valid amount'); return; }
+  const day = await loadDay(currentDate);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  const entryId = 'manual-'+id;
+  let entry = day.foods.find(f=>f.id===entryId);
+  if(entry){
+    entry.nutrients[id] = (entry.nutrients[id]||0) + amount;
+    entry.time = time;
+  } else {
+    entry = {id:entryId, name:`${n.name} (manual)`, grams:null, time, photo:null, nutrients:{[id]:amount}};
+    day.foods.push(entry);
+  }
+  await saveDay(currentDate);
+  closeModal('detailModal');
+  await renderAll();
+  showToast(`+${amount} ${n.unit} ${n.name}`);
+}
+
 async function deleteFood(id){
   const day = await loadDay(currentDate);
   day.foods = day.foods.filter(f=>f.id!==id);
@@ -1497,6 +1608,7 @@ async function openNutrientDetail(id){
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);margin-bottom:4px;">From today's foods</div>
       ${rows}
     </div>
+    <button class="detail-edit-link" onclick="promptManualNutrient('${id}')">+ Add amount manually</button>
     <button class="detail-edit-link" onclick="closeModal('detailModal'); openTargetModal('${id}')">Edit target</button>
   `;
   openModal('detailModal');
