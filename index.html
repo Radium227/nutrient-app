@@ -1096,6 +1096,7 @@ async function renderTrends(){
   const ctx2 = document.getElementById('calorieChart');
   if(calorieChartInst) calorieChartInst.destroy();
   calorieChartInst = new Chart(ctx2, {
+    type:'bar',
     data:{labels, datasets:[
       {type:'bar', label:'Intake', data:withinTarget, backgroundColor:'#FF8F5E', stack:'intake', order:2},
       {type:'bar', label:'Over target', data:overTarget, backgroundColor:'#E8544B', stack:'intake', order:2},
