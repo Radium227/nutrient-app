@@ -846,6 +846,14 @@ async function listDayKeys(){
 async function loadDay(dstr){
   if(dayCache[dstr]) return dayCache[dstr];
   const d = await storeGet('day:'+dstr) || {foods:[], exercises:[], weight:null};
+  // Migrate from the old single-value-per-day model to multiple timestamped
+  // entries per day (people log weight/exercise more than once a day).
+  if(typeof d.weight === 'number' && !d.weights){
+    d.weights = [{id:'w'+Date.now(), value:d.weight, time:''}];
+  }
+  delete d.weight;
+  d.weights = d.weights||[];
+  d.exercises = d.exercises||[];
   dayCache[dstr] = d;
   stripLegacyPhotos(dstr, d);
   return d;
@@ -1081,16 +1089,21 @@ function renderDiary(day){
 
   const exercises = day.exercises||[];
   document.getElementById('exerciseList').innerHTML = exercises.length
-    ? exercises.map(e=>`<div class="entry">
+    ? exercises.slice().reverse().map(e=>`<div class="entry">
         <div class="thumb">🏃</div>
-        <div class="info"><div class="name">${escapeHtml(e.name)}</div><div class="meta">${e.minutes||'—'} min</div></div>
+        <div class="info"><div class="name">${escapeHtml(e.name)}</div><div class="meta">${e.minutes?e.minutes+' min · ':''}${e.time||''}</div></div>
         <div class="kcal">-${e.calories} kcal</div>
         <button class="del" onclick="deleteExercise('${e.id}')">✕</button>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">No exercise logged.</div>`;
 
-  document.getElementById('weightToday').innerHTML = day.weight
-    ? `<div class="entry"><div class="thumb">⚖️</div><div class="info"><div class="name">${day.weight} kg</div></div></div>`
+  const weights = day.weights||[];
+  document.getElementById('weightToday').innerHTML = weights.length
+    ? weights.slice().reverse().map(w=>`<div class="entry">
+        <div class="thumb">⚖️</div>
+        <div class="info"><div class="name">${w.value} kg</div><div class="meta">${w.time||''}</div></div>
+        <button class="del" onclick="deleteWeight('${w.id}')">✕</button>
+      </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">No weight logged for this day.</div>`;
 }
 
@@ -1153,7 +1166,10 @@ async function renderTrends(){
     days.push(todayStr(d));
   }
   const dayDatas = await Promise.all(days.map(loadDay));
-  const weights = dayDatas.map(d=>(typeof d.weight==='number' ? d.weight : null));
+  const weights = dayDatas.map(d=>{
+    const list = d.weights||[];
+    return list.length ? list[list.length-1].value : null;
+  });
   const intakes = dayDatas.map(d=>computeTotals(d).calories);
   const burns = dayDatas.map(d=>computeBurned(d));
 
@@ -1611,8 +1627,9 @@ async function saveExercise(){
   const calories = document.getElementById('exCalories').value;
   if(!name || !calories) return;
   const day = await loadDay(currentDate);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   day.exercises = day.exercises||[];
-  day.exercises.push({id:'e'+Date.now(), name, minutes, calories});
+  day.exercises.push({id:'e'+Date.now(), name, minutes, calories, time});
   closeModal('exerciseModal');
   await renderAll();
   saveDayBackground(currentDate);
@@ -1631,10 +1648,18 @@ async function saveWeight(){
   const w = Number(document.getElementById('weightInput').value);
   if(!w) return;
   const day = await loadDay(currentDate);
-  day.weight = w;
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  day.weights = day.weights||[];
+  day.weights.push({id:'w'+Date.now(), value:w, time});
   closeModal('weightModal');
   await renderAll();
   showToast('Weight logged');
+  saveDayBackground(currentDate);
+}
+async function deleteWeight(id){
+  const day = await loadDay(currentDate);
+  day.weights = (day.weights||[]).filter(w=>w.id!==id);
+  await renderAll();
   saveDayBackground(currentDate);
 }
 
