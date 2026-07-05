@@ -216,6 +216,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 /* ---------- Trends ---------- */
 .chart-card canvas{width:100% !important;}
+.chart-wrap{position:relative; height:220px;}
+.chart-wrap canvas{width:100% !important; height:100% !important;}
+.chart-empty{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#6D897E; font-size:13px; text-align:center; padding:0 20px;}
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
 .stat-box{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
 .stat-box .l{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
@@ -395,11 +398,17 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="section-title">Trends</div>
     <div class="card chart-card">
       <h2>Weight</h2>
-      <canvas id="weightChart" height="160"></canvas>
+      <div class="chart-wrap">
+        <canvas id="weightChart"></canvas>
+        <div class="chart-empty" id="weightChartEmpty" style="display:none;">No weight logged yet — tap "+ Log weight" on the Dashboard to start tracking.</div>
+      </div>
     </div>
     <div class="card chart-card">
       <h2>Calories (last 14 days)</h2>
-      <canvas id="calorieChart" height="160"></canvas>
+      <div class="chart-wrap">
+        <canvas id="calorieChart"></canvas>
+        <div class="chart-empty" id="calorieChartEmpty" style="display:none;">No meals logged in the last 14 days yet.</div>
+      </div>
       <div class="stat-grid">
         <div class="stat-box"><div class="l">Avg intake</div><div class="v mono" id="avgIntake">—</div></div>
         <div class="stat-box"><div class="l">Avg burned</div><div class="v mono" id="avgBurn">—</div></div>
@@ -1061,19 +1070,44 @@ async function renderTrends(){
     days.push(todayStr(d));
   }
   const dayDatas = await Promise.all(days.map(loadDay));
-  const weights = dayDatas.map(d=>d.weight);
+  const weights = dayDatas.map(d=>(typeof d.weight==='number' ? d.weight : null));
   const intakes = dayDatas.map(d=>computeTotals(d).calories);
   const burns = dayDatas.map(d=>computeBurned(d));
 
+  const fullDates = days.map(d=>new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'}));
   const labels = days.map(d=>new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+
+  const hasWeight = weights.some(w=>w!==null);
+  document.getElementById('weightChartEmpty').style.display = hasWeight ? 'none' : 'flex';
 
   const ctx1 = document.getElementById('weightChart');
   if(weightChartInst) weightChartInst.destroy();
   weightChartInst = new Chart(ctx1, {
     type:'line',
-    data:{labels, datasets:[{data:weights, borderColor:'#5FB2E8', backgroundColor:'rgba(95,178,232,0.15)', fill:true, tension:0.35, spanGaps:true, pointRadius:2}]},
-    options:{plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{color:'#2C4941'}}, y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}}}
+    data:{labels, datasets:[{
+      data:weights, borderColor:'#5FB2E8', backgroundColor:'rgba(95,178,232,0.15)',
+      fill:true, tension:0.35, spanGaps:true,
+      pointRadius:weights.map(w=>w!==null?4:0),
+      pointHoverRadius:6, pointBackgroundColor:'#5FB2E8', pointBorderColor:'#EAF3EF', pointBorderWidth:1.5,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          title: (items)=> fullDates[items[0].dataIndex],
+          label: (item)=> item.parsed.y!==null ? `${item.parsed.y} kg` : 'No entry',
+        }}
+      },
+      scales:{
+        x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{color:'#2C4941'}},
+        y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}
+      }
+    }
   });
+
+  const hasCalorieData = intakes.some(v=>v>0) || burns.some(v=>v>0);
+  document.getElementById('calorieChartEmpty').style.display = hasCalorieData ? 'none' : 'flex';
 
   const ctx2 = document.getElementById('calorieChart');
   if(calorieChartInst) calorieChartInst.destroy();
@@ -1083,7 +1117,14 @@ async function renderTrends(){
       {label:'Intake', data:intakes, backgroundColor:'#FF8F5E'},
       {label:'Burned', data:burns, backgroundColor:'#6BCB9E'},
     ]},
-    options:{plugins:{legend:{labels:{color:'#EAF3EF'}}}, scales:{x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}}, y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}}}
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#EAF3EF'}},
+        tooltip:{callbacks:{title:(items)=>fullDates[items[0].dataIndex]}}
+      },
+      scales:{x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}}, y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}}
+    }
   });
 
   const validIntakes = intakes.filter(v=>v>0);
