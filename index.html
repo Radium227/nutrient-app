@@ -6,7 +6,7 @@
 <title>Nutrient — AI Food Diary</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="./chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -1076,6 +1076,22 @@ async function renderTrends(){
 
   const fullDates = days.map(d=>new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'}));
   const labels = days.map(d=>new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+
+  if(typeof Chart === 'undefined'){
+    // Chart.js failed to load — most commonly a browser extension (ad
+    // blocker / privacy tool) blocking the CDN script. Show something
+    // useful instead of leaving a silently blank box.
+    const msg = 'Charts couldn\'t load — this usually means a browser extension (ad blocker or privacy tool) is blocking the chart library. Try disabling it for this site and reloading.';
+    document.getElementById('weightChartEmpty').textContent = msg;
+    document.getElementById('weightChartEmpty').style.display = 'flex';
+    document.getElementById('calorieChartEmpty').textContent = msg;
+    document.getElementById('calorieChartEmpty').style.display = 'flex';
+    const validIntakes = intakes.filter(v=>v>0);
+    const validBurns = burns.filter(v=>v>0);
+    document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '—';
+    document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '—';
+    return;
+  }
 
   const hasWeight = weights.some(w=>w!==null);
   document.getElementById('weightChartEmpty').style.display = hasWeight ? 'none' : 'flex';
