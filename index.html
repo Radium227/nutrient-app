@@ -202,6 +202,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .entry .info .meta{font-size:12px; color:var(--text-faint); margin-top:2px;}
 .entry .kcal{font-family:var(--font-mono); font-size:14px; color:var(--text-dim); flex-shrink:0;}
 .entry .del{background:none;border:none;color:var(--text-faint);font-size:18px;padding:4px 2px 4px 8px; flex-shrink:0;}
+.entry .star{background:none;border:none;color:var(--text-faint);font-size:17px;padding:4px 2px; flex-shrink:0;}
+.entry .star.active{color:#FFC24B;}
 .empty-state{text-align:center; padding:40px 16px; color:var(--text-faint);}
 .empty-state .icon{font-size:32px; margin-bottom:10px;}
 .empty-state .cta{margin-top:14px;}
@@ -517,6 +519,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <button id="segPhoto" class="active" onclick="setAddMode('photo')">Photo</button>
       <button id="segText" onclick="setAddMode('text')">Describe</button>
       <button id="segManual" onclick="setAddMode('manual')">Manual</button>
+      <button id="segSaved" onclick="setAddMode('saved')">Saved</button>
     </div>
 
     <div id="addPhotoPane">
@@ -575,7 +578,35 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <button class="btn block" onclick="saveManualFood()">Add to diary</button>
     </div>
 
+    <div id="addSavedPane" style="display:none;">
+      <div id="savedMealsList"></div>
+    </div>
+
     <div id="analysisArea" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<!-- SAVE MEAL MODAL (star a logged meal into a reusable template) -->
+<div class="modal-backdrop" id="saveMealModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3>Save meal</h3><button onclick="closeModal('saveMealModal')">✕</button></div>
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="saveMealName">
+    </div>
+    <div class="field">
+      <label>Photo (optional)</label>
+      <label class="photo-drop" id="saveMealPhotoLabel" style="min-height:100px;">
+        <span id="saveMealPhotoText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Add a photo</span></span>
+        <input type="file" accept="image/*" id="saveMealPhotoInput" onchange="handleSaveMealPhotoChosen(event)">
+      </label>
+    </div>
+    <div class="field">
+      <label>Description / notes (optional)</label>
+      <textarea id="saveMealNote" placeholder="e.g. Homemade, 1 tbsp olive oil, no cheese"></textarea>
+    </div>
+    <button class="btn block" onclick="confirmSaveMeal()">★ Save to Saved Meals</button>
   </div>
 </div>
 
@@ -795,6 +826,7 @@ let currentDate = todayStr();
 let dayCache = {};      // dateStr -> {foods:[], exercises:[], weight:null}
 let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0};
 let targetOverrides = {};
+let savedMeals = []; // starred meals, reusable as one-tap templates
 let addMode = 'photo';
 let pendingPhotoBase64 = null;
 let pendingPhotoMime = null;
@@ -903,6 +935,7 @@ async function loadSettings(){
   if(p) profile = Object.assign(profile, p);
   const t = await storeGet('targetOverrides');
   if(t) targetOverrides = t;
+  savedMeals = await storeGet('savedMeals') || [];
   // One-time migration: earlier versions auto-saved calories/protein/fat/carbs
   // overrides from a generic formula. Those stale numbers would otherwise sit
   // in storage and silently mask the new personalized plan defaults below.
@@ -1041,6 +1074,11 @@ function renderDashboard(day){
 }
 
 function foodEntryHTML(f){
+  const canSave = !f.isWater && !f.id.startsWith('manual-');
+  const saved = canSave && savedMealFor(f.id);
+  const starBtn = canSave
+    ? `<button class="star ${saved?'active':''}" onclick="event.stopPropagation(); ${saved?`unsaveMeal('${f.id}')`:`openSaveMealModal('${f.id}')`}">${saved?'★':'☆'}</button>`
+    : '';
   return `<div class="entry">
     <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
     <div class="info">
@@ -1048,6 +1086,7 @@ function foodEntryHTML(f){
       <div class="meta">${f.isWater ? (f.grams||0)+' ml · ' : (f.grams?f.grams+'g · ':'')}${f.time||''}</div>
     </div>
     <div class="kcal">${f.isWater ? '0 kcal' : Math.round(f.nutrients?.calories||0)+' kcal'}</div>
+    ${starBtn}
     <button class="del" onclick="deleteFood('${f.id}')">✕</button>
   </div>`;
 }
@@ -1204,10 +1243,13 @@ function setAddMode(mode){
   document.getElementById('segPhoto').classList.toggle('active', mode==='photo');
   document.getElementById('segText').classList.toggle('active', mode==='text');
   document.getElementById('segManual').classList.toggle('active', mode==='manual');
+  document.getElementById('segSaved').classList.toggle('active', mode==='saved');
   document.getElementById('addPhotoPane').style.display = mode==='photo' ? 'block':'none';
   document.getElementById('addTextPane').style.display = mode==='text' ? 'block':'none';
   document.getElementById('addManualPane').style.display = mode==='manual' ? 'block':'none';
+  document.getElementById('addSavedPane').style.display = mode==='saved' ? 'block':'none';
   document.getElementById('analysisArea').innerHTML = '';
+  if(mode==='saved') renderSavedMealsPane();
 }
 
 function loadPhotoFile(file){
@@ -1487,6 +1529,112 @@ async function promptManualNutrient(id){
   closeModal('detailModal');
   await renderAll();
   showToast(`+${amount} ${n.unit} ${n.name}`);
+}
+
+/* ---------- Saved meals (star a logged meal, reuse it later) ---------- */
+function savedMealFor(foodId){
+  return savedMeals.find(m=>m.savedFrom===foodId);
+}
+let pendingSaveMealFoodId = null;
+let pendingSaveMealPhoto = null;
+async function openSaveMealModal(foodId){
+  const day = await loadDay(currentDate);
+  const food = (day.foods||[]).find(f=>f.id===foodId);
+  if(!food) return;
+  pendingSaveMealFoodId = foodId;
+  pendingSaveMealPhoto = food.photo || null;
+  document.getElementById('saveMealName').value = food.name;
+  document.getElementById('saveMealNote').value = '';
+  const label = document.getElementById('saveMealPhotoLabel');
+  label.querySelectorAll('img').forEach(i=>i.remove());
+  const txt = document.getElementById('saveMealPhotoText');
+  if(pendingSaveMealPhoto){
+    const img = document.createElement('img');
+    img.src = pendingSaveMealPhoto;
+    label.insertBefore(img, label.firstChild);
+    txt.style.display = 'none';
+  } else {
+    txt.style.display = '';
+  }
+  openModal('saveMealModal');
+}
+function handleSaveMealPhotoChosen(evt){
+  const file = evt.target.files[0];
+  if(!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingSaveMealPhoto = reader.result;
+    const label = document.getElementById('saveMealPhotoLabel');
+    label.querySelectorAll('img').forEach(i=>i.remove());
+    const img = document.createElement('img');
+    img.src = pendingSaveMealPhoto;
+    label.insertBefore(img, label.firstChild);
+    document.getElementById('saveMealPhotoText').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+async function confirmSaveMeal(){
+  const day = await loadDay(currentDate);
+  const food = (day.foods||[]).find(f=>f.id===pendingSaveMealFoodId);
+  if(!food) return;
+  const name = document.getElementById('saveMealName').value.trim() || food.name;
+  const note = document.getElementById('saveMealNote').value.trim();
+  savedMeals.push({
+    id: 'sm'+Date.now(),
+    savedFrom: food.id,
+    name,
+    note: note || null,
+    photo: pendingSaveMealPhoto || null,
+    grams: food.grams || null,
+    nutrients: {...(food.nutrients||{})},
+    createdAt: Date.now()
+  });
+  await storeSet('savedMeals', savedMeals);
+  closeModal('saveMealModal');
+  await renderAll();
+  showToast('Meal saved ★');
+}
+async function unsaveMeal(foodId){
+  savedMeals = savedMeals.filter(m=>m.savedFrom!==foodId);
+  await storeSet('savedMeals', savedMeals);
+  await renderAll();
+  showToast('Removed from saved meals');
+}
+function renderSavedMealsPane(){
+  const el = document.getElementById('savedMealsList');
+  if(!el) return;
+  if(!savedMeals.length){
+    el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No saved meals yet. Tap the ☆ on any logged meal to save it here.</div>`;
+    return;
+  }
+  el.innerHTML = savedMeals.slice().reverse().map(m=>`
+    <div class="entry">
+      <div class="thumb">${m.photo?`<img src="${m.photo}">`:'🍴'}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="meta">${Math.round(m.nutrients?.calories||0)} kcal${m.note?' · '+escapeHtml(m.note):''}</div>
+      </div>
+      <button class="btn" style="padding:8px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="logSavedMeal('${m.id}')">+ Log</button>
+      <button class="del" onclick="deleteSavedMealById('${m.id}')">✕</button>
+    </div>
+  `).join('');
+}
+async function logSavedMeal(id){
+  const meal = savedMeals.find(m=>m.id===id);
+  if(!meal) return;
+  const day = await loadDay(currentDate);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name:meal.name, grams:meal.grams, time, photo:meal.photo||null, nutrients:{...meal.nutrients}});
+  await saveDay(currentDate);
+  closeModal('addModal');
+  await renderAll();
+  showToast('Added to diary');
+}
+async function deleteSavedMealById(id){
+  savedMeals = savedMeals.filter(m=>m.id!==id);
+  await storeSet('savedMeals', savedMeals);
+  renderSavedMealsPane();
+  showToast('Removed from saved meals');
 }
 
 async function deleteFood(id){
