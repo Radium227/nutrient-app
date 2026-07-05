@@ -768,6 +768,30 @@ let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0
 let targetOverrides = {};
 let addMode = 'photo';
 let pendingPhotoBase64 = null;
+let pendingPhotoThumb = null; // small compressed thumbnail actually persisted to Firestore
+
+// Firestore caps a single field at ~1MB, and full-resolution phone photos
+// easily blow past that once a few are logged in one day (this previously
+// broke cloud sync entirely for that day). We only ever persist this small
+// compressed thumbnail — the full-resolution photo is used for the Gemini
+// analysis call and then discarded, never saved to storage.
+function makeThumbnail(base64, mime, maxDim=200, quality=0.6){
+  return new Promise((resolve)=>{
+    if(!base64){ resolve(null); return; }
+    const img = new Image();
+    img.onload = () => {
+      let {width, height} = img;
+      if(width > height){ if(width > maxDim){ height = Math.round(height*maxDim/width); width = maxDim; } }
+      else { if(height > maxDim){ width = Math.round(width*maxDim/height); height = maxDim; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(null);
+    img.src = `data:${mime||'image/jpeg'};base64,${base64}`;
+  });
+}
 let pendingPhotoMime = null;
 let pendingResults = []; // parsed food items awaiting confirm
 let editingTargetId = null;
@@ -847,7 +871,25 @@ async function loadDay(dstr){
   if(dayCache[dstr]) return dayCache[dstr];
   const d = await storeGet('day:'+dstr) || {foods:[], exercises:[], weight:null};
   dayCache[dstr] = d;
+  shrinkOversizedPhotos(dstr, d);
   return d;
+}
+// One-time cleanup for days saved before photos were compressed: any
+// leftover full-resolution photo (which is what originally blew past
+// Firestore's 1MB field limit and broke sync for that day) gets shrunk
+// down and quietly re-saved in the background.
+async function shrinkOversizedPhotos(dstr, day){
+  const THRESHOLD = 60000; // ~45KB of base64 — real thumbnails land well under this
+  const oversized = (day.foods||[]).filter(f=>f.photo && f.photo.length > THRESHOLD);
+  if(oversized.length===0) return;
+  for(const f of oversized){
+    const match = /^data:([^;]+);base64,(.*)$/.exec(f.photo);
+    const mime = match ? match[1] : 'image/jpeg';
+    const raw = match ? match[2] : f.photo;
+    const shrunk = await makeThumbnail(raw, mime);
+    if(shrunk) f.photo = shrunk;
+  }
+  saveDayBackground(dstr);
 }
 async function saveDay(dstr){
   await storeSet('day:'+dstr, dayCache[dstr]);
@@ -1226,7 +1268,7 @@ function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 const PHOTO_DROP_PLACEHOLDER = '<span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span>';
 function openAddModal(){
-  pendingPhotoBase64=null; pendingPhotoMime=null; pendingResults=[];
+  pendingPhotoBase64=null; pendingPhotoThumb=null; pendingPhotoMime=null; pendingResults=[];
   document.getElementById('analysisArea').innerHTML='';
   document.getElementById('textDescInput').value='';
   document.getElementById('photoNotesInput').value='';
@@ -1414,7 +1456,8 @@ async function analyzePhoto(mimeType){
       {type:'text', text: prompt},
       {type:'image', source:{type:'base64', media_type: mimeType || pendingPhotoMime, data: pendingPhotoBase64}}
     ]);
-    showResults(parsed.items||[], pendingPhotoBase64, mimeType || pendingPhotoMime);
+    pendingPhotoThumb = await makeThumbnail(pendingPhotoBase64, mimeType || pendingPhotoMime);
+    showResults(parsed.items||[], !!pendingPhotoThumb);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
   }
@@ -1434,14 +1477,13 @@ async function analyzeText(){
   }
 }
 
-function showResults(items, photoBase64, mimeType){
+function showResults(items, hasPhoto){
   pendingResults = items.map((it,i)=>({...it, _id:'r'+Date.now()+i}));
   const area = document.getElementById('analysisArea');
   if(pendingResults.length===0){
     area.innerHTML = `<div class="error-box">Couldn't identify any food. Try a clearer photo or description.</div>`;
     return;
   }
-  const photoTag = photoBase64 ? `data:${mimeType};base64,${photoBase64}` : null;
   area.innerHTML = pendingResults.map(it=>`
     <div class="result-card" id="card-${it._id}">
       <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span></div>
@@ -1456,7 +1498,7 @@ function showResults(items, photoBase64, mimeType){
       </div>
       <button class="btn ghost small" style="margin-top:8px;" onclick="savePreset('${it._id}')">☆ Save for quick re-add</button>
     </div>
-  `).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  `).join('') + `<button class="btn block" onclick="confirmAddAll(${hasPhoto?'true':'false'})">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
 
 /* =========================================================
@@ -1532,16 +1574,17 @@ async function deletePreset(id){
   savePresetsBackground();
 }
 
-async function confirmAddAll(photoTag){
+async function confirmAddAll(hasPhoto){
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  const photo = hasPhoto ? pendingPhotoThumb : null;
   pendingResults.forEach(it=>{
     day.foods.push({
       id: 'f'+Date.now()+Math.random().toString(36).slice(2,6),
       name: it.name,
       grams: it.gramsEstimate,
       time,
-      photo: photoTag||null,
+      photo,
       nutrients: it.nutrients||{}
     });
   });
