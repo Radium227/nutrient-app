@@ -768,30 +768,6 @@ let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0
 let targetOverrides = {};
 let addMode = 'photo';
 let pendingPhotoBase64 = null;
-let pendingPhotoThumb = null; // small compressed thumbnail actually persisted to Firestore
-
-// Firestore caps a single field at ~1MB, and full-resolution phone photos
-// easily blow past that once a few are logged in one day (this previously
-// broke cloud sync entirely for that day). We only ever persist this small
-// compressed thumbnail — the full-resolution photo is used for the Gemini
-// analysis call and then discarded, never saved to storage.
-function makeThumbnail(base64, mime, maxDim=200, quality=0.6){
-  return new Promise((resolve)=>{
-    if(!base64){ resolve(null); return; }
-    const img = new Image();
-    img.onload = () => {
-      let {width, height} = img;
-      if(width > height){ if(width > maxDim){ height = Math.round(height*maxDim/width); width = maxDim; } }
-      else { if(height > maxDim){ width = Math.round(width*maxDim/height); height = maxDim; } }
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => resolve(null);
-    img.src = `data:${mime||'image/jpeg'};base64,${base64}`;
-  });
-}
 let pendingPhotoMime = null;
 let pendingResults = []; // parsed food items awaiting confirm
 let editingTargetId = null;
@@ -871,24 +847,19 @@ async function loadDay(dstr){
   if(dayCache[dstr]) return dayCache[dstr];
   const d = await storeGet('day:'+dstr) || {foods:[], exercises:[], weight:null};
   dayCache[dstr] = d;
-  shrinkOversizedPhotos(dstr, d);
+  stripLegacyPhotos(dstr, d);
   return d;
 }
-// One-time cleanup for days saved before photos were compressed: any
-// leftover full-resolution photo (which is what originally blew past
-// Firestore's 1MB field limit and broke sync for that day) gets shrunk
-// down and quietly re-saved in the background.
-async function shrinkOversizedPhotos(dstr, day){
-  const THRESHOLD = 60000; // ~45KB of base64 — real thumbnails land well under this
-  const oversized = (day.foods||[]).filter(f=>f.photo && f.photo.length > THRESHOLD);
-  if(oversized.length===0) return;
-  for(const f of oversized){
-    const match = /^data:([^;]+);base64,(.*)$/.exec(f.photo);
-    const mime = match ? match[1] : 'image/jpeg';
-    const raw = match ? match[2] : f.photo;
-    const shrunk = await makeThumbnail(raw, mime);
-    if(shrunk) f.photo = shrunk;
-  }
+// One-time cleanup for days saved before photos were dropped entirely:
+// any leftover photo data (which is what originally blew past Firestore's
+// 1MB field limit and broke sync for that day) gets cleared and the day
+// quietly re-saved in the background. We no longer store photos at all —
+// the food name/icon is enough, and this keeps documents small and sync
+// reliable.
+async function stripLegacyPhotos(dstr, day){
+  const hadPhotos = (day.foods||[]).some(f=>f.photo);
+  if(!hadPhotos) return;
+  day.foods.forEach(f=>{ if(f.photo) f.photo = null; });
   saveDayBackground(dstr);
 }
 async function saveDay(dstr){
@@ -1268,7 +1239,7 @@ function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 const PHOTO_DROP_PLACEHOLDER = '<span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span>';
 function openAddModal(){
-  pendingPhotoBase64=null; pendingPhotoThumb=null; pendingPhotoMime=null; pendingResults=[];
+  pendingPhotoBase64=null; pendingPhotoMime=null; pendingResults=[];
   document.getElementById('analysisArea').innerHTML='';
   document.getElementById('textDescInput').value='';
   document.getElementById('photoNotesInput').value='';
@@ -1456,8 +1427,7 @@ async function analyzePhoto(mimeType){
       {type:'text', text: prompt},
       {type:'image', source:{type:'base64', media_type: mimeType || pendingPhotoMime, data: pendingPhotoBase64}}
     ]);
-    pendingPhotoThumb = await makeThumbnail(pendingPhotoBase64, mimeType || pendingPhotoMime);
-    showResults(parsed.items||[], !!pendingPhotoThumb);
+    showResults(parsed.items||[]);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
   }
@@ -1477,7 +1447,7 @@ async function analyzeText(){
   }
 }
 
-function showResults(items, hasPhoto){
+function showResults(items){
   pendingResults = items.map((it,i)=>({...it, _id:'r'+Date.now()+i}));
   const area = document.getElementById('analysisArea');
   if(pendingResults.length===0){
@@ -1498,7 +1468,7 @@ function showResults(items, hasPhoto){
       </div>
       <button class="btn ghost small" style="margin-top:8px;" onclick="savePreset('${it._id}')">☆ Save for quick re-add</button>
     </div>
-  `).join('') + `<button class="btn block" onclick="confirmAddAll(${hasPhoto?'true':'false'})">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  `).join('') + `<button class="btn block" onclick="confirmAddAll()">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
 
 /* =========================================================
@@ -1574,17 +1544,16 @@ async function deletePreset(id){
   savePresetsBackground();
 }
 
-async function confirmAddAll(hasPhoto){
+async function confirmAddAll(){
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  const photo = hasPhoto ? pendingPhotoThumb : null;
   pendingResults.forEach(it=>{
     day.foods.push({
       id: 'f'+Date.now()+Math.random().toString(36).slice(2,6),
       name: it.name,
       grams: it.gramsEstimate,
       time,
-      photo,
+      photo: null,
       nutrients: it.nutrients||{}
     });
   });
