@@ -291,6 +291,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .error-box{background:var(--min-dim); color:#FFD9D0; border-radius:var(--radius-md); padding:12px 14px; font-size:13px; margin-bottom:10px; border:1px solid rgba(240,120,95,0.4);}
 
 .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--surface-3); color:var(--text); padding:10px 18px; border-radius:999px; font-size:13px; z-index:60; opacity:0; transition:opacity .25s, transform .25s; border:1px solid var(--line); pointer-events:none;}
+.sync-indicator{position:fixed; top:14px; right:14px; display:none; align-items:center; gap:7px; background:var(--surface-2); color:var(--text-dim); padding:6px 12px; border-radius:999px; font-size:11.5px; z-index:55; border:1px solid var(--line); pointer-events:none;}
 .toast.show{opacity:1; transform:translate(-50%,-6px);}
 
 .tag{display:inline-block; font-size:10.5px; padding:3px 8px; border-radius:999px; background:var(--surface-3); color:var(--text-dim); margin-left:8px;}
@@ -663,6 +664,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="sync-indicator" id="syncIndicator"><span class="spinner" style="width:11px;height:11px;border-width:2px;"></span>Saving…</div>
 
 <script>
 /* =========================================================
@@ -929,6 +931,36 @@ async function saveDay(dstr){
   await storeSet('day:'+dstr, dayCache[dstr]);
 }
 
+// ---- Optimistic writes ----
+// The UI updates and re-renders immediately using the local in-memory copy;
+// the actual Firestore write happens in the background. Firestore's own
+// offline persistence (enabled above with synchronizeTabs) means the write
+// is queued durably even if it's slow or the tab closes right after — it
+// syncs once a connection is available, so other devices/browsers still end
+// up with the same data. This indicator is just a visual cue that a write
+// is in flight, not a guarantee the person needs to wait for.
+let pendingSaves = 0;
+function updateSyncIndicator(){
+  const el = document.getElementById('syncIndicator');
+  if(el) el.style.display = pendingSaves > 0 ? 'flex' : 'none';
+}
+function backgroundSaveDay(dstr){
+  pendingSaves++;
+  updateSyncIndicator();
+  saveDay(dstr).finally(()=>{
+    pendingSaves--;
+    updateSyncIndicator();
+  });
+}
+function backgroundStoreSet(key, val){
+  pendingSaves++;
+  updateSyncIndicator();
+  storeSet(key, val).finally(()=>{
+    pendingSaves--;
+    updateSyncIndicator();
+  });
+}
+
 const TARGETS_VERSION = 2; // bump whenever default NUTRIENTS targets change meaningfully
 async function loadSettings(){
   const p = await storeGet('profile');
@@ -1057,7 +1089,7 @@ function renderDashboard(day){
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
     const color = `var(--${n.cat})`;
-    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${barColor(pctCapped, color)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
+    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${categoryBarColor(pctCapped, color)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
@@ -1151,7 +1183,21 @@ function toggleCat(cat){
   document.getElementById('chev-'+cat).parentElement.classList.toggle('collapsed');
 }
 function round1(v){ return Math.round(v*10)/10; }
-function barColor(pct, baseColor){ return pct>=100 ? 'var(--complete)' : baseColor; }
+// Single-nutrient progress fills (rows, macros, water, detail gauges): a
+// traffic-light-style gradient from red (low) through orange/yellow to
+// green (100%+), so how close you are to target reads at a glance without
+// having to check the number.
+function barColor(pct, baseColor){
+  const p = Math.max(0, Math.min(100, pct));
+  if(p >= 100) return 'var(--complete)';
+  const hue = (p/100) * 120; // 0=red -> ~30=orange -> ~55=yellow -> 120=green
+  return `hsl(${hue}, 78%, 52%)`;
+}
+// The Nutrient Spectrum chart intentionally keeps its category colors (see
+// the legend underneath it — Macros/Vitamins/Minerals/etc.) rather than the
+// completion gradient, since the whole point of that chart is showing which
+// category each bar belongs to.
+function categoryBarColor(pct, baseColor){ return pct>=100 ? 'var(--complete)' : baseColor; }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 
 /* =========================================================
@@ -1254,20 +1300,53 @@ function setAddMode(mode){
 
 function loadPhotoFile(file){
   if(!file || !file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingPhotoBase64 = reader.result.split(',')[1];
-    pendingPhotoMime = file.type || 'image/jpeg';
-    const label = document.getElementById('photoDropLabel');
-    document.getElementById('photoDropText').style.display = 'none';
+  const label = document.getElementById('photoDropLabel');
+  const txt = document.getElementById('photoDropText');
+  label.querySelectorAll('img').forEach(i=>i.remove());
+  txt.style.display = '';
+  txt.innerHTML = '<span class="drop-main">Compressing…</span>';
+  compressImageFile(file, 900, 0.72).then(dataUrl => {
+    pendingPhotoBase64 = dataUrl.split(',')[1];
+    pendingPhotoMime = 'image/jpeg';
+    txt.style.display = 'none';
     label.querySelectorAll('img').forEach(i=>i.remove());
     const img = document.createElement('img');
-    img.src = reader.result;
+    img.src = dataUrl;
     label.insertBefore(img, label.firstChild);
     document.getElementById('analyzePhotoBtn').style.display = 'block';
     document.getElementById('analysisArea').innerHTML = '';
-  };
-  reader.readAsDataURL(file);
+  }).catch(()=>{
+    txt.style.display = '';
+    txt.innerHTML = '<span class="drop-main">Couldn\'t read that image — try another</span>';
+  });
+}
+// Resize + re-encode as JPEG before it ever touches the network or Firestore.
+// Phone photos are commonly 3-5MB; base64 inflates that ~33% further, and
+// every extra KB here means slower uploads to the analyzer and (if a photo
+// is ever persisted, e.g. on a saved meal) a heavier document to sync.
+function compressImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > maxDim || height > maxDim){
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 function handlePhotoChosen(evt){
   loadPhotoFile(evt.target.files[0]);
@@ -1449,14 +1528,14 @@ async function confirmAddAll(photoTag){
       name: it.name,
       grams: it.gramsEstimate,
       time,
-      photo: photoTag||null,
+      photo: null, // the source photo already did its job (nutrient extraction) — not worth persisting and bloating the day's document
       nutrients: it.nutrients||{}
     });
   });
-  await saveDay(currentDate);
   closeModal('addModal');
   await renderAll();
   showToast('Added to diary');
+  backgroundSaveDay(currentDate);
 }
 
 /* ---------- Manual entry (bypasses AI — also the fallback when the
@@ -1499,10 +1578,10 @@ async function saveManualFood(){
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name, grams, time, photo:null, nutrients});
-  await saveDay(currentDate);
   closeModal('addModal');
   await renderAll();
   showToast('Added to diary');
+  backgroundSaveDay(currentDate);
 }
 
 /* ---------- Manual quick-add for a single nutrient, from its detail view
@@ -1525,10 +1604,10 @@ async function promptManualNutrient(id){
     entry = {id:entryId, name:`${n.name} (manual)`, grams:null, time, photo:null, nutrients:{[id]:amount}};
     day.foods.push(entry);
   }
-  await saveDay(currentDate);
   closeModal('detailModal');
   await renderAll();
   showToast(`+${amount} ${n.unit} ${n.name}`);
+  backgroundSaveDay(currentDate);
 }
 
 /* ---------- Saved meals (star a logged meal, reuse it later) ---------- */
@@ -1561,17 +1640,21 @@ async function openSaveMealModal(foodId){
 function handleSaveMealPhotoChosen(evt){
   const file = evt.target.files[0];
   if(!file || !file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingSaveMealPhoto = reader.result;
-    const label = document.getElementById('saveMealPhotoLabel');
+  const label = document.getElementById('saveMealPhotoLabel');
+  const txt = document.getElementById('saveMealPhotoText');
+  label.querySelectorAll('img').forEach(i=>i.remove());
+  txt.style.display = '';
+  txt.innerHTML = '<span class="drop-main">Compressing…</span>';
+  compressImageFile(file, 500, 0.65).then(dataUrl => {
+    pendingSaveMealPhoto = dataUrl;
     label.querySelectorAll('img').forEach(i=>i.remove());
     const img = document.createElement('img');
-    img.src = pendingSaveMealPhoto;
+    img.src = dataUrl;
     label.insertBefore(img, label.firstChild);
-    document.getElementById('saveMealPhotoText').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+    txt.style.display = 'none';
+  }).catch(()=>{
+    txt.innerHTML = '<span class="drop-main">Couldn\'t read that image — try another</span>';
+  });
 }
 async function confirmSaveMeal(){
   const day = await loadDay(currentDate);
@@ -1589,16 +1672,16 @@ async function confirmSaveMeal(){
     nutrients: {...(food.nutrients||{})},
     createdAt: Date.now()
   });
-  await storeSet('savedMeals', savedMeals);
   closeModal('saveMealModal');
   await renderAll();
   showToast('Meal saved ★');
+  backgroundStoreSet('savedMeals', savedMeals);
 }
 async function unsaveMeal(foodId){
   savedMeals = savedMeals.filter(m=>m.savedFrom!==foodId);
-  await storeSet('savedMeals', savedMeals);
   await renderAll();
   showToast('Removed from saved meals');
+  backgroundStoreSet('savedMeals', savedMeals);
 }
 function renderSavedMealsPane(){
   const el = document.getElementById('savedMealsList');
@@ -1625,22 +1708,22 @@ async function logSavedMeal(id){
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name:meal.name, grams:meal.grams, time, photo:meal.photo||null, nutrients:{...meal.nutrients}});
-  await saveDay(currentDate);
   await renderAll();
   showToast(`Added ${meal.name}`);
+  backgroundSaveDay(currentDate);
 }
 async function deleteSavedMealById(id){
   savedMeals = savedMeals.filter(m=>m.id!==id);
-  await storeSet('savedMeals', savedMeals);
   renderSavedMealsPane();
   showToast('Removed from saved meals');
+  backgroundStoreSet('savedMeals', savedMeals);
 }
 
 async function deleteFood(id){
   const day = await loadDay(currentDate);
   day.foods = day.foods.filter(f=>f.id!==id);
-  await saveDay(currentDate);
   await renderAll();
+  backgroundSaveDay(currentDate);
 }
 
 /* ---------- Water quick-add ---------- */
@@ -1657,9 +1740,9 @@ async function quickAddWater(ml){
     entry = {id:WATER_ENTRY_ID, name:'Water', grams:ml, time, photo:null, isWater:true, nutrients:{water:ml}};
     day.foods.push(entry);
   }
-  await saveDay(currentDate);
   await renderAll();
   showToast(`+${ml>=1000?(ml/1000)+' L':ml+' ml'} water`);
+  backgroundSaveDay(currentDate);
 }
 function promptCustomWater(){
   const val = prompt('How much water (in ml)?', '250');
@@ -1707,16 +1790,16 @@ async function saveWeight(){
   day.weights = day.weights||[];
   day.weights.push({id:'w'+Date.now(), value:w, ts:Date.now()});
   delete day.weight; // drop legacy single-value field now that weights[] is the source of truth
-  await saveDay(currentDate);
   closeModal('weightModal');
   await renderAll();
   showToast('Weight logged');
+  backgroundSaveDay(currentDate);
 }
 async function deleteWeight(id){
   const day = await loadDay(currentDate);
   day.weights = (day.weights||[]).filter(w=>w.id!==id);
-  await saveDay(currentDate);
   await renderAll();
+  backgroundSaveDay(currentDate);
 }
 
 /* =========================================================
