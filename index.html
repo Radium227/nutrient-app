@@ -934,8 +934,19 @@ function latestWeight(day){
 function fmtTime(ts){
   return new Date(ts).toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'});
 }
+// Photos are never written to Firestore — they bloat every day document
+// (each is 100s of KB of base64) which is what was making saves and syncs
+// slow. We strip them right before the network write but leave dayCache
+// (in-memory) untouched, so the photo still shows instantly in this
+// session; it just won't be there after a reload.
+function stripPhotos(day){
+  if(!day || !Array.isArray(day.foods)) return day;
+  const hasPhoto = day.foods.some(f=>f.photo);
+  if(!hasPhoto) return day;
+  return {...day, foods: day.foods.map(f => f.photo ? {...f, photo:null} : f)};
+}
 async function saveDay(dstr){
-  await storeSet('day:'+dstr, dayCache[dstr]);
+  return storeSet('day:'+dstr, stripPhotos(dayCache[dstr]));
 }
 
 const TARGETS_VERSION = 2; // bump whenever default NUTRIENTS targets change meaningfully
@@ -1029,7 +1040,7 @@ function renderDashboard(day){
   document.getElementById('calRemainingLabel').textContent = remaining<0 ? 'kcal over' : 'kcal remaining';
   const pct = calTarget>0 ? Math.min(100, (consumed/calTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
-  document.getElementById('calBarFill').style.background = pct>=100 ? 'var(--complete)' : 'linear-gradient(90deg, var(--macro), #FFC08A)';
+  document.getElementById('calBarFill').style.background = progressColor(pct);
 
   const macros = [
     {id:'protein', label:'Protein', color:'var(--macro)'},
@@ -1066,8 +1077,7 @@ function renderDashboard(day){
     const pctCapped = Math.min(100, (v/t)*100);
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
-    const color = `var(--${n.cat})`;
-    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${barColor(pctCapped, color)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
+    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
@@ -1165,7 +1175,29 @@ function toggleCat(cat){
   document.getElementById('chev-'+cat).parentElement.classList.toggle('collapsed');
 }
 function round1(v){ return Math.round(v*10)/10; }
-function barColor(pct, baseColor){ return pct>=100 ? 'var(--complete)' : baseColor; }
+// Progress color: smooth red -> orange -> yellow -> green ramp based on % of
+// target reached. Replaces fixed per-category colors (e.g. amino acids no
+// longer show as flat purple) so every bar communicates progress at a glance.
+function progressColor(pct){
+  pct = Math.max(0, Math.min(100, pct));
+  const stops = [
+    {p:0,   c:[239,68,68]},   // red
+    {p:50,  c:[249,115,22]},  // orange
+    {p:75,  c:[234,179,8]},   // yellow
+    {p:100, c:[34,197,94]}    // green
+  ];
+  let lo = stops[0], hi = stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    if(pct>=stops[i].p && pct<=stops[i+1].p){ lo=stops[i]; hi=stops[i+1]; break; }
+  }
+  const range = (hi.p - lo.p) || 1;
+  const t = (pct - lo.p) / range;
+  const r = Math.round(lo.c[0] + (hi.c[0]-lo.c[0])*t);
+  const g = Math.round(lo.c[1] + (hi.c[1]-lo.c[1])*t);
+  const b = Math.round(lo.c[2] + (hi.c[2]-lo.c[2])*t);
+  return `rgb(${r},${g},${b})`;
+}
+function barColor(pct, baseColor){ return progressColor(pct); }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 
 /* =========================================================
@@ -1571,11 +1603,11 @@ async function confirmAddAll(photoTag){
     });
     learnFromFood(it.name, it.gramsEstimate, it.nutrients);
   });
-  await saveDay(currentDate);
-  await persistFoodLibrary();
   closeModal('addModal');
-  await renderAll();
+  renderAll();
   showToast('Added to diary');
+  saveDay(currentDate);
+  persistFoodLibrary();
 }
 
 /* ---------- Manual entry (bypasses AI — also the fallback when the
@@ -1619,11 +1651,11 @@ async function saveManualFood(){
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name, grams, time, photo:null, nutrients});
   learnFromFood(name, grams, nutrients, true);
-  await saveDay(currentDate);
-  await persistFoodLibrary();
   closeModal('addModal');
-  await renderAll();
+  renderAll();
   showToast('Added to diary');
+  saveDay(currentDate);
+  persistFoodLibrary();
 }
 
 /* ---------- Manual quick-add for a single nutrient, from its detail view
@@ -1646,10 +1678,10 @@ async function promptManualNutrient(id){
     entry = {id:entryId, name:`${n.name} (manual)`, grams:null, time, photo:null, nutrients:{[id]:amount}};
     day.foods.push(entry);
   }
-  await saveDay(currentDate);
   closeModal('detailModal');
-  await renderAll();
+  renderAll();
   showToast(`+${amount} ${n.unit} ${n.name}`);
+  saveDay(currentDate);
 }
 
 /* ---------- Saved meals (star a logged meal, reuse it later) ---------- */
@@ -1710,16 +1742,16 @@ async function confirmSaveMeal(){
     nutrients: {...(food.nutrients||{})},
     createdAt: Date.now()
   });
-  await storeSet('savedMeals', savedMeals);
   closeModal('saveMealModal');
-  await renderAll();
+  renderAll();
   showToast('Meal saved ★');
+  storeSet('savedMeals', savedMeals.map(m => m.photo ? {...m, photo:null} : m));
 }
 async function unsaveMeal(foodId){
   savedMeals = savedMeals.filter(m=>m.savedFrom!==foodId);
-  await storeSet('savedMeals', savedMeals);
-  await renderAll();
+  renderAll();
   showToast('Removed from saved meals');
+  storeSet('savedMeals', savedMeals);
 }
 function renderSavedMealsPane(){
   const el = document.getElementById('savedMealsList');
@@ -1746,15 +1778,15 @@ async function logSavedMeal(id){
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name:meal.name, grams:meal.grams, time, photo:meal.photo||null, nutrients:{...meal.nutrients}});
-  await saveDay(currentDate);
-  await renderAll();
+  renderAll();
   showToast(`Added ${meal.name}`);
+  saveDay(currentDate);
 }
 async function deleteSavedMealById(id){
   savedMeals = savedMeals.filter(m=>m.id!==id);
-  await storeSet('savedMeals', savedMeals);
   renderSavedMealsPane();
   showToast('Removed from saved meals');
+  storeSet('savedMeals', savedMeals);
 }
 
 /* ---------- Re-check nutrients for already-logged food ----------
@@ -1789,10 +1821,10 @@ async function refreshFoodNutrients(id){
     if(!fresh){ showToast(`Couldn't refresh ${food.name}`); return; }
     food.nutrients = fresh;
     learnFromFood(food.name, food.grams, food.nutrients);
-    await saveDay(currentDate);
-    await persistFoodLibrary();
-    await renderAll();
+    renderAll();
     showToast(`Refreshed ${food.name}`);
+    saveDay(currentDate);
+    persistFoodLibrary();
   }catch(err){
     showToast(`Couldn't refresh ${food.name}: ${err.message}`);
   }finally{
@@ -1823,18 +1855,18 @@ async function refreshAllFoodsForDay(){
       failed++;
     }
   }
-  await saveDay(currentDate);
-  await persistFoodLibrary();
-  await renderAll();
+  renderAll();
   if(statusEl) statusEl.textContent = '';
   showToast(`Re-checked ${done} food${done!==1?'s':''} for this day${failed?`, ${failed} failed`:''}`);
+  saveDay(currentDate);
+  persistFoodLibrary();
 }
 
 async function deleteFood(id){
   const day = await loadDay(currentDate);
   day.foods = day.foods.filter(f=>f.id!==id);
-  await saveDay(currentDate);
-  await renderAll();
+  renderAll();
+  saveDay(currentDate);
 }
 
 /* ---------- Water quick-add ---------- */
@@ -1851,9 +1883,9 @@ async function quickAddWater(ml){
     entry = {id:WATER_ENTRY_ID, name:'Water', grams:ml, time, photo:null, isWater:true, nutrients:{water:ml}};
     day.foods.push(entry);
   }
-  await saveDay(currentDate);
-  await renderAll();
+  renderAll();
   showToast(`+${ml>=1000?(ml/1000)+' L':ml+' ml'} water`);
+  saveDay(currentDate);
 }
 function promptCustomWater(){
   const val = prompt('How much water (in ml)?', '250');
@@ -1880,15 +1912,15 @@ async function saveExercise(){
   const day = await loadDay(currentDate);
   day.exercises = day.exercises||[];
   day.exercises.push({id:'e'+Date.now(), name, minutes, calories});
-  await saveDay(currentDate);
   closeModal('exerciseModal');
-  await renderAll();
+  renderAll();
+  saveDay(currentDate);
 }
 async function deleteExercise(id){
   const day = await loadDay(currentDate);
   day.exercises = day.exercises.filter(e=>e.id!==id);
-  await saveDay(currentDate);
-  await renderAll();
+  renderAll();
+  saveDay(currentDate);
 }
 function openWeightModal(){
   document.getElementById('weightInput').value='';
@@ -1901,16 +1933,16 @@ async function saveWeight(){
   day.weights = day.weights||[];
   day.weights.push({id:'w'+Date.now(), value:w, ts:Date.now()});
   delete day.weight; // drop legacy single-value field now that weights[] is the source of truth
-  await saveDay(currentDate);
   closeModal('weightModal');
-  await renderAll();
+  renderAll();
   showToast('Weight logged');
+  saveDay(currentDate);
 }
 async function deleteWeight(id){
   const day = await loadDay(currentDate);
   day.weights = (day.weights||[]).filter(w=>w.id!==id);
-  await saveDay(currentDate);
-  await renderAll();
+  renderAll();
+  saveDay(currentDate);
 }
 
 /* =========================================================
