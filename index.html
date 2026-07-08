@@ -104,6 +104,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .cal-bar-fill{height:100%; background:linear-gradient(90deg, var(--macro), #FFC08A); border-radius:6px; transition:width .4s ease;}
 .macro-mini{display:flex; gap:10px; margin-top:14px;}
 .macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px;}
+.fast-day-note{margin-top:12px; padding:10px 12px; background:var(--surface-2); border-radius:var(--radius-md); font-size:12.5px; color:var(--text-dim); display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.fast-day-note button{background:var(--surface-3); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; flex-shrink:0;}
+.fast-day-note button.active{background:var(--macro); color:#1a0d05; border-color:var(--macro);}
 .macro-chip .l{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint);}
 .macro-chip .v{font-family:var(--font-mono); font-size:15px; margin-top:3px;}
 .macro-chip .bar{height:4px; background:var(--surface-3); border-radius:3px; margin-top:7px; overflow:hidden;}
@@ -345,6 +348,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <div class="cal-bar"><div class="cal-bar-fill" id="calBarFill" style="width:0%"></div></div>
       <div class="macro-mini" id="macroMini"></div>
+      <div id="fastDayNote" style="display:none;"></div>
     </div>
 
     <div class="card water-card">
@@ -1042,6 +1046,20 @@ function renderDashboard(day){
   document.getElementById('calBarFill').style.width = pct+'%';
   document.getElementById('calBarFill').style.background = progressColor(pct);
 
+  // Under 1000 kcal usually means logging was incomplete that day, so it's
+  // excluded from the Trends average by default (see renderTrends). This
+  // note only appears when it's relevant, and lets you flag a day as an
+  // intentional fast so it still counts.
+  const fastNote = document.getElementById('fastDayNote');
+  if(consumed < 1000){
+    const flagged = !!day.countLowCalorieDay;
+    fastNote.style.display = 'flex';
+    fastNote.innerHTML = `<span>${flagged ? 'This low-calorie day is counted in your average.' : "Under 1,000 kcal — excluded from your average intake by default."}</span>
+      <button class="${flagged?'active':''}" onclick="toggleCountLowCalorieDay()">${flagged ? '✓ Counted' : 'Count anyway (fast)'}</button>`;
+  } else {
+    fastNote.style.display = 'none';
+  }
+
   const macros = [
     {id:'protein', label:'Protein', color:'var(--macro)'},
     {id:'carbs', label:'Carbs', color:'var(--vit)'},
@@ -1231,8 +1249,22 @@ async function renderTrends(){
     if(weightChartInst) weightChartInst.destroy();
     weightChartInst = new Chart(ctx1, {
       type:'line',
-      data:{labels, datasets:[{data:weights, borderColor:'#5FB2E8', backgroundColor:'rgba(95,178,232,0.15)', fill:true, tension:0.35, spanGaps:true, pointRadius:2}]},
-      options:{plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{color:'#2C4941'}}, y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}}}
+      data:{labels, datasets:[{
+        data:weights,
+        borderColor:'#EAF3EF',
+        borderWidth:3,
+        fill:false,
+        tension:0,
+        spanGaps:true,
+        pointRadius:5,
+        pointHoverRadius:6,
+        pointBackgroundColor:'#EAF3EF',
+        pointBorderColor:'#EAF3EF'
+      }]},
+      options:{plugins:{legend:{display:false}}, scales:{
+        x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
+        y:{ticks:{color:'#6D897E'}, grid:{display:false}}
+      }}
     });
   }catch(err){
     console.error('Weight chart failed to render:', err);
@@ -1258,7 +1290,12 @@ async function renderTrends(){
     console.error('Calorie chart failed to render:', err);
   }
 
-  const validIntakes = intakes.filter(v=>v>0);
+  // Days under 1000 kcal are usually a logging gap, not a real intake day,
+  // so they'd drag the average down misleadingly. They're excluded from the
+  // average unless the person explicitly marked that day as an intentional
+  // fast (day.countLowCalorieDay), via the toggle shown on the Dashboard.
+  const LOW_CAL_FLOOR = 1000;
+  const validIntakes = intakes.filter((v,i) => v >= LOW_CAL_FLOOR || dayDatas[i].countLowCalorieDay);
   const validBurns = burns.filter(v=>v>0);
   document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '—';
   document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '—';
@@ -1925,6 +1962,12 @@ async function deleteExercise(id){
 function openWeightModal(){
   document.getElementById('weightInput').value='';
   openModal('weightModal');
+}
+async function toggleCountLowCalorieDay(){
+  const day = await loadDay(currentDate);
+  day.countLowCalorieDay = !day.countLowCalorieDay;
+  renderAll();
+  saveDay(currentDate);
 }
 async function saveWeight(){
   const w = Number(document.getElementById('weightInput').value);
