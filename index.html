@@ -104,9 +104,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .cal-bar-fill{height:100%; background:linear-gradient(90deg, var(--macro), #FFC08A); border-radius:6px; transition:width .4s ease;}
 .macro-mini{display:flex; gap:10px; margin-top:14px;}
 .macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px;}
-.fast-day-note{margin-top:12px; padding:12px 14px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:12.5px; color:var(--text-dim); display:flex; align-items:center; justify-content:space-between; gap:12px; line-height:1.4;}
-.fast-day-note button{background:transparent; color:var(--macro); border:1px solid var(--macro); border-radius:999px; padding:7px 14px; font-size:12px; font-weight:600; flex-shrink:0; white-space:nowrap;}
-.fast-day-note button.active{background:var(--macro); color:#1a0d05;}
+.fast-day-chip{margin-bottom:5px; background:transparent; color:var(--macro); border:1px solid var(--macro); border-radius:999px; padding:2px 9px; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;}
+.fast-day-chip.active{background:var(--macro); color:#1a0d05;}
 .macro-chip .l{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint);}
 .macro-chip .v{font-family:var(--font-mono); font-size:15px; margin-top:3px;}
 .macro-chip .bar{height:4px; background:var(--surface-3); border-radius:3px; margin-top:7px; overflow:hidden;}
@@ -350,13 +349,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
           <div class="l" id="calRemainingLabel">kcal remaining</div>
         </div>
         <div class="cal-target">
+          <button class="fast-day-chip" id="fastDayChip" style="display:none;" onclick="toggleCountLowCalorieDay()">Add</button>
           <div class="n mono" id="calTarget">2000</div>
           <div class="l">target kcal</div>
         </div>
       </div>
       <div class="cal-bar"><div class="cal-bar-fill" id="calBarFill" style="width:0%"></div></div>
       <div class="macro-mini" id="macroMini"></div>
-      <div id="fastDayNote" style="display:none;"></div>
     </div>
 
     <div class="card water-card">
@@ -1056,16 +1055,17 @@ function renderDashboard(day){
 
   // Under 1000 kcal usually means logging was incomplete that day, so it's
   // excluded from the Trends average by default (see renderTrends). This
-  // note only appears when it's relevant, and lets you flag a day as an
-  // intentional fast so it still counts.
-  const fastNote = document.getElementById('fastDayNote');
+  // tiny chip only appears when relevant, and lets you flag a day as an
+  // intentional fast so it still counts toward the average.
+  const fastChip = document.getElementById('fastDayChip');
   if(consumed < 1000){
     const flagged = !!day.countLowCalorieDay;
-    fastNote.style.display = 'flex';
-    fastNote.innerHTML = `<span>${flagged ? 'This low-calorie day is counted in your average.' : "Under 1,000 kcal — excluded from your average intake by default."}</span>
-      <button class="${flagged?'active':''}" onclick="toggleCountLowCalorieDay()">${flagged ? '✓ Counted' : 'Count anyway (fast)'}</button>`;
+    fastChip.style.display = 'inline-block';
+    fastChip.classList.toggle('active', flagged);
+    fastChip.textContent = flagged ? '✓ Added' : 'Add';
+    fastChip.title = flagged ? 'Counted toward your average — tap to remove' : 'Count this fasting day toward your average intake';
   } else {
-    fastNote.style.display = 'none';
+    fastChip.style.display = 'none';
   }
 
   const macros = [
