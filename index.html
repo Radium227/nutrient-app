@@ -104,9 +104,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .cal-bar-fill{height:100%; background:linear-gradient(90deg, var(--macro), #FFC08A); border-radius:6px; transition:width .4s ease;}
 .macro-mini{display:flex; gap:10px; margin-top:14px;}
 .macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px;}
-.fast-day-note{margin-top:12px; padding:10px 12px; background:var(--surface-2); border-radius:var(--radius-md); font-size:12.5px; color:var(--text-dim); display:flex; align-items:center; justify-content:space-between; gap:10px;}
-.fast-day-note button{background:var(--surface-3); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; flex-shrink:0;}
-.fast-day-note button.active{background:var(--macro); color:#1a0d05; border-color:var(--macro);}
+.fast-day-note{margin-top:12px; padding:12px 14px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:12.5px; color:var(--text-dim); display:flex; align-items:center; justify-content:space-between; gap:12px; line-height:1.4;}
+.fast-day-note button{background:transparent; color:var(--macro); border:1px solid var(--macro); border-radius:999px; padding:7px 14px; font-size:12px; font-weight:600; flex-shrink:0; white-space:nowrap;}
+.fast-day-note button.active{background:var(--macro); color:#1a0d05;}
 .macro-chip .l{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint);}
 .macro-chip .v{font-family:var(--font-mono); font-size:15px; margin-top:3px;}
 .macro-chip .bar{height:4px; background:var(--surface-3); border-radius:3px; margin-top:7px; overflow:hidden;}
@@ -271,7 +271,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 /* ---------- Modal ---------- */
 .modal-backdrop{position:fixed; inset:0; background:rgba(5,10,8,0.72); z-index:50; display:none; align-items:flex-end; justify-content:center;}
 .modal-backdrop.open{display:flex;}
-.modal{background:var(--surface); width:100%; max-width:560px; border-radius:24px 24px 0 0; padding:20px 20px calc(20px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto; border:1px solid var(--line); border-bottom:none;}
+.modal{background:var(--surface); width:100%; max-width:560px; border-radius:24px 24px 0 0; padding:20px 20px calc(20px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto; border:1px solid var(--line); border-bottom:none;
+  /* iOS Safari has a long-standing bug where border-radius fails to clip
+     properly on an element that also scrolls (overflow-y:auto), leaving
+     ghosted/doubled corner artifacts. Forcing the browser to composite this
+     element through a mask (instead of its default clip path) works around
+     it reliably without needing to restructure the modal markup. */
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  mask-image: radial-gradient(white, black);
+}
 .modal-handle{width:36px;height:4px;background:var(--line); border-radius:3px; margin:0 auto 16px;}
 .modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
 .modal-head h3{font-size:18px;}
@@ -1251,19 +1259,29 @@ async function renderTrends(){
       type:'line',
       data:{labels, datasets:[{
         data:weights,
-        borderColor:'#EAF3EF',
-        borderWidth:3,
-        fill:false,
-        tension:0,
+        borderColor:'#5FB2E8',
+        borderWidth:2.5,
+        backgroundColor:(ctx)=>{
+          const {chart} = ctx;
+          const {ctx:c, chartArea} = chart;
+          if(!chartArea) return 'rgba(95,178,232,0.15)';
+          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          g.addColorStop(0, 'rgba(95,178,232,0.32)');
+          g.addColorStop(1, 'rgba(95,178,232,0)');
+          return g;
+        },
+        fill:true,
+        tension:0.3,
         spanGaps:true,
-        pointRadius:5,
+        pointRadius:4,
         pointHoverRadius:6,
-        pointBackgroundColor:'#EAF3EF',
-        pointBorderColor:'#EAF3EF'
+        pointBackgroundColor:'#5FB2E8',
+        pointBorderColor:'#EAF3EF',
+        pointBorderWidth:1.5
       }]},
       options:{plugins:{legend:{display:false}}, scales:{
-        x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
-        y:{ticks:{color:'#6D897E'}, grid:{display:false}}
+        x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{color:'#2C4941'}},
+        y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}
       }}
     });
   }catch(err){
