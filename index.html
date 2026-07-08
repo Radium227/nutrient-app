@@ -157,11 +157,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
 .spectrum-head .count{font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
-.spectrum{display:flex; align-items:flex-end; gap:1.5px; height:64px; overflow:hidden;}
-.spectrum .bar{flex:1; min-width:2px; background:var(--surface-3); border-radius:2px 2px 0 0; position:relative; transition:height .5s ease;}
+.spectrum{display:flex; align-items:flex-end; gap:2px; height:72px; overflow:hidden;}
+.spectrum .col{flex:1; min-width:2px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; margin-left:0;}
+.spectrum .col.group-start{margin-left:6px;}
+.spectrum .bar{width:100%; min-height:3px; background:var(--surface-3); border-radius:2px 2px 0 0; position:relative; transition:height .5s ease;}
+.spectrum .tick{width:100%; height:3px; border-radius:0 0 2px 2px; margin-top:2px; flex-shrink:0; opacity:.9;}
 .spectrum-legend{display:flex; gap:14px; margin-top:12px; flex-wrap:wrap;}
 .spectrum-legend .item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-faint);}
-.spectrum-legend .dot{width:7px;height:7px;border-radius:2px;}
+.spectrum-legend .dot{width:7px;height:3px;border-radius:1px;}
 
 /* ---------- Login screen ---------- */
 #loginScreen{position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:24px;}
@@ -1087,6 +1090,7 @@ function renderDashboard(day){
   // spectrum / overall completion
   let bars = '';
   let metCount = 0, totalCount = 0, pctSum = 0;
+  let prevCat = null;
   NUTRIENTS.forEach(n=>{
     const t = getTarget(n.id);
     if(!t || t<=0) return;
@@ -1095,7 +1099,13 @@ function renderDashboard(day){
     const pctCapped = Math.min(100, (v/t)*100);
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
-    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
+    const catMeta = CAT_META[n.cat] || {label:'Other', color:'var(--surface-3)'};
+    const groupStart = prevCat!==null && prevCat!==n.cat ? ' group-start' : '';
+    prevCat = n.cat;
+    bars += `<div class="col${groupStart}" title="${catMeta.label} · ${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}">
+      <div class="bar" style="height:${Math.max(3,pctCapped*0.57)}px; background:${progressColor(pctCapped)}"></div>
+      <div class="tick" style="background:${catMeta.color}"></div>
+    </div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
