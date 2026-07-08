@@ -1021,6 +1021,34 @@ function getTarget(id){
 // typical serving covers — so the standout nutrient (e.g. potassium for a
 // banana, vitamin C for an orange) surfaces first instead of always
 // leading with the same generic macro list.
+// Ordered by general nutritional importance to the body — foundational
+// energy/macros first, then the vitamins/minerals most commonly emphasized
+// for health and most often deficient, then other essential micronutrients,
+// then essential amino acids (the body can't make these), then non-essential
+// amino acids, then nutrients you mainly want to watch/limit, then minor
+// breakdown sub-totals (soluble fiber, net carbs, etc.) that are already
+// captured by their parent nutrient. This is what "Nutrient completion"
+// sorts by, so hitting your calcium or vitamin D target shows up near the
+// top even at 100%+, instead of always being buried under a long tail of
+// amino acids sitting at 3-4%.
+const NUTRIENT_IMPORTANCE_ORDER = [
+  'calories','protein','fiber','water',
+  'vitaminD','vitaminB12','iron','calcium','vitaminC','magnesium','zinc','folateB9','potassium','omega3',
+  'vitaminA','vitaminK','vitaminE','vitaminB6','thiaminB1','riboflavinB2','niacinB3','pantothenicAcidB5','biotinB7','choline',
+  'iodine','selenium','copper','manganese','phosphorus','chromium','molybdenum','fluoride',
+  'carbs','fat','monounsaturatedFat','polyunsaturatedFat','linoleicAcid','omega6','ala','epa','dha',
+  'leucine','lysine','isoleucine','valine','threonine','phenylalanine','methionine','histidine','tryptophan',
+  'arginine','glutamicAcid','asparticAcid','glycine','proline','serine','alanine','tyrosine','cystine',
+  'sodium','saturatedFat','cholesterol','addedSugars','sugars','transFat','caffeine','alcohol','sulfur',
+  'retinol','betaCarotene',
+  'netCarbs','starch','solubleFiber','insolubleFiber','sugarAlcohols'
+];
+const NUTRIENT_IMPORTANCE_RANK = {};
+NUTRIENT_IMPORTANCE_ORDER.forEach((id,i)=>{ NUTRIENT_IMPORTANCE_RANK[id] = i; });
+function nutrientImportanceRank(id){
+  return NUTRIENT_IMPORTANCE_RANK[id] !== undefined ? NUTRIENT_IMPORTANCE_RANK[id] : NUTRIENT_IMPORTANCE_ORDER.length;
+}
+
 function shortNutrientLabel(name){
   return name.replace(/\s*\([^)]*\)\s*$/,'').trim() || name;
 }
@@ -2170,7 +2198,7 @@ async function openRemainingModal(){
     const v = totals[n.id]||0;
     const pct = (v/t)*100;
     return {n, pct, v, t};
-  }).sort((a,b)=>a.pct-b.pct);
+  }).sort((a,b)=> nutrientImportanceRank(a.n.id) - nutrientImportanceRank(b.n.id));
   const avgPct = list.length ? Math.round(list.reduce((s,x)=>s+Math.min(100,x.pct),0)/list.length) : 0;
   const metCount = list.filter(x=>x.pct>=100).length;
   document.getElementById('remainingModalBody').innerHTML = `
