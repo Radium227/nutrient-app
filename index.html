@@ -1589,6 +1589,21 @@ MANDATORY — amino acids: if an item contains roughly 2g of protein or more, yo
 MANDATORY — vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
 
 You may omit a field only when it is genuinely and categorically absent for that food — e.g. omega-3/EPA/DHA for a food with essentially no fat, caffeine for something that plainly contains none, alcohol for a non-alcoholic item. "Omit if small" is NOT license to drop amino acids, vitamins, or minerals that the food actually contains in real, if modest, amounts — those must still be reported.`;
+  p += `\n\nCALIBRATION RULES FOR PHOTOS:
+- When you are estimating a plated meal, assume cooked, ready-to-eat edible weights unless the image or notes clearly show uncooked/dry ingredients.
+- Never use raw dry grain weights for plated rice, dal, pasta, noodles, or similar foods unless the photo explicitly shows an uncooked ingredient or package.
+- For cooked white rice on a plate, a realistic baseline is about 130 kcal per 100 g and about 28 g carbohydrate per 100 g.
+- If your estimate for a plated rice portion is much higher than that, you are probably treating cooked rice as dry rice — correct it downward before responding.
+- Prefer the most conservative cooked estimate when the image is ambiguous.
+
+RECOGNITION RULES:
+- Recognize each visible food item separately. Do not merge side items into the main dish.
+- Treat green chutney, sauce, dip, pickle, raita, yogurt, or salad garnish as their own item, not as curry.
+- If there are a few visible potato pieces inside a dish, label them as potato pieces / mixed vegetables rather than inventing a separate curry.
+- If the plate contains a rice base plus gravy plus fried pieces, keep rice, gravy, and the fried pieces separate when that is visually clear.
+- Do not call something "curry" unless the photo truly shows a curry/saucy stew as the dominant food.
+- If the image and notes disagree, prefer the notes for quantity and the image for item identity, but never turn a condiment into a main dish.
+- When you are unsure whether a portion is cooked or raw, default to cooked prepared food for plated meals.`;
   if(notes && notes.trim()){
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
   }
@@ -1619,6 +1634,33 @@ function parseGeminiJson(data){
   }
 }
 
+function normalizeRiceEstimate(item){
+  const name = (item && item.name ? String(item.name) : '').toLowerCase();
+  const grams = Number(item && item.gramsEstimate ? item.gramsEstimate : 0);
+  if(!grams) return item;
+  if(!/\brice\b/.test(name)) return item;
+  if(/\braw\b|\bdry\b|\buncooked\b/.test(name)) return item;
+
+  const nutrients = {...(item.nutrients || {})};
+  const calories = Number(nutrients.calories || 0);
+  const carbs = Number(nutrients.carbs ?? nutrients.carbohydrates ?? 0);
+  const calPer100 = calories ? (calories / grams) * 100 : 0;
+  const carbsPer100 = carbs ? (carbs / grams) * 100 : 0;
+  const looksRaw = calPer100 > 180 || carbsPer100 > 40 || calories > grams * 2.2;
+  if(!looksRaw) return item;
+
+  nutrients.calories = Math.round(grams * 1.3);
+  nutrients.carbs = round1(grams * 0.28);
+  nutrients.carbohydrates = nutrients.carbs;
+  nutrients.protein = round1(grams * 0.027);
+  nutrients.fat = round1(grams * 0.003);
+  return {...item, nutrients, _calibration:'cooked-rice'};
+}
+
+function normalizeAnalysisItems(items){
+  return (items || []).map(normalizeRiceEstimate);
+}
+
 // Calls our own /api/analyze serverless function, which holds the Gemini
 // key server-side and forwards to the Gemini API. `content` keeps the same
 // shape the old direct-to-Claude call used: an array with a {type:'text'}
@@ -1647,6 +1689,7 @@ async function callGemini(content){
       const data = await res.json();
       const parsed = parseGeminiJson(data);
       parsed._apiUsed = data.provider || 'Gemini';
+      parsed.items = normalizeAnalysisItems(parsed.items || []);
       return parsed;
     }
     let errBody = {};
