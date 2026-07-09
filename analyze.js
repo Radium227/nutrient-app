@@ -80,9 +80,12 @@ function responseErrorMessage(providerName, status, bodyText) {
       parsed = null;
     }
   }
-  const message = parsed && (parsed.error?.message || parsed.message || parsed.error)
-    ? (parsed.error?.message || parsed.message || parsed.error)
-    : bodyText;
+
+  const message =
+    parsed && (parsed.error?.message || parsed.message || parsed.error)
+      ? (parsed.error?.message || parsed.message || parsed.error)
+      : bodyText;
+
   return `${providerName} error (${status}): ${truncateText(message || 'Unknown error', 300)}`;
 }
 
@@ -177,18 +180,23 @@ async function callGemini(prompt, imageBase64, imageMime) {
     if (response.ok) {
       const data = await response.json().catch(() => null);
       const text = extractGeminiText(data);
-      const finishReason = normalizeFinishReason(data && data.candidates && data.candidates[0] && data.candidates[0].finishReason);
+      const finishReason = normalizeFinishReason(
+        data && data.candidates && data.candidates[0] && data.candidates[0].finishReason
+      );
       return { text: validateJsonText(text), finishReason, provider: 'Gemini' };
     }
 
     const message = await readResponseError(response, 'Gemini');
     lastError = new Error(message);
+
     if (response.status === 503 && attempt < 2) {
       continue;
     }
+
     if (response.status === 429 || response.status === 503) {
       throw lastError;
     }
+
     throw lastError;
   }
 
@@ -224,7 +232,9 @@ async function callGroq(prompt, imageBase64, imageMime) {
 
   const data = await response.json().catch(() => null);
   const text = extractChatText(data);
-  const finishReason = normalizeFinishReason(data && data.choices && data.choices[0] && data.choices[0].finish_reason);
+  const finishReason = normalizeFinishReason(
+    data && data.choices && data.choices[0] && data.choices[0].finish_reason
+  );
   return { text: validateJsonText(text), finishReason, provider: 'Groq' };
 }
 
@@ -265,7 +275,9 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
 
   const data = await response.json().catch(() => null);
   const text = extractChatText(data);
-  const finishReason = normalizeFinishReason(data && data.choices && data.choices[0] && data.choices[0].finish_reason);
+  const finishReason = normalizeFinishReason(
+    data && data.choices && data.choices[0] && data.choices[0].finish_reason
+  );
   return { text: validateJsonText(text), finishReason, provider: 'OpenRouter' };
 }
 
