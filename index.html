@@ -1673,17 +1673,15 @@ async function callGemini(content){
   const body = JSON.stringify({
     prompt: textPart ? textPart.text : '',
     imageBase64: imagePart ? imagePart.source.data : null,
-    imageMime: imagePart ? imagePart.source.media_type : null
+    imageMime: imagePart ? imagePart.source.media_type : null,
+    analysisMode: imagePart ? 'image' : 'text'
   });
 
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), 45000);
   try{
     const res = await fetch('/api/analyze', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
-      body,
-      signal: controller.signal
+      body
     });
     if(res.ok){
       const data = await res.json();
@@ -1697,10 +1695,7 @@ async function callGemini(content){
     const msg = errBody.error || `Analysis service error (${res.status})`;
     throw new Error(msg);
   }catch(err){
-    if(err && err.name==='AbortError') throw new Error('Analysis timed out. Please try a clearer photo or a shorter meal description.');
     throw err;
-  }finally{
-    clearTimeout(timer);
   }
 }
 // Best-effort recovery: if the model's JSON got cut off partway through the
