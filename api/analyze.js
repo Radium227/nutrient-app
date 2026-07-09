@@ -252,11 +252,11 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
   return { text: validateJsonText(text), finishReason, provider: 'OpenRouter' };
 }
 
-async function callTextFallback(prompt) {
+async function callAnalysisFallback(prompt, imageBase64, imageMime) {
   const providers = [
-    { name: 'Gemini', run: () => callGemini(prompt, null, null) },
-    { name: 'Groq', run: () => callGroq(prompt, null, null) },
-    { name: 'OpenRouter', run: () => callOpenRouter(prompt, null, null) },
+    { name: 'Gemini', run: () => callGemini(prompt, imageBase64, imageMime) },
+    { name: 'Groq', run: () => callGroq(prompt, imageBase64, imageMime) },
+    { name: 'OpenRouter', run: () => callOpenRouter(prompt, imageBase64, imageMime) },
   ];
 
   const failures = [];
@@ -295,20 +295,14 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { prompt, imageBase64, imageMime, analysisMode } = req.body || {};
+  const { prompt, imageBase64, imageMime } = req.body || {};
   if (!prompt || typeof prompt !== 'string') {
     res.status(400).json({ error: 'Missing prompt' });
     return;
   }
 
   try {
-    if (analysisMode === 'image' || imageBase64) {
-      const result = await callGemini(prompt, imageBase64, imageMime);
-      res.status(200).json(result);
-      return;
-    }
-
-    const result = await callTextFallback(prompt);
+    const result = await callAnalysisFallback(prompt, imageBase64, imageMime);
     res.status(200).json(result);
   } catch (error) {
     res.status(502).json({
