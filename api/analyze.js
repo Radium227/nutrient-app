@@ -2,7 +2,7 @@ const FIREBASE_WEB_API_KEY = 'AIzaSyA5Jp_4A4hUTTn29_EsgbYxPqdWzomas3M';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
-const REQUEST_TIMEOUT_MS = 45000;
+const REQUEST_TIMEOUT_MS = 120000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -252,6 +252,25 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
   return { text: validateJsonText(text), finishReason, provider: 'OpenRouter' };
 }
 
+async function callTextFallback(prompt) {
+  const providers = [
+    { name: 'Gemini', run: () => callGemini(prompt, null, null) },
+    { name: 'Groq', run: () => callGroq(prompt, null, null) },
+    { name: 'OpenRouter', run: () => callOpenRouter(prompt, null, null) },
+  ];
+
+  const failures = [];
+  for (const provider of providers) {
+    try {
+      return await provider.run();
+    } catch (error) {
+      failures.push(`${provider.name}: ${truncateText(error && error.message ? error.message : error, 240)}`);
+    }
+  }
+
+  throw new Error(`All analysis providers failed. ${failures.join(' | ')}`);
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -276,31 +295,24 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { prompt, imageBase64, imageMime } = req.body || {};
+  const { prompt, imageBase64, imageMime, analysisMode } = req.body || {};
   if (!prompt || typeof prompt !== 'string') {
     res.status(400).json({ error: 'Missing prompt' });
     return;
   }
 
-  const providers = [
-    { name: 'Gemini', run: () => callGemini(prompt, imageBase64, imageMime) },
-    { name: 'Groq', run: () => callGroq(prompt, imageBase64, imageMime) },
-    { name: 'OpenRouter', run: () => callOpenRouter(prompt, imageBase64, imageMime) },
-  ];
-
-  const failures = [];
-
-  for (const provider of providers) {
-    try {
-      const result = await provider.run();
+  try {
+    if (analysisMode === 'image' || imageBase64) {
+      const result = await callGemini(prompt, imageBase64, imageMime);
       res.status(200).json(result);
       return;
-    } catch (error) {
-      failures.push(`${provider.name}: ${truncateText(error && error.message ? error.message : error, 240)}`);
     }
-  }
 
-  res.status(502).json({
-    error: `All analysis providers failed. ${failures.join(' | ')}`,
-  });
+    const result = await callTextFallback(prompt);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(502).json({
+      error: error && error.message ? error.message : 'All analysis providers failed',
+    });
+  }
 };
