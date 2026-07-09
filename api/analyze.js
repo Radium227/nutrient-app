@@ -1,8 +1,7 @@
 const FIREBASE_WEB_API_KEY = 'AIzaSyA5Jp_4A4hUTTn29_EsgbYxPqdWzomas3M';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
-const JSON_ONLY_PROMPT = 'Return only a valid JSON object. Do not wrap it in markdown or add any extra text.';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
 const REQUEST_TIMEOUT_MS = 120000;
 
 function delay(ms) {
@@ -11,7 +10,7 @@ function delay(ms) {
 
 function truncateText(value, limit = 400) {
   const text = String(value || '');
-  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
 function stripDataUrlPrefix(value) {
@@ -23,7 +22,7 @@ function stripDataUrlPrefix(value) {
   };
 }
 
-function buildImageDataUrl(imageBase64, imageMime) {
+function buildDataUrl(imageBase64, imageMime) {
   const payload = stripDataUrlPrefix(imageBase64);
   const mimeType = imageMime || payload.mimeType || 'image/jpeg';
   return `data:${mimeType};base64,${payload.data}`;
@@ -60,25 +59,33 @@ function extractChatText(data) {
   const content = choice && choice.message ? choice.message.content : '';
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
-    return content.map((part) => {
-      if (!part) return '';
-      if (typeof part.text === 'string') return part.text;
-      if (typeof part.content === 'string') return part.content;
-      return '';
-    }).join('');
+    return content
+      .map((part) => {
+        if (!part) return '';
+        if (typeof part.text === 'string') return part.text;
+        if (typeof part.content === 'string') return part.content;
+        return '';
+      })
+      .join('');
   }
   return '';
 }
 
 function responseErrorMessage(providerName, status, bodyText) {
-  const parsed = bodyText ? (() => {
+  let parsed = null;
+  if (bodyText) {
     try {
-      return JSON.parse(bodyText);
-    } catch (e) {
-      return null;
+      parsed = JSON.parse(bodyText);
+    } catch (error) {
+      parsed = null;
     }
-  })() : null;
-  const message = parsed && (parsed.error?.message || parsed.message || parsed.error) ? (parsed.error?.message || parsed.message || parsed.error) : bodyText;
+  }
+
+  const message =
+    parsed && (parsed.error?.message || parsed.message || parsed.error)
+      ? (parsed.error?.message || parsed.message || parsed.error)
+      : bodyText;
+
   return `${providerName} error (${status}): ${truncateText(message || 'Unknown error', 300)}`;
 }
 
@@ -91,8 +98,7 @@ async function fetchJson(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    return response;
+    return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -112,8 +118,8 @@ async function isValidIdToken(idToken) {
   return !!(data && Array.isArray(data.users) && data.users.length > 0);
 }
 
-function buildUserParts(prompt, imageBase64, imageMime) {
-  const parts = [{ text: `${prompt}\n\n${JSON_ONLY_PROMPT}` }];
+function buildGeminiParts(prompt, imageBase64, imageMime) {
+  const parts = [{ text: prompt }];
   if (imageBase64) {
     const payload = stripDataUrlPrefix(imageBase64);
     parts.push({
@@ -126,18 +132,15 @@ function buildUserParts(prompt, imageBase64, imageMime) {
   return parts;
 }
 
-function buildOpenAiMessages(prompt, imageBase64, imageMime) {
-  const parts = [{ type: 'text', text: `${prompt}\n\n${JSON_ONLY_PROMPT}` }];
+function buildChatMessages(prompt, imageBase64, imageMime) {
+  const content = [{ type: 'text', text: prompt }];
   if (imageBase64) {
-    parts.push({
+    content.push({
       type: 'image_url',
-      image_url: { url: buildImageDataUrl(imageBase64, imageMime) },
+      image_url: { url: buildDataUrl(imageBase64, imageMime) },
     });
   }
-  return [
-    { role: 'system', content: JSON_ONLY_PROMPT },
-    { role: 'user', content: parts },
-  ];
+  return [{ role: 'user', content }];
 }
 
 async function callGemini(prompt, imageBase64, imageMime) {
@@ -146,8 +149,8 @@ async function callGemini(prompt, imageBase64, imageMime) {
     throw new Error('Gemini API key is not configured');
   }
 
-  const body = {
-    contents: [{ role: 'user', parts: buildUserParts(prompt, imageBase64, imageMime) }],
+  const requestBody = {
+    contents: [{ role: 'user', parts: buildGeminiParts(prompt, imageBase64, imageMime) }],
     generationConfig: {
       responseMimeType: 'application/json',
       maxOutputTokens: 16384,
@@ -167,7 +170,7 @@ async function callGemini(prompt, imageBase64, imageMime) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify(requestBody),
         }
       );
     } catch (error) {
@@ -177,18 +180,23 @@ async function callGemini(prompt, imageBase64, imageMime) {
     if (response.ok) {
       const data = await response.json().catch(() => null);
       const text = extractGeminiText(data);
-      const finishReason = normalizeFinishReason(data && data.candidates && data.candidates[0] && data.candidates[0].finishReason);
-      return { text: validateJsonText(text), finishReason };
+      const finishReason = normalizeFinishReason(
+        data && data.candidates && data.candidates[0] && data.candidates[0].finishReason
+      );
+      return { text: validateJsonText(text), finishReason, provider: 'Gemini' };
     }
 
     const message = await readResponseError(response, 'Gemini');
     lastError = new Error(message);
+
     if (response.status === 503 && attempt < 2) {
       continue;
     }
+
     if (response.status === 429 || response.status === 503) {
       throw lastError;
     }
+
     throw lastError;
   }
 
@@ -209,7 +217,7 @@ async function callGroq(prompt, imageBase64, imageMime) {
     },
     body: JSON.stringify({
       model: GROQ_MODEL,
-      messages: buildOpenAiMessages(prompt, imageBase64, imageMime),
+      messages: buildChatMessages(prompt, imageBase64, imageMime),
       response_format: { type: 'json_object' },
       max_completion_tokens: 16384,
       temperature: 0,
@@ -224,8 +232,10 @@ async function callGroq(prompt, imageBase64, imageMime) {
 
   const data = await response.json().catch(() => null);
   const text = extractChatText(data);
-  const finishReason = normalizeFinishReason(data && data.choices && data.choices[0] && data.choices[0].finish_reason);
-  return { text: validateJsonText(text), finishReason };
+  const finishReason = normalizeFinishReason(
+    data && data.choices && data.choices[0] && data.choices[0].finish_reason
+  );
+  return { text: validateJsonText(text), finishReason, provider: 'Groq' };
 }
 
 async function callOpenRouter(prompt, imageBase64, imageMime) {
@@ -250,7 +260,7 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
     headers,
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
-      messages: buildOpenAiMessages(prompt, imageBase64, imageMime),
+      messages: buildChatMessages(prompt, imageBase64, imageMime),
       response_format: { type: 'json_object' },
       max_tokens: 16384,
       temperature: 0,
@@ -265,8 +275,10 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
 
   const data = await response.json().catch(() => null);
   const text = extractChatText(data);
-  const finishReason = normalizeFinishReason(data && data.choices && data.choices[0] && data.choices[0].finish_reason);
-  return { text: validateJsonText(text), finishReason };
+  const finishReason = normalizeFinishReason(
+    data && data.choices && data.choices[0] && data.choices[0].finish_reason
+  );
+  return { text: validateJsonText(text), finishReason, provider: 'OpenRouter' };
 }
 
 module.exports = async function handler(req, res) {
