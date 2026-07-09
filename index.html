@@ -1635,7 +1635,9 @@ async function callGemini(content){
     }
     if(res.ok){
       const data = await res.json();
-      return parseGeminiJson(data);
+      const parsed = parseGeminiJson(data);
+      parsed._apiUsed = data.provider || 'Gemini';
+      return parsed;
     }
     const errBody = await res.json().catch(()=>({}));
     const msg = errBody.error || `Analysis service error (${res.status})`;
@@ -1771,7 +1773,7 @@ async function analyzePhoto(mimeType){
       {type:'text', text: prompt},
       {type:'image', source:{type:'base64', media_type: mimeType || pendingPhotoMime, data: pendingPhotoBase64}}
     ]);
-    showResults(enrichItemsWithLibrary(parsed.items||[]), pendingPhotoBase64, mimeType || pendingPhotoMime);
+    showResults(enrichItemsWithLibrary(parsed.items||[]), pendingPhotoBase64, mimeType || pendingPhotoMime, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
   }
@@ -1785,7 +1787,7 @@ async function analyzeText(){
   try{
     const prompt = buildPrompt('meal description') + `\n\nMeal description: """${desc}"""`;
     const parsed = await callGemini([{type:'text', text: prompt}]);
-    showResults(enrichItemsWithLibrary(parsed.items||[]), null, null);
+    showResults(enrichItemsWithLibrary(parsed.items||[]), null, null, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze that: ${escapeHtml(err.message)}</div>`;
   }
@@ -1797,7 +1799,17 @@ function libraryBadge(status){
   return '';
 }
 
-function showResults(items, photoBase64, mimeType){
+function apiUsedBadge(apiUsed){
+  const label = apiUsed || 'Gemini';
+  return `<div style="display:flex; justify-content:flex-end; margin-top:10px;">
+    <div style="display:inline-flex; align-items:center; gap:6px; background:var(--surface-3); border:1px solid var(--line); color:var(--text-dim); border-radius:999px; padding:7px 11px; font-size:12px; font-weight:500;">
+      <span style="width:7px; height:7px; border-radius:50%; background:var(--good, #4CAF7A); display:inline-block;"></span>
+      API used: ${escapeHtml(label)}
+    </div>
+  </div>`;
+}
+
+function showResults(items, photoBase64, mimeType, apiUsed){
   pendingResults = items.map((it,i)=>({...it, _id:'r'+Date.now()+i}));
   const area = document.getElementById('analysisArea');
   if(pendingResults.length===0){
@@ -1819,7 +1831,7 @@ function showResults(items, photoBase64, mimeType){
         ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${round1(h.value)}${h.unit}</div></div>`).join('')}
       </div>
     </div>
-  `;}).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  `;}).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
 
 async function confirmAddAll(photoTag){
