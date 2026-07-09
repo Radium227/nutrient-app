@@ -140,6 +140,23 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .contrib-row .cpct{font-family:var(--font-mono); font-size:13px; color:var(--text-faint); min-width:38px; text-align:right;}
 .detail-edit-link{display:block; text-align:center; margin-top:16px; color:var(--min); font-size:13.5px; background:none; border:none; width:100%; padding:8px;}
 
+/* ---------- Food detail modal (per-entry nutrient breakdown) ---------- */
+.fd-basics{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:18px;}
+.fd-basics div{background:var(--surface-2); border-radius:10px; padding:9px 6px; text-align:center;}
+.fd-basics .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.3px;}
+.fd-basics .v{font-family:var(--font-mono); font-size:14px; margin-top:3px; font-weight:600;}
+.fd-section-label{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint); margin-bottom:8px;}
+.fd-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);}
+.fd-row:last-child{border-bottom:none;}
+.fd-row .dot{width:8px;height:8px;border-radius:3px; flex-shrink:0;}
+.fd-row .fname{flex:1; font-size:13.5px;}
+.fd-row .fbar{width:60px; height:5px; background:var(--surface-3); border-radius:3px; overflow:hidden; margin-right:2px; flex-shrink:0;}
+.fd-row .fbar span{display:block; height:100%; border-radius:3px;}
+.fd-row .famt{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); text-align:right; min-width:70px;}
+.fd-row.standout{background:var(--surface-2); margin:0 -8px; padding:9px 8px; border-radius:10px; border-bottom:none;}
+.fd-row.standout .fname{font-weight:600;}
+.fd-badge{display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--macro); margin-left:6px;}
+
 /* ---------- Remaining nutrients modal ---------- */
 .remain-summary{text-align:center; margin-bottom:18px;}
 .remain-summary .big{font-family:var(--font-display); font-size:40px; font-weight:600;}
@@ -673,6 +690,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   </div>
 </div>
 
+<!-- FOOD DETAIL MODAL (all nutrients for one diary entry, ranked by density) -->
+<div class="modal-backdrop" id="foodDetailModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="foodDetailModalName">Food</h3><button onclick="closeModal('foodDetailModal')">✕</button></div>
+    <div id="foodDetailModalBody"></div>
+  </div>
+</div>
+
 <!-- OVERALL COMPLETION / REMAINING NUTRIENTS MODAL -->
 <div class="modal-backdrop" id="remainingModal">
   <div class="modal">
@@ -996,6 +1022,74 @@ function getTarget(id){
   return def ? def.rda : 0;
 }
 
+// Ranks a food's nutrients by "density" — how much of the daily target a
+// typical serving covers — so the standout nutrient (e.g. potassium for a
+// banana, vitamin C for an orange) surfaces first instead of always
+// leading with the same generic macro list.
+// Ordered by general nutritional importance to the body — foundational
+// energy/macros first, then the vitamins/minerals most commonly emphasized
+// for health and most often deficient, then other essential micronutrients,
+// then essential amino acids (the body can't make these), then non-essential
+// amino acids, then nutrients you mainly want to watch/limit, then minor
+// breakdown sub-totals (soluble fiber, net carbs, etc.) that are already
+// captured by their parent nutrient. This is what "Nutrient completion"
+// sorts by, so hitting your calcium or vitamin D target shows up near the
+// top even at 100%+, instead of always being buried under a long tail of
+// amino acids sitting at 3-4%.
+const NUTRIENT_IMPORTANCE_ORDER = [
+  'calories','protein','fiber','water',
+  'vitaminD','vitaminB12','iron','calcium','vitaminC','magnesium','zinc','folateB9','potassium','omega3',
+  'vitaminA','vitaminK','vitaminE','vitaminB6','thiaminB1','riboflavinB2','niacinB3','pantothenicAcidB5','biotinB7','choline',
+  'iodine','selenium','copper','manganese','phosphorus','chromium','molybdenum','fluoride',
+  'carbs','fat','monounsaturatedFat','polyunsaturatedFat','linoleicAcid','omega6','ala','epa','dha',
+  'leucine','lysine','isoleucine','valine','threonine','phenylalanine','methionine','histidine','tryptophan',
+  'arginine','glutamicAcid','asparticAcid','glycine','proline','serine','alanine','tyrosine','cystine',
+  'sodium','saturatedFat','cholesterol','addedSugars','sugars','transFat','caffeine','alcohol','sulfur',
+  'retinol','betaCarotene',
+  'netCarbs','starch','solubleFiber','insolubleFiber','sugarAlcohols'
+];
+const NUTRIENT_IMPORTANCE_RANK = {};
+NUTRIENT_IMPORTANCE_ORDER.forEach((id,i)=>{ NUTRIENT_IMPORTANCE_RANK[id] = i; });
+function nutrientImportanceRank(id){
+  return NUTRIENT_IMPORTANCE_RANK[id] !== undefined ? NUTRIENT_IMPORTANCE_RANK[id] : NUTRIENT_IMPORTANCE_ORDER.length;
+}
+
+function shortNutrientLabel(name){
+  return name.replace(/\s*\([^)]*\)\s*$/,'').trim() || name;
+}
+function nutrientHighlights(nutrients, excludeIds){
+  const exclude = new Set(excludeIds||[]);
+  const list = [];
+  NUTRIENTS.forEach(n=>{
+    if(exclude.has(n.id)) return;
+    const v = nutrients ? nutrients[n.id] : 0;
+    if(!v || v<=0) return;
+    const t = getTarget(n.id);
+    const pct = t>0 ? (v/t)*100 : 0;
+    list.push({id:n.id, name:n.name, unit:n.unit, cat:n.cat, value:v, pct});
+  });
+  list.sort((a,b)=> b.pct - a.pct);
+  return list;
+}
+// Picks up to `count` nutrients to spotlight for a single food item, most
+// nutrient-dense first. Falls back to common macros if a food doesn't have
+// enough data to fill every slot.
+function pickHighlightNutrients(nutrients, excludeIds, count){
+  const highlights = nutrientHighlights(nutrients, excludeIds);
+  const chosen = highlights.slice(0, count);
+  if(chosen.length < count){
+    ['carbs','fat','fiber','sodium'].forEach(id=>{
+      if(chosen.length>=count) return;
+      if((excludeIds||[]).includes(id)) return;
+      if(chosen.some(c=>c.id===id)) return;
+      const n = NUTRIENTS.find(x=>x.id===id);
+      if(!n) return;
+      chosen.push({id, name:n.name, unit:n.unit, cat:n.cat, value:(nutrients&&nutrients[id])||0, pct:0});
+    });
+  }
+  return chosen;
+}
+
 /* =========================================================
    TOTALS
 ========================================================= */
@@ -1129,7 +1223,7 @@ function foodEntryHTML(f){
   const refreshBtn = canSave
     ? `<button class="refresh" id="refresh-${f.id}" title="Re-check this food's nutrients (fixes gaps like missing amino acids, without retyping anything)" onclick="event.stopPropagation(); refreshFoodNutrients('${f.id}')">↻</button>`
     : '';
-  return `<div class="entry">
+  return `<div class="entry" style="cursor:pointer;" onclick="openFoodEntryDetail('${f.id}')">
     <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
     <div class="info">
       <div class="name">${escapeHtml(f.name)}</div>
@@ -1138,7 +1232,7 @@ function foodEntryHTML(f){
     <div class="kcal">${f.isWater ? '0 kcal' : Math.round(f.nutrients?.calories||0)+' kcal'}</div>
     ${starBtn}
     ${refreshBtn}
-    <button class="del" onclick="deleteFood('${f.id}')">✕</button>
+    <button class="del" onclick="event.stopPropagation(); deleteFood('${f.id}')">✕</button>
   </div>`;
 }
 
@@ -1724,20 +1818,21 @@ function showResults(items, photoBase64, mimeType){
     return;
   }
   const photoTag = photoBase64 ? `data:${mimeType};base64,${photoBase64}` : null;
-  area.innerHTML = pendingResults.map(it=>`
+  area.innerHTML = pendingResults.map(it=>{
+    const nutrients = it.nutrients||{};
+    const highlights = pickHighlightNutrients(nutrients, ['calories','protein'], 4);
+    const standout = highlights[0] && highlights[0].pct>0 ? highlights[0] : null;
+    return `
     <div class="result-card" id="card-${it._id}">
       <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span> ${libraryBadge(it._libraryStatus)}</div>
-      <div class="rmeta">~${it.gramsEstimate||'?'}g</div>
+      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
       <div class="rgrid">
-        <div><div class="l">Cal</div><div class="v">${Math.round(it.nutrients?.calories||0)}</div></div>
-        <div><div class="l">Protein</div><div class="v">${round1(it.nutrients?.protein||0)}g</div></div>
-        <div><div class="l">Carbs</div><div class="v">${round1(it.nutrients?.carbs||0)}g</div></div>
-        <div><div class="l">Fat</div><div class="v">${round1(it.nutrients?.fat||0)}g</div></div>
-        <div><div class="l">Fiber</div><div class="v">${round1(it.nutrients?.fiber||0)}g</div></div>
-        <div><div class="l">Sodium</div><div class="v">${Math.round(it.nutrients?.sodium||0)}mg</div></div>
+        <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
+        <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
+        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${round1(h.value)}${h.unit}</div></div>`).join('')}
       </div>
     </div>
-  `).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  `;}).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
 
 async function confirmAddAll(photoTag){
@@ -2144,6 +2239,50 @@ async function openNutrientDetail(id){
   openModal('detailModal');
 }
 
+// Shows every nutrient logged for one diary entry: calories/protein/carbs/fat
+// first as the basics, then everything else ranked by how much of the daily
+// target it covers — so the food's standout nutrient (potassium for a
+// banana, vitamin C for an orange, etc.) surfaces at the top instead of
+// being buried in a flat alphabetical list.
+async function openFoodEntryDetail(id){
+  const day = await loadDay(currentDate);
+  const f = (day.foods||[]).find(x=>x.id===id);
+  if(!f) return;
+  const nutrients = f.nutrients||{};
+  document.getElementById('foodDetailModalName').textContent = f.name;
+
+  const primaryIds = ['calories','protein','carbs','fat'];
+  const primary = primaryIds.map(pid=>{
+    const n = NUTRIENTS.find(x=>x.id===pid);
+    const v = nutrients[pid]||0;
+    return `<div><div class="l">${pid==='calories'?'Cal':n.name}</div><div class="v">${pid==='calories'?Math.round(v):round1(v)+n.unit}</div></div>`;
+  }).join('');
+
+  const highlights = nutrientHighlights(nutrients, primaryIds);
+  const rows = highlights.length
+    ? highlights.map((h,i)=>{
+        const t = getTarget(h.id);
+        const pctDisp = t>0 ? Math.round(h.pct) : null;
+        const meta = CAT_META[h.cat] || {color:'var(--text-faint)'};
+        return `<div class="fd-row${i===0?' standout':''}">
+          <span class="dot" style="background:${meta.color}"></span>
+          <div class="fname">${escapeHtml(h.name)}${i===0?'<span class="fd-badge">Most notable</span>':''}</div>
+          ${t>0
+            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${meta.color}"></span></div><div class="famt">${round1(h.value)}${h.unit} · ${pctDisp}%</div>`
+            : `<div class="famt">${round1(h.value)}${h.unit}</div>`}
+        </div>`;
+      }).join('')
+    : `<div class="empty-state" style="padding:16px 0;">No additional nutrient data for this item yet — tap the ↻ on the diary row to check for more.</div>`;
+
+  document.getElementById('foodDetailModalBody').innerHTML = `
+    <div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">${f.grams?f.grams+(f.isWater?'ml':'g'):''}${f.grams&&f.time?' · ':''}${f.time||''}</div>
+    <div class="fd-basics">${primary}</div>
+    <div class="fd-section-label">Ranked by nutrient density (% of your daily target)</div>
+    ${rows}
+  `;
+  openModal('foodDetailModal');
+}
+
 async function openRemainingModal(){
   const day = await loadDay(currentDate);
   const totals = computeTotals(day);
@@ -2152,7 +2291,7 @@ async function openRemainingModal(){
     const v = totals[n.id]||0;
     const pct = (v/t)*100;
     return {n, pct, v, t};
-  }).sort((a,b)=>a.pct-b.pct);
+  }).sort((a,b)=> nutrientImportanceRank(a.n.id) - nutrientImportanceRank(b.n.id));
   const avgPct = list.length ? Math.round(list.reduce((s,x)=>s+Math.min(100,x.pct),0)/list.length) : 0;
   const metCount = list.filter(x=>x.pct>=100).length;
   document.getElementById('remainingModalBody').innerHTML = `
