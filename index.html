@@ -634,6 +634,21 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   </div>
 </div>
 
+<!-- LOG SAVED MEAL MODAL -->
+<div class="modal-backdrop" id="logSavedMealModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="logSavedMealTitle">Log saved meal</h3><button onclick="closeModal('logSavedMealModal')">✕</button></div>
+    <div id="logSavedMealSummary" style="font-size:13px;color:var(--text-dim);margin-bottom:14px;"></div>
+    <div class="field">
+      <label>Quantity</label>
+      <input type="number" id="logSavedMealQty" step="0.5" min="0.5" value="1">
+      <div class="hint">This scales the saved nutrients locally. No AI call is needed.</div>
+    </div>
+    <button class="btn block" onclick="confirmLogSavedMeal()">Add to diary</button>
+  </div>
+</div>
+
 <!-- EXERCISE MODAL -->
 <div class="modal-backdrop" id="exerciseModal">
   <div class="modal">
@@ -980,7 +995,11 @@ async function loadSettings(){
   if(p) profile = Object.assign(profile, p);
   const t = await storeGet('targetOverrides');
   if(t) targetOverrides = t;
-  savedMeals = await storeGet('savedMeals') || [];
+  savedMeals = (await storeGet('savedMeals') || []).map(m=>({
+    ...m,
+    baseGrams: m.baseGrams || m.grams || 1,
+    baseNutrients: m.baseNutrients || m.nutrients || {}
+  }));
   foodLibrary = await storeGet('foodLibrary') || {};
   // One-time migration: earlier versions auto-saved calories/protein/fat/carbs
   // overrides from a generic formula. Those stale numbers would otherwise sit
@@ -1615,37 +1634,31 @@ async function callGemini(content){
     imageMime: imagePart ? imagePart.source.media_type : null
   });
 
-  // Gemini occasionally 503s with "model overloaded" — that's transient,
-  // so retry a couple of times with a short backoff before giving up.
-  // Only retries on that specific case; a successful call is never slowed down.
-  const MAX_ATTEMPTS = 3;
-  let lastErr;
-  for(let attempt=0; attempt<MAX_ATTEMPTS; attempt++){
-    if(attempt>0) await new Promise(r=>setTimeout(r, attempt*900));
-    let res;
-    try{
-      res = await fetch('/api/analyze', {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
-        body
-      });
-    }catch(networkErr){
-      lastErr = networkErr;
-      continue;
-    }
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 45000);
+  try{
+    const res = await fetch('/api/analyze', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
+      body,
+      signal: controller.signal
+    });
     if(res.ok){
       const data = await res.json();
       const parsed = parseGeminiJson(data);
       parsed._apiUsed = data.provider || 'Gemini';
       return parsed;
     }
-    const errBody = await res.json().catch(()=>({}));
+    let errBody = {};
+    try{ errBody = await res.json(); }catch(e){ errBody = {}; }
     const msg = errBody.error || `Analysis service error (${res.status})`;
-    const isOverloaded = res.status===503 || /UNAVAILABLE|overloaded|high demand/i.test(msg);
-    lastErr = new Error(msg);
-    if(!isOverloaded || attempt===MAX_ATTEMPTS-1) throw lastErr;
+    throw new Error(msg);
+  }catch(err){
+    if(err && err.name==='AbortError') throw new Error('Analysis timed out. Please try a clearer photo or a shorter meal description.');
+    throw err;
+  }finally{
+    clearTimeout(timer);
   }
-  throw lastErr;
 }
 // Best-effort recovery: if the model's JSON got cut off partway through the
 // "items" array, keep every item object that closed cleanly and drop the
@@ -1935,6 +1948,7 @@ function savedMealFor(foodId){
 }
 let pendingSaveMealFoodId = null;
 let pendingSaveMealPhoto = null;
+let pendingLogSavedMealId = null;
 async function openSaveMealModal(foodId){
   const day = await loadDay(currentDate);
   const food = (day.foods||[]).find(f=>f.id===foodId);
@@ -1955,6 +1969,14 @@ async function openSaveMealModal(foodId){
     txt.style.display = '';
   }
   openModal('saveMealModal');
+}
+function scaleNutrients(nutrients, factor){
+  const out = {};
+  for(const key in (nutrients||{})){
+    const value = nutrients[key];
+    out[key] = typeof value === 'number' ? Math.round(value * factor * 100) / 100 : value;
+  }
+  return out;
 }
 function handleSaveMealPhotoChosen(evt){
   const file = evt.target.files[0];
@@ -1977,14 +1999,18 @@ async function confirmSaveMeal(){
   if(!food) return;
   const name = document.getElementById('saveMealName').value.trim() || food.name;
   const note = document.getElementById('saveMealNote').value.trim();
+  const baseGrams = Number(food.grams || 1) || 1;
+  const baseNutrients = {...(food.nutrients||{})};
   savedMeals.push({
     id: 'sm'+Date.now(),
     savedFrom: food.id,
     name,
     note: note || null,
     photo: pendingSaveMealPhoto || null,
-    grams: food.grams || null,
-    nutrients: {...(food.nutrients||{})},
+    grams: baseGrams,
+    nutrients: baseNutrients,
+    baseGrams,
+    baseNutrients,
     createdAt: Date.now()
   });
   closeModal('saveMealModal');
@@ -2010,21 +2036,46 @@ function renderSavedMealsPane(){
       <div class="thumb">${m.photo?`<img src="${m.photo}">`:'🍴'}</div>
       <div class="info">
         <div class="name">${escapeHtml(m.name)}</div>
-        <div class="meta">${Math.round(m.nutrients?.calories||0)} kcal${m.note?' · '+escapeHtml(m.note):''}</div>
+        <div class="meta">${Math.round((m.baseNutrients||m.nutrients||{}).calories||0)} kcal${m.note?' · '+escapeHtml(m.note):''}</div>
       </div>
-      <button class="btn" style="padding:8px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="logSavedMeal('${m.id}')">+ Log</button>
+       <button class="btn" style="padding:8px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="openLogSavedMealModal('${m.id}')">+ Log</button>
       <button class="del" onclick="deleteSavedMealById('${m.id}')">✕</button>
     </div>
   `).join('');
 }
-async function logSavedMeal(id){
+function openLogSavedMealModal(id){
   const meal = savedMeals.find(m=>m.id===id);
   if(!meal) return;
+  pendingLogSavedMealId = id;
+  document.getElementById('logSavedMealTitle').textContent = `Log ${meal.name}`;
+  document.getElementById('logSavedMealSummary').textContent = `Base portion: ${round1(meal.baseGrams || meal.grams || 1)}g${meal.note ? ' · ' + meal.note : ''}`;
+  document.getElementById('logSavedMealQty').value = '1';
+  openModal('logSavedMealModal');
+}
+async function confirmLogSavedMeal(){
+  const meal = savedMeals.find(m=>m.id===pendingLogSavedMealId);
+  if(!meal) return;
+  const quantity = Number(document.getElementById('logSavedMealQty').value || 0);
+  if(!quantity || quantity <= 0){
+    showToast('Enter a quantity greater than zero');
+    return;
+  }
+  const baseGrams = Number(meal.baseGrams || meal.grams || 1) || 1;
+  const baseNutrients = meal.baseNutrients || meal.nutrients || {};
   const day = await loadDay(currentDate);
   const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  day.foods.push({id:'f'+Date.now()+Math.random().toString(36).slice(2,6), name:meal.name, grams:meal.grams, time, photo:meal.photo||null, nutrients:{...meal.nutrients}});
+  day.foods.push({
+    id:'f'+Date.now()+Math.random().toString(36).slice(2,6),
+    name:meal.name,
+    grams: Math.round(baseGrams * quantity * 100) / 100,
+    time,
+    photo:meal.photo||null,
+    nutrients: scaleNutrients(baseNutrients, quantity)
+  });
+  closeModal('logSavedMealModal');
+  pendingLogSavedMealId = null;
   renderAll();
-  showToast(`Added ${meal.name}`);
+  showToast(`Added ${meal.name} × ${quantity}`);
   saveDay(currentDate);
 }
 async function deleteSavedMealById(id){
