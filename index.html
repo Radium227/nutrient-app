@@ -140,23 +140,6 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .contrib-row .cpct{font-family:var(--font-mono); font-size:13px; color:var(--text-faint); min-width:38px; text-align:right;}
 .detail-edit-link{display:block; text-align:center; margin-top:16px; color:var(--min); font-size:13.5px; background:none; border:none; width:100%; padding:8px;}
 
-/* ---------- Food detail modal (per-entry nutrient breakdown) ---------- */
-.fd-basics{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:18px;}
-.fd-basics div{background:var(--surface-2); border-radius:10px; padding:9px 6px; text-align:center;}
-.fd-basics .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.3px;}
-.fd-basics .v{font-family:var(--font-mono); font-size:14px; margin-top:3px; font-weight:600;}
-.fd-section-label{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint); margin-bottom:8px;}
-.fd-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);}
-.fd-row:last-child{border-bottom:none;}
-.fd-row .dot{width:8px;height:8px;border-radius:3px; flex-shrink:0;}
-.fd-row .fname{flex:1; font-size:13.5px;}
-.fd-row .fbar{width:60px; height:5px; background:var(--surface-3); border-radius:3px; overflow:hidden; margin-right:2px; flex-shrink:0;}
-.fd-row .fbar span{display:block; height:100%; border-radius:3px;}
-.fd-row .famt{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); text-align:right; min-width:70px;}
-.fd-row.standout{background:var(--surface-2); margin:0 -8px; padding:9px 8px; border-radius:10px; border-bottom:none;}
-.fd-row.standout .fname{font-weight:600;}
-.fd-badge{display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--macro); margin-left:6px;}
-
 /* ---------- Remaining nutrients modal ---------- */
 .remain-summary{text-align:center; margin-bottom:18px;}
 .remain-summary .big{font-family:var(--font-display); font-size:40px; font-weight:600;}
@@ -174,14 +157,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
 .spectrum-head .count{font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
-.spectrum{display:flex; align-items:flex-end; gap:2px; height:72px; overflow:hidden;}
-.spectrum .col{flex:1; min-width:2px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; margin-left:0;}
-.spectrum .col.group-start{margin-left:6px;}
-.spectrum .bar{width:100%; min-height:3px; background:var(--surface-3); border-radius:2px 2px 0 0; position:relative; transition:height .5s ease;}
-.spectrum .tick{width:100%; height:3px; border-radius:0 0 2px 2px; margin-top:2px; flex-shrink:0; opacity:.9;}
+.spectrum{display:flex; align-items:flex-end; gap:1.5px; height:64px; overflow:hidden;}
+.spectrum .bar{flex:1; min-width:2px; background:var(--surface-3); border-radius:2px 2px 0 0; position:relative; transition:height .5s ease;}
 .spectrum-legend{display:flex; gap:14px; margin-top:12px; flex-wrap:wrap;}
 .spectrum-legend .item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-faint);}
-.spectrum-legend .dot{width:7px;height:3px;border-radius:1px;}
+.spectrum-legend .dot{width:7px;height:7px;border-radius:2px;}
 
 /* ---------- Login screen ---------- */
 #loginScreen{position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:24px;}
@@ -445,6 +425,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <canvas id="weightChart" height="160"></canvas>
     </div>
     <div class="card chart-card">
+      <h2>Exercise minutes</h2>
+      <div class="empty-state" id="exerciseEmptyState" style="display:none; padding:20px 0;">No exercise logged in the last 14 days.</div>
+      <canvas id="exerciseChart" height="160"></canvas>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="l">Total time</div><div class="v mono" id="totalExerciseMinutes">—</div></div>
+        <div class="stat-box"><div class="l">Sessions</div><div class="v mono" id="totalExerciseSessions">—</div></div>
+      </div>
+    </div>
+    <div class="card chart-card">
       <h2>Calories (last 14 days)</h2>
       <canvas id="calorieChart" height="160"></canvas>
       <div class="stat-grid">
@@ -683,16 +672,6 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div id="detailModalBody"></div>
   </div>
 </div>
-
-<!-- FOOD DETAIL MODAL (all nutrients for one diary entry, ranked by density) -->
-<div class="modal-backdrop" id="foodDetailModal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-head"><h3 id="foodDetailModalName">Food</h3><button onclick="closeModal('foodDetailModal')">✕</button></div>
-    <div id="foodDetailModalBody"></div>
-  </div>
-</div>
-
 
 <!-- OVERALL COMPLETION / REMAINING NUTRIENTS MODAL -->
 <div class="modal-backdrop" id="remainingModal">
@@ -1017,74 +996,6 @@ function getTarget(id){
   return def ? def.rda : 0;
 }
 
-// Ranks a food's nutrients by "density" — how much of the daily target a
-// typical serving covers — so the standout nutrient (e.g. potassium for a
-// banana, vitamin C for an orange) surfaces first instead of always
-// leading with the same generic macro list.
-// Ordered by general nutritional importance to the body — foundational
-// energy/macros first, then the vitamins/minerals most commonly emphasized
-// for health and most often deficient, then other essential micronutrients,
-// then essential amino acids (the body can't make these), then non-essential
-// amino acids, then nutrients you mainly want to watch/limit, then minor
-// breakdown sub-totals (soluble fiber, net carbs, etc.) that are already
-// captured by their parent nutrient. This is what "Nutrient completion"
-// sorts by, so hitting your calcium or vitamin D target shows up near the
-// top even at 100%+, instead of always being buried under a long tail of
-// amino acids sitting at 3-4%.
-const NUTRIENT_IMPORTANCE_ORDER = [
-  'calories','protein','fiber','water',
-  'vitaminD','vitaminB12','iron','calcium','vitaminC','magnesium','zinc','folateB9','potassium','omega3',
-  'vitaminA','vitaminK','vitaminE','vitaminB6','thiaminB1','riboflavinB2','niacinB3','pantothenicAcidB5','biotinB7','choline',
-  'iodine','selenium','copper','manganese','phosphorus','chromium','molybdenum','fluoride',
-  'carbs','fat','monounsaturatedFat','polyunsaturatedFat','linoleicAcid','omega6','ala','epa','dha',
-  'leucine','lysine','isoleucine','valine','threonine','phenylalanine','methionine','histidine','tryptophan',
-  'arginine','glutamicAcid','asparticAcid','glycine','proline','serine','alanine','tyrosine','cystine',
-  'sodium','saturatedFat','cholesterol','addedSugars','sugars','transFat','caffeine','alcohol','sulfur',
-  'retinol','betaCarotene',
-  'netCarbs','starch','solubleFiber','insolubleFiber','sugarAlcohols'
-];
-const NUTRIENT_IMPORTANCE_RANK = {};
-NUTRIENT_IMPORTANCE_ORDER.forEach((id,i)=>{ NUTRIENT_IMPORTANCE_RANK[id] = i; });
-function nutrientImportanceRank(id){
-  return NUTRIENT_IMPORTANCE_RANK[id] !== undefined ? NUTRIENT_IMPORTANCE_RANK[id] : NUTRIENT_IMPORTANCE_ORDER.length;
-}
-
-function shortNutrientLabel(name){
-  return name.replace(/\s*\([^)]*\)\s*$/,'').trim() || name;
-}
-function nutrientHighlights(nutrients, excludeIds){
-  const exclude = new Set(excludeIds||[]);
-  const list = [];
-  NUTRIENTS.forEach(n=>{
-    if(exclude.has(n.id)) return;
-    const v = nutrients ? nutrients[n.id] : 0;
-    if(!v || v<=0) return;
-    const t = getTarget(n.id);
-    const pct = t>0 ? (v/t)*100 : 0;
-    list.push({id:n.id, name:n.name, unit:n.unit, cat:n.cat, value:v, pct});
-  });
-  list.sort((a,b)=> b.pct - a.pct);
-  return list;
-}
-// Picks up to `count` nutrients to spotlight for a single food item, most
-// nutrient-dense first. Falls back to common macros if a food doesn't have
-// enough data to fill every slot.
-function pickHighlightNutrients(nutrients, excludeIds, count){
-  const highlights = nutrientHighlights(nutrients, excludeIds);
-  const chosen = highlights.slice(0, count);
-  if(chosen.length < count){
-    ['carbs','fat','fiber','sodium'].forEach(id=>{
-      if(chosen.length>=count) return;
-      if((excludeIds||[]).includes(id)) return;
-      if(chosen.some(c=>c.id===id)) return;
-      const n = NUTRIENTS.find(x=>x.id===id);
-      if(!n) return;
-      chosen.push({id, name:n.name, unit:n.unit, cat:n.cat, value:(nutrients&&nutrients[id])||0, pct:0});
-    });
-  }
-  return chosen;
-}
-
 /* =========================================================
    TOTALS
 ========================================================= */
@@ -1185,7 +1096,6 @@ function renderDashboard(day){
   // spectrum / overall completion
   let bars = '';
   let metCount = 0, totalCount = 0, pctSum = 0;
-  let prevCat = null;
   NUTRIENTS.forEach(n=>{
     const t = getTarget(n.id);
     if(!t || t<=0) return;
@@ -1194,13 +1104,7 @@ function renderDashboard(day){
     const pctCapped = Math.min(100, (v/t)*100);
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
-    const catMeta = CAT_META[n.cat] || {label:'Other', color:'var(--surface-3)'};
-    const groupStart = prevCat!==null && prevCat!==n.cat ? ' group-start' : '';
-    prevCat = n.cat;
-    bars += `<div class="col${groupStart}" title="${catMeta.label} · ${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}">
-      <div class="bar" style="height:${Math.max(3,pctCapped*0.57)}px; background:${progressColor(pctCapped)}"></div>
-      <div class="tick" style="background:${catMeta.color}"></div>
-    </div>`;
+    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
@@ -1225,7 +1129,7 @@ function foodEntryHTML(f){
   const refreshBtn = canSave
     ? `<button class="refresh" id="refresh-${f.id}" title="Re-check this food's nutrients (fixes gaps like missing amino acids, without retyping anything)" onclick="event.stopPropagation(); refreshFoodNutrients('${f.id}')">↻</button>`
     : '';
-  return `<div class="entry" style="cursor:pointer;" onclick="openFoodEntryDetail('${f.id}')">
+  return `<div class="entry">
     <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
     <div class="info">
       <div class="name">${escapeHtml(f.name)}</div>
@@ -1234,7 +1138,7 @@ function foodEntryHTML(f){
     <div class="kcal">${f.isWater ? '0 kcal' : Math.round(f.nutrients?.calories||0)+' kcal'}</div>
     ${starBtn}
     ${refreshBtn}
-    <button class="del" onclick="event.stopPropagation(); deleteFood('${f.id}')">✕</button>
+    <button class="del" onclick="deleteFood('${f.id}')">✕</button>
   </div>`;
 }
 
@@ -1326,7 +1230,7 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??
 /* =========================================================
    TRENDS
 ========================================================= */
-let weightChartInst=null, calorieChartInst=null;
+let weightChartInst=null, calorieChartInst=null, exerciseChartInst=null;
 async function renderTrends(){
   const days = [];
   for(let i=13;i>=0;i--){
@@ -1334,10 +1238,19 @@ async function renderTrends(){
     days.push(todayStr(d));
   }
   const dayDatas = await Promise.all(days.map(loadDay));
-  // Use the most recent reading logged that day, so logging weight more than
-  // once a day still shows one clean point per day (the latest one) instead
-  // of being overwritten silently or plotted twice.
-  const weights = dayDatas.map(d=>latestWeight(d));
+
+  // Plot every individual weight log (not collapsed to one-per-day) at its
+  // real timestamp, so multiple same-day entries both show up correctly.
+  const weightPoints = [];
+  dayDatas.forEach(d=>{
+    (d.weights||[]).forEach(w=>{
+      if(w && typeof w.value==='number') weightPoints.push({x:w.ts, y:w.value});
+    });
+  });
+  weightPoints.sort((a,b)=>a.x-b.x);
+  const rangeStartTs = new Date(days[0]+'T00:00:00').getTime();
+  const rangeEndTs = new Date(days[days.length-1]+'T23:59:59').getTime();
+
   const intakes = dayDatas.map(d=>Math.round(computeTotals(d).calories));
   const burns = dayDatas.map(d=>computeBurned(d));
   const calTarget = getTarget('calories');
@@ -1354,8 +1267,8 @@ async function renderTrends(){
     if(weightChartInst) weightChartInst.destroy();
     weightChartInst = new Chart(ctx1, {
       type:'line',
-      data:{labels, datasets:[{
-        data:weights,
+      data:{datasets:[{
+        data:weightPoints,
         borderColor:'#5FB2E8',
         borderWidth:2.5,
         backgroundColor:(ctx)=>{
@@ -1376,13 +1289,78 @@ async function renderTrends(){
         pointBorderColor:'#EAF3EF',
         pointBorderWidth:1.5
       }]},
-      options:{plugins:{legend:{display:false}}, scales:{
-        x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{color:'#2C4941'}},
-        y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}
-      }}
+      options:{
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{
+            title:(items)=> new Date(items[0].parsed.x).toLocaleString(undefined,{month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}),
+            label:(item)=> `${item.parsed.y} kg`
+          }}
+        },
+        scales:{
+          x:{
+            type:'linear',
+            min:rangeStartTs, max:rangeEndTs,
+            ticks:{color:'#6D897E', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
+            grid:{color:'#2C4941'}
+          },
+          y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}
+        }
+      }
     });
   }catch(err){
     console.error('Weight chart failed to render:', err);
+  }
+
+  // Exercise minutes aggregated by activity over the same window, shown as
+  // a doughnut. Reuses the macro/vitamin/mineral/amino/other palette from
+  // the Nutrient Spectrum so it matches the rest of the app visually.
+  const exerciseTotals = {};
+  let totalExerciseMinutes = 0, totalExerciseSessions = 0;
+  dayDatas.forEach(d=>{
+    (d.exercises||[]).forEach(e=>{
+      const mins = Number(e.minutes)||0;
+      exerciseTotals[e.name] = (exerciseTotals[e.name]||0) + mins;
+      totalExerciseMinutes += mins;
+      totalExerciseSessions += 1;
+    });
+  });
+  document.getElementById('totalExerciseMinutes').textContent = totalExerciseMinutes ? totalExerciseMinutes+' min' : '—';
+  document.getElementById('totalExerciseSessions').textContent = totalExerciseSessions || '—';
+  const exCanvas = document.getElementById('exerciseChart');
+  const exEmpty = document.getElementById('exerciseEmptyState');
+  if(exerciseChartInst){ exerciseChartInst.destroy(); exerciseChartInst=null; }
+  const exerciseLabels = Object.keys(exerciseTotals);
+  if(exerciseLabels.length){
+    exCanvas.style.display='block';
+    exEmpty.style.display='none';
+    const exercisePalette = ['#FF8F5E','#F3C948','#5FB2E8','#C08CF0','#6BCB9E'];
+    try{
+      exerciseChartInst = new Chart(exCanvas, {
+        type:'doughnut',
+        data:{
+          labels:exerciseLabels,
+          datasets:[{
+            data:exerciseLabels.map(l=>exerciseTotals[l]),
+            backgroundColor:exerciseLabels.map((_,i)=>exercisePalette[i%exercisePalette.length]),
+            borderColor:'#152622',
+            borderWidth:2
+          }]
+        },
+        options:{
+          cutout:'62%',
+          plugins:{
+            legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+            tooltip:{callbacks:{label:(item)=>`${item.label}: ${item.parsed} min`}}
+          }
+        }
+      });
+    }catch(err){
+      console.error('Exercise chart failed to render:', err);
+    }
+  } else {
+    exCanvas.style.display='none';
+    exEmpty.style.display='block';
   }
 
   try{
@@ -1520,32 +1498,7 @@ Keep item names short. Fully complete every item's nutrient object — including
   return p;
 }
 
-// Calls our own /api/analyze serverless function, which holds the Gemini
-// key server-side and forwards to the Gemini API. `content` keeps the same
-// shape the old direct-to-Claude call used: an array with a {type:'text'}
-// block and optionally a {type:'image', source:{data, media_type}} block.
-async function callGemini(content){
-  const textPart = content.find(c=>c.type==='text');
-  const imagePart = content.find(c=>c.type==='image');
-  if(!currentUser) throw new Error('You need to be signed in to analyze a meal.');
-  const idToken = await currentUser.getIdToken();
-  const res = await fetch('/api/analyze', {
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'Authorization':'Bearer '+idToken
-    },
-    body: JSON.stringify({
-      prompt: textPart ? textPart.text : '',
-      imageBase64: imagePart ? imagePart.source.data : null,
-      imageMime: imagePart ? imagePart.source.media_type : null
-    })
-  });
-  if(!res.ok){
-    const errBody = await res.json().catch(()=>({}));
-    throw new Error(errBody.error || `Analysis service error (${res.status})`);
-  }
-  const data = await res.json();
+function parseGeminiJson(data){
   const text = data.text || '';
   const clean = text.replace(/```json|```/g,'').trim();
   const firstBrace = clean.indexOf('{');
@@ -1564,6 +1517,52 @@ async function callGemini(content){
     }
     throw parseErr;
   }
+}
+
+// Calls our own /api/analyze serverless function, which holds the Gemini
+// key server-side and forwards to the Gemini API. `content` keeps the same
+// shape the old direct-to-Claude call used: an array with a {type:'text'}
+// block and optionally a {type:'image', source:{data, media_type}} block.
+async function callGemini(content){
+  const textPart = content.find(c=>c.type==='text');
+  const imagePart = content.find(c=>c.type==='image');
+  if(!currentUser) throw new Error('You need to be signed in to analyze a meal.');
+  const idToken = await currentUser.getIdToken();
+  const body = JSON.stringify({
+    prompt: textPart ? textPart.text : '',
+    imageBase64: imagePart ? imagePart.source.data : null,
+    imageMime: imagePart ? imagePart.source.media_type : null
+  });
+
+  // Gemini occasionally 503s with "model overloaded" — that's transient,
+  // so retry a couple of times with a short backoff before giving up.
+  // Only retries on that specific case; a successful call is never slowed down.
+  const MAX_ATTEMPTS = 3;
+  let lastErr;
+  for(let attempt=0; attempt<MAX_ATTEMPTS; attempt++){
+    if(attempt>0) await new Promise(r=>setTimeout(r, attempt*900));
+    let res;
+    try{
+      res = await fetch('/api/analyze', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
+        body
+      });
+    }catch(networkErr){
+      lastErr = networkErr;
+      continue;
+    }
+    if(res.ok){
+      const data = await res.json();
+      return parseGeminiJson(data);
+    }
+    const errBody = await res.json().catch(()=>({}));
+    const msg = errBody.error || `Analysis service error (${res.status})`;
+    const isOverloaded = res.status===503 || /UNAVAILABLE|overloaded|high demand/i.test(msg);
+    lastErr = new Error(msg);
+    if(!isOverloaded || attempt===MAX_ATTEMPTS-1) throw lastErr;
+  }
+  throw lastErr;
 }
 // Best-effort recovery: if the model's JSON got cut off partway through the
 // "items" array, keep every item object that closed cleanly and drop the
@@ -1725,21 +1724,20 @@ function showResults(items, photoBase64, mimeType){
     return;
   }
   const photoTag = photoBase64 ? `data:${mimeType};base64,${photoBase64}` : null;
-  area.innerHTML = pendingResults.map(it=>{
-    const nutrients = it.nutrients||{};
-    const highlights = pickHighlightNutrients(nutrients, ['calories','protein'], 4);
-    const standout = highlights[0] && highlights[0].pct>0 ? highlights[0] : null;
-    return `
+  area.innerHTML = pendingResults.map(it=>`
     <div class="result-card" id="card-${it._id}">
       <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span> ${libraryBadge(it._libraryStatus)}</div>
-      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
+      <div class="rmeta">~${it.gramsEstimate||'?'}g</div>
       <div class="rgrid">
-        <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
-        <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
-        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${round1(h.value)}${h.unit}</div></div>`).join('')}
+        <div><div class="l">Cal</div><div class="v">${Math.round(it.nutrients?.calories||0)}</div></div>
+        <div><div class="l">Protein</div><div class="v">${round1(it.nutrients?.protein||0)}g</div></div>
+        <div><div class="l">Carbs</div><div class="v">${round1(it.nutrients?.carbs||0)}g</div></div>
+        <div><div class="l">Fat</div><div class="v">${round1(it.nutrients?.fat||0)}g</div></div>
+        <div><div class="l">Fiber</div><div class="v">${round1(it.nutrients?.fiber||0)}g</div></div>
+        <div><div class="l">Sodium</div><div class="v">${Math.round(it.nutrients?.sodium||0)}mg</div></div>
       </div>
     </div>
-  `;}).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  `).join('') + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
 
 async function confirmAddAll(photoTag){
@@ -2146,50 +2144,6 @@ async function openNutrientDetail(id){
   openModal('detailModal');
 }
 
-// Shows every nutrient logged for one diary entry: calories/protein/carbs/fat
-// first as the basics, then everything else ranked by how much of the daily
-// target it covers — so the food's standout nutrient (potassium for a
-// banana, vitamin C for an orange, etc.) surfaces at the top instead of
-// being buried in a flat alphabetical list.
-async function openFoodEntryDetail(id){
-  const day = await loadDay(currentDate);
-  const f = (day.foods||[]).find(x=>x.id===id);
-  if(!f) return;
-  const nutrients = f.nutrients||{};
-  document.getElementById('foodDetailModalName').textContent = f.name;
-
-  const primaryIds = ['calories','protein','carbs','fat'];
-  const primary = primaryIds.map(pid=>{
-    const n = NUTRIENTS.find(x=>x.id===pid);
-    const v = nutrients[pid]||0;
-    return `<div><div class="l">${pid==='calories'?'Cal':n.name}</div><div class="v">${pid==='calories'?Math.round(v):round1(v)+n.unit}</div></div>`;
-  }).join('');
-
-  const highlights = nutrientHighlights(nutrients, primaryIds);
-  const rows = highlights.length
-    ? highlights.map((h,i)=>{
-        const t = getTarget(h.id);
-        const pctDisp = t>0 ? Math.round(h.pct) : null;
-        const meta = CAT_META[h.cat] || {color:'var(--text-faint)'};
-        return `<div class="fd-row${i===0?' standout':''}">
-          <span class="dot" style="background:${meta.color}"></span>
-          <div class="fname">${escapeHtml(h.name)}${i===0?'<span class="fd-badge">Most notable</span>':''}</div>
-          ${t>0
-            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${meta.color}"></span></div><div class="famt">${round1(h.value)}${h.unit} · ${pctDisp}%</div>`
-            : `<div class="famt">${round1(h.value)}${h.unit}</div>`}
-        </div>`;
-      }).join('')
-    : `<div class="empty-state" style="padding:16px 0;">No additional nutrient data for this item yet — tap the ↻ on the diary row to check for more.</div>`;
-
-  document.getElementById('foodDetailModalBody').innerHTML = `
-    <div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">${f.grams?f.grams+(f.isWater?'ml':'g'):''}${f.grams&&f.time?' · ':''}${f.time||''}</div>
-    <div class="fd-basics">${primary}</div>
-    <div class="fd-section-label">Ranked by nutrient density (% of your daily target)</div>
-    ${rows}
-  `;
-  openModal('foodDetailModal');
-}
-
 async function openRemainingModal(){
   const day = await loadDay(currentDate);
   const totals = computeTotals(day);
@@ -2198,7 +2152,7 @@ async function openRemainingModal(){
     const v = totals[n.id]||0;
     const pct = (v/t)*100;
     return {n, pct, v, t};
-  }).sort((a,b)=> nutrientImportanceRank(a.n.id) - nutrientImportanceRank(b.n.id));
+  }).sort((a,b)=>a.pct-b.pct);
   const avgPct = list.length ? Math.round(list.reduce((s,x)=>s+Math.min(100,x.pct),0)/list.length) : 0;
   const metCount = list.filter(x=>x.pct>=100).length;
   document.getElementById('remainingModalBody').innerHTML = `
