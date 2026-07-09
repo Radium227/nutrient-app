@@ -2,7 +2,7 @@ const FIREBASE_WEB_API_KEY = 'AIzaSyA5Jp_4A4hUTTn29_EsgbYxPqdWzomas3M';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
-const REQUEST_TIMEOUT_MS = 120000;
+const REQUEST_TIMEOUT_MS = 45000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -80,12 +80,9 @@ function responseErrorMessage(providerName, status, bodyText) {
       parsed = null;
     }
   }
-
-  const message =
-    parsed && (parsed.error?.message || parsed.message || parsed.error)
-      ? (parsed.error?.message || parsed.message || parsed.error)
-      : bodyText;
-
+  const message = parsed && (parsed.error?.message || parsed.message || parsed.error)
+    ? (parsed.error?.message || parsed.message || parsed.error)
+    : bodyText;
   return `${providerName} error (${status}): ${truncateText(message || 'Unknown error', 300)}`;
 }
 
@@ -157,50 +154,28 @@ async function callGemini(prompt, imageBase64, imageMime) {
     },
   };
 
-  let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    if (attempt > 0) {
-      await delay(attempt * 750);
-    }
-
-    let response;
-    try {
-      response = await fetchJson(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        }
-      );
-    } catch (error) {
-      throw new Error(`Gemini request failed: ${truncateText(error && error.message ? error.message : error, 200)}`);
-    }
-
-    if (response.ok) {
-      const data = await response.json().catch(() => null);
-      const text = extractGeminiText(data);
-      const finishReason = normalizeFinishReason(
-        data && data.candidates && data.candidates[0] && data.candidates[0].finishReason
-      );
-      return { text: validateJsonText(text), finishReason, provider: 'Gemini' };
-    }
-
-    const message = await readResponseError(response, 'Gemini');
-    lastError = new Error(message);
-
-    if (response.status === 503 && attempt < 2) {
-      continue;
-    }
-
-    if (response.status === 429 || response.status === 503) {
-      throw lastError;
-    }
-
-    throw lastError;
+  let response;
+  try {
+    response = await fetchJson(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      }
+    );
+  } catch (error) {
+    throw new Error(`Gemini request failed: ${truncateText(error && error.message ? error.message : error, 200)}`);
   }
 
-  throw lastError || new Error('Gemini request failed');
+  if (response.ok) {
+    const data = await response.json().catch(() => null);
+    const text = extractGeminiText(data);
+    const finishReason = normalizeFinishReason(data && data.candidates && data.candidates[0] && data.candidates[0].finishReason);
+    return { text: validateJsonText(text), finishReason, provider: 'Gemini' };
+  }
+
+  throw new Error(await readResponseError(response, 'Gemini'));
 }
 
 async function callGroq(prompt, imageBase64, imageMime) {
@@ -232,9 +207,7 @@ async function callGroq(prompt, imageBase64, imageMime) {
 
   const data = await response.json().catch(() => null);
   const text = extractChatText(data);
-  const finishReason = normalizeFinishReason(
-    data && data.choices && data.choices[0] && data.choices[0].finish_reason
-  );
+  const finishReason = normalizeFinishReason(data && data.choices && data.choices[0] && data.choices[0].finish_reason);
   return { text: validateJsonText(text), finishReason, provider: 'Groq' };
 }
 
@@ -275,9 +248,7 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
 
   const data = await response.json().catch(() => null);
   const text = extractChatText(data);
-  const finishReason = normalizeFinishReason(
-    data && data.choices && data.choices[0] && data.choices[0].finish_reason
-  );
+  const finishReason = normalizeFinishReason(data && data.choices && data.choices[0] && data.choices[0].finish_reason);
   return { text: validateJsonText(text), finishReason, provider: 'OpenRouter' };
 }
 
