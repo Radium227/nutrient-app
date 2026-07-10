@@ -3,7 +3,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const JSON_ONLY_PROMPT = 'Return only a valid JSON object. Do not wrap it in markdown or add any extra text.';
-const REQUEST_TIMEOUT_MS = 120000;
+const REQUEST_TIMEOUT_MS = 90000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
