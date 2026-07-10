@@ -828,6 +828,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <input type="text" id="saveMealName">
     </div>
     <div class="field">
+      <label>How many items did this entry cover?</label>
+      <input type="number" id="saveMealUnitCount" step="0.5" min="0.5" value="1">
+      <div class="hint">e.g. if you logged 5 eggs, enter 5 — the meal gets saved per single egg, so later you can log any quantity you like.</div>
+    </div>
+    <div class="field">
       <label>Photo (optional)</label>
       <label class="photo-drop" id="saveMealPhotoLabel" style="min-height:100px;">
         <span id="saveMealPhotoText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Add a photo</span></span>
@@ -2568,6 +2573,7 @@ async function openSaveMealModal(foodId){
   pendingSaveMealPhoto = food.photo || null;
   document.getElementById('saveMealName').value = food.name;
   document.getElementById('saveMealNote').value = '';
+  document.getElementById('saveMealUnitCount').value = '1';
   const label = document.getElementById('saveMealPhotoLabel');
   label.querySelectorAll('img').forEach(i=>i.remove());
   const txt = document.getElementById('saveMealPhotoText');
@@ -2610,8 +2616,9 @@ async function confirmSaveMeal(){
   if(!food) return;
   const name = document.getElementById('saveMealName').value.trim() || food.name;
   const note = document.getElementById('saveMealNote').value.trim();
-  const baseGrams = Number(food.grams || 1) || 1;
-  const baseNutrients = {...(food.nutrients||{})};
+  const unitCount = Number(document.getElementById('saveMealUnitCount').value || 1) || 1;
+  const baseGrams = (Number(food.grams || 1) || 1) / unitCount;
+  const baseNutrients = scaleNutrients(food.nutrients || {}, 1 / unitCount);
   savedMeals.push({
     id: 'sm'+Date.now(),
     savedFrom: food.id,
