@@ -2098,9 +2098,17 @@ async function recordAnalysisUsage(provider, promptText, responseData){
 }
 
 function analysisRequestTimeoutMs(analysisMode){
-  if(analysisMode === 'diet') return 16000;
-  if(analysisMode === 'image') return 32000;
-  return 18000;
+  // These must stay comfortably above the server's own per-provider budget
+  // (see getAnalysisConfig in analyze.js: diet=25000ms, image=40000ms,
+  // text/default=30000ms) or the browser aborts a request that was still
+  // legitimately in progress -- which is exactly what "Analysis took too
+  // long" meant here: a real, working analysis of a multi-item meal being
+  // cut off client-side before the server even finished its first attempt,
+  // not an actual Gemini/provider failure. Retrying hit the same wall every
+  // time because the timeout, not the analysis, was the failure.
+  if(analysisMode === 'diet') return 40000;
+  if(analysisMode === 'image') return 55000;
+  return 45000;
 }
 
 function buildDietAnalysisSignature(day){
