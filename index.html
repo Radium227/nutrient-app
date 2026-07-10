@@ -6,8 +6,6 @@
 <title>Nutrient — AI Food Diary</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -52,7 +50,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 ::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
 
 /* ---------- App shell ---------- */
-#app{max-width:560px; margin:0 auto; position:relative;}
+#app{max-width:1040px; margin:0 auto; position:relative;}
 
 .topbar{
   position:sticky; top:0; z-index:20;
@@ -184,13 +182,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   border-top:1px solid var(--line);
   display:flex; justify-content:center;
 }
-.bottomnav-inner{max-width:560px; width:100%; display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom));}
+.bottomnav-inner{max-width:1040px; width:100%; display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom));}
 .navbtn{flex:1; background:none; border:none; color:var(--text-faint); display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 2px; font-size:10.5px; letter-spacing:.2px; border-radius:12px;}
 .navbtn.active{color:var(--macro);}
 .navbtn svg{width:20px; height:20px;}
 
 .fab{
-  position:fixed; right:calc(50% - 280px + 18px); bottom:74px; z-index:35;
+  position:fixed; right:24px; bottom:74px; z-index:35;
   width:58px; height:58px; border-radius:50%;
   background:var(--macro); color:#1a0d05; border:none;
   display:flex; align-items:center; justify-content:center; font-size:28px;
@@ -1104,6 +1102,29 @@ function fmtDateLabel(dstr){
 let storageHealthy = true;
 let storageWarned = false;
 
+function backupKeyFor(key){
+  return currentUser ? `nutrient-backup:${currentUser.uid}:${key}` : null;
+}
+
+function readLocalBackup(key){
+  const backupKey = backupKeyFor(key);
+  if(!backupKey) return null;
+  try{
+    const raw = localStorage.getItem(backupKey);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function writeLocalBackup(key, val){
+  const backupKey = backupKeyFor(key);
+  if(!backupKey) return;
+  try{
+    localStorage.setItem(backupKey, JSON.stringify(val));
+  }catch(e){}
+}
+
 // Every value lives at users/{uid}/kv/{key} as {value: <JSON string>}.
 // This mirrors the old window.storage.get/set(key, value) shape exactly,
 // so everything downstream (loadDay, loadSettings, etc.) is unchanged.
@@ -1116,9 +1137,11 @@ async function storeGet(key){
     const snap = await kvDoc(key).get();
     if(!snap.exists) return null;
     const data = snap.data();
-    return data && data.value ? JSON.parse(data.value) : null;
+    const parsed = data && data.value ? JSON.parse(data.value) : null;
+    if(parsed !== null && parsed !== undefined) writeLocalBackup(key, parsed);
+    return parsed;
   }
-  catch(e){ return null; }
+  catch(e){ return readLocalBackup(key); }
 }
 // Retries once, then falls back gracefully instead of failing silently or
 // spamming the console. Returns true if it actually persisted, false if not
@@ -1126,6 +1149,7 @@ async function storeGet(key){
 // offline cache means writes still queue locally and sync later even when
 // this "fails" due to being offline — this flag is about surfacing that.
 async function storeSet(key, val, attempt = 1){
+  writeLocalBackup(key, val);
   try{
     await kvDoc(key).set({value: JSON.stringify(val), updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
     storageHealthy = true;
@@ -1557,11 +1581,29 @@ function progressColor(pct){
 function barColor(pct, baseColor){ return progressColor(pct); }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 
+let chartJsPromise = null;
+function ensureChartJs(){
+  if(window.Chart) return Promise.resolve();
+  if(chartJsPromise) return chartJsPromise;
+  chartJsPromise = new Promise((resolve, reject)=>{
+    const script = document.createElement('script');
+    script.src = 'chart.umd.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      chartJsPromise = null;
+      reject(new Error('Could not load charts'));
+    };
+    document.head.appendChild(script);
+  });
+  return chartJsPromise;
+}
+
 /* =========================================================
    TRENDS
 ========================================================= */
 let weightChartInst=null, exerciseChartInst=null;
 async function renderTrends(){
+  await ensureChartJs();
   const days = [];
   for(let i=13;i>=0;i--){
     const d = new Date(); d.setDate(d.getDate()-i);
@@ -1994,7 +2036,7 @@ async function recordAnalysisUsage(provider, promptText, responseData){
 // key server-side and forwards to the Gemini API. `content` keeps the same
 // shape the old direct-to-Claude call used: an array with a {type:'text'}
 // block and optionally a {type:'image', source:{data, media_type}} block.
-async function callGemini(content){
+async function callGemini(content, analysisMode){
   const textPart = content.find(c=>c.type==='text');
   const imagePart = content.find(c=>c.type==='image');
   if(!currentUser) throw new Error('You need to be signed in to analyze a meal.');
@@ -2004,7 +2046,7 @@ async function callGemini(content){
     prompt: textPart ? textPart.text : '',
     imageBase64: imagePart ? imagePart.source.data : null,
     imageMime: imagePart ? imagePart.source.media_type : null,
-    analysisMode: imagePart ? 'image' : 'text',
+    analysisMode: analysisMode || (imagePart ? 'image' : 'text'),
     preferredFallbackOrder: fallbackOrderByUsage(usage)
   });
 
@@ -2155,7 +2197,7 @@ async function analyzePhoto(mimeType){
     const parsed = await callGemini([
       {type:'text', text: prompt},
       {type:'image', source:{type:'base64', media_type: mimeType || pendingPhotoMime, data: pendingPhotoBase64}}
-    ]);
+    ], 'image');
     showResults(enrichItemsWithLibrary(parsed.items||[]), pendingPhotoBase64, mimeType || pendingPhotoMime, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
@@ -2169,7 +2211,7 @@ async function analyzeText(){
   area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your meal…</div>`;
   try{
     const prompt = buildPrompt('meal description') + `\n\nMeal description: """${desc}"""`;
-    const parsed = await callGemini([{type:'text', text: prompt}]);
+    const parsed = await callGemini([{type:'text', text: prompt}], 'text');
     showResults(enrichItemsWithLibrary(parsed.items||[]), null, null, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze that: ${escapeHtml(err.message)}</div>`;
@@ -2182,7 +2224,7 @@ async function analyzeDailyDiet(){
   try{
     const day = await loadDay(currentDate);
     const prompt = buildDailyDietPrompt(day);
-    const parsed = await callGemini([{type:'text', text: prompt}]);
+    const parsed = await callGemini([{type:'text', text: prompt}], 'diet');
     renderDietAnalysis(parsed, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze today's diet: ${escapeHtml(err.message)}</div>`;
@@ -2525,7 +2567,7 @@ async function reanalyzeSingleFood(food){
   const desc = food.grams ? `${food.grams}g of ${food.name}` : food.name;
   const prompt = buildPrompt('a single already-identified food (not a full meal — return exactly one item in the items array)')
     + `\n\nFood: "${desc}". This exact food and quantity is already logged — do not re-estimate the portion size, just provide its complete nutrient profile for this amount.`;
-  const parsed = await callGemini([{type:'text', text: prompt}]);
+  const parsed = await callGemini([{type:'text', text: prompt}], 'text');
   const raw = (parsed.items||[])[0];
   if(!raw) return null;
   const enriched = enrichItemsWithLibrary([raw])[0];
