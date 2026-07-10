@@ -5,6 +5,16 @@ const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-sco
 const JSON_ONLY_PROMPT = 'Return only a valid JSON object. Do not wrap it in markdown or add any extra text.';
 const REQUEST_TIMEOUT_MS = 90000;
 
+function getAnalysisConfig(analysisMode) {
+  if (analysisMode === 'diet') {
+    return { timeoutMs: 25000, maxTokens: 2048 };
+  }
+  if (analysisMode === 'image') {
+    return { timeoutMs: 40000, maxTokens: 8192 };
+  }
+  return { timeoutMs: 30000, maxTokens: 4096 };
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -140,17 +150,18 @@ function buildOpenAiMessages(prompt, imageBase64, imageMime) {
   ];
 }
 
-async function callGemini(prompt, imageBase64, imageMime) {
+async function callGemini(prompt, imageBase64, imageMime, analysisMode) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('Gemini API key is not configured');
   }
+  const { timeoutMs, maxTokens } = getAnalysisConfig(analysisMode);
 
   const body = {
     contents: [{ role: 'user', parts: buildUserParts(prompt, imageBase64, imageMime) }],
     generationConfig: {
       responseMimeType: 'application/json',
-      maxOutputTokens: 16384,
+      maxOutputTokens: maxTokens,
     },
   };
 
@@ -168,7 +179,8 @@ async function callGemini(prompt, imageBase64, imageMime) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-        }
+        },
+        timeoutMs
       );
     } catch (error) {
       throw new Error(`Gemini request failed: ${truncateText(error && error.message ? error.message : error, 200)}`);
@@ -195,11 +207,12 @@ async function callGemini(prompt, imageBase64, imageMime) {
   throw lastError || new Error('Gemini request failed');
 }
 
-async function callGroq(prompt, imageBase64, imageMime) {
+async function callGroq(prompt, imageBase64, imageMime, analysisMode) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error('Groq API key is not configured');
   }
+  const { timeoutMs, maxTokens } = getAnalysisConfig(analysisMode);
 
   const response = await fetchJson('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -211,12 +224,12 @@ async function callGroq(prompt, imageBase64, imageMime) {
       model: GROQ_MODEL,
       messages: buildOpenAiMessages(prompt, imageBase64, imageMime),
       response_format: { type: 'json_object' },
-      max_completion_tokens: 16384,
+      max_completion_tokens: maxTokens,
       temperature: 0,
       top_p: 1,
       stream: false,
     }),
-  });
+  }, timeoutMs);
 
   if (!response.ok) {
     throw new Error(await readResponseError(response, 'Groq'));
@@ -228,11 +241,12 @@ async function callGroq(prompt, imageBase64, imageMime) {
   return { text: validateJsonText(text), finishReason, provider: 'Groq' };
 }
 
-async function callOpenRouter(prompt, imageBase64, imageMime) {
+async function callOpenRouter(prompt, imageBase64, imageMime, analysisMode) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error('OpenRouter API key is not configured');
   }
+  const { timeoutMs, maxTokens } = getAnalysisConfig(analysisMode);
 
   const headers = {
     Authorization: `Bearer ${apiKey}`,
@@ -252,12 +266,12 @@ async function callOpenRouter(prompt, imageBase64, imageMime) {
       model: OPENROUTER_MODEL,
       messages: buildOpenAiMessages(prompt, imageBase64, imageMime),
       response_format: { type: 'json_object' },
-      max_tokens: 16384,
+      max_tokens: maxTokens,
       temperature: 0,
       top_p: 1,
       stream: false,
     }),
-  });
+  }, timeoutMs);
 
   if (!response.ok) {
     throw new Error(await readResponseError(response, 'OpenRouter'));
@@ -293,7 +307,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { prompt, imageBase64, imageMime, preferredFallbackOrder } = req.body || {};
+  const { prompt, imageBase64, imageMime, preferredFallbackOrder, analysisMode } = req.body || {};
   if (!prompt || typeof prompt !== 'string') {
     res.status(400).json({ error: 'Missing prompt' });
     return;
@@ -304,11 +318,11 @@ module.exports = async function handler(req, res) {
     ? preferredFallbackOrder.filter((name) => fallbackNames.includes(name)).concat(fallbackNames.filter((name) => !preferredFallbackOrder.includes(name)))
     : fallbackNames;
   const providerRuns = {
-    Groq: () => callGroq(prompt, imageBase64, imageMime),
-    OpenRouter: () => callOpenRouter(prompt, imageBase64, imageMime),
+    Groq: () => callGroq(prompt, imageBase64, imageMime, analysisMode),
+    OpenRouter: () => callOpenRouter(prompt, imageBase64, imageMime, analysisMode),
   };
   const providers = [
-    { name: 'Gemini', run: () => callGemini(prompt, imageBase64, imageMime) },
+    { name: 'Gemini', run: () => callGemini(prompt, imageBase64, imageMime, analysisMode) },
     ...orderedFallbackNames.map((name) => ({ name, run: providerRuns[name] })),
   ];
 
