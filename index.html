@@ -242,6 +242,76 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 /* ---------- Trends ---------- */
 .chart-card canvas{width:100% !important;}
+.chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
+.heatmap-grid{
+  display:grid;
+  grid-template-columns:repeat(7, minmax(0, 1fr));
+  gap:8px;
+  margin-top:2px;
+}
+.heatmap-tile{
+  min-height:66px;
+  border-radius:12px;
+  padding:8px 8px 7px;
+  border:1px solid rgba(255,255,255,0.04);
+  background:var(--surface-2);
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  position:relative;
+  overflow:hidden;
+}
+.heatmap-tile .dow{
+  font-size:10px;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  letter-spacing:.45px;
+}
+.heatmap-tile .val{
+  font-family:var(--font-mono);
+  font-size:15px;
+  font-weight:600;
+  line-height:1;
+}
+.heatmap-tile .sub{
+  font-size:10px;
+  color:var(--text-faint);
+}
+.heatmap-tile.empty{
+  opacity:.5;
+  background:var(--surface-2);
+  color:var(--text-faint);
+}
+.heatmap-tile.under{
+  background:linear-gradient(180deg, rgba(107,203,158,0.18), rgba(107,203,158,0.08));
+  border-color:rgba(107,203,158,0.28);
+}
+.heatmap-tile.near{
+  background:linear-gradient(180deg, rgba(243,201,72,0.20), rgba(243,201,72,0.08));
+  border-color:rgba(243,201,72,0.28);
+}
+.heatmap-tile.over{
+  background:linear-gradient(180deg, rgba(240,120,95,0.20), rgba(240,120,95,0.08));
+  border-color:rgba(240,120,95,0.28);
+}
+.heatmap-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:10px;
+}
+.heatmap-legend .legend-item{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  color:var(--text-faint);
+}
+.heatmap-legend .swatch{
+  width:10px;
+  height:10px;
+  border-radius:3px;
+}
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
 .stat-box{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
 .stat-box .l{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
@@ -430,23 +500,25 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     </div>
     <div class="card chart-card">
       <h2>Exercise minutes</h2>
+      <div class="chart-subtitle">Minutes per day over time, with a 7-day average to make progress easier to spot.</div>
       <div class="empty-state" id="exerciseEmptyState" style="display:none; padding:20px 0;">No exercise logged in the last 14 days.</div>
-      <canvas id="exerciseChart" height="160"></canvas>
+      <canvas id="exerciseChart" height="180"></canvas>
       <div class="stat-grid">
-        <div class="stat-box"><div class="l">Total time</div><div class="v mono" id="totalExerciseMinutes">—</div></div>
-        <div class="stat-box"><div class="l">Sessions</div><div class="v mono" id="totalExerciseSessions">—</div></div>
+        <div class="stat-box"><div class="l">Total time</div><div class="v mono" id="totalExerciseMinutes">?</div></div>
+        <div class="stat-box"><div class="l">Sessions</div><div class="v mono" id="totalExerciseSessions">?</div></div>
       </div>
     </div>
     <div class="card chart-card">
       <h2>Calories (last 14 days)</h2>
-      <canvas id="calorieChart" height="160"></canvas>
+      <div class="chart-subtitle">Each day is a tile ? under, near, or over target at a glance.</div>
+      <div id="calorieHeatmap"></div>
+      <div id="calorieLegend"></div>
       <div class="stat-grid">
-        <div class="stat-box"><div class="l">Avg intake</div><div class="v mono" id="avgIntake">—</div></div>
-        <div class="stat-box"><div class="l">Avg burned</div><div class="v mono" id="avgBurn">—</div></div>
+        <div class="stat-box"><div class="l">Avg intake</div><div class="v mono" id="avgIntake">?</div></div>
+        <div class="stat-box"><div class="l">Avg burned</div><div class="v mono" id="avgBurn">?</div></div>
       </div>
     </div>
   </div>
-
   <!-- SETTINGS -->
   <div class="view" id="view-settings">
     <div class="section-title">Settings</div>
@@ -1330,7 +1402,7 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??
 /* =========================================================
    TRENDS
 ========================================================= */
-let weightChartInst=null, calorieChartInst=null, exerciseChartInst=null;
+let weightChartInst=null, exerciseChartInst=null;
 async function renderTrends(){
   const days = [];
   for(let i=13;i>=0;i--){
@@ -1412,46 +1484,62 @@ async function renderTrends(){
     console.error('Weight chart failed to render:', err);
   }
 
-  // Exercise minutes aggregated by activity over the same window, shown as
-  // a doughnut. Reuses the macro/vitamin/mineral/amino/other palette from
-  // the Nutrient Spectrum so it matches the rest of the app visually.
-  const exerciseTotals = {};
-  let totalExerciseMinutes = 0, totalExerciseSessions = 0;
-  dayDatas.forEach(d=>{
-    (d.exercises||[]).forEach(e=>{
-      const mins = Number(e.minutes)||0;
-      exerciseTotals[e.name] = (exerciseTotals[e.name]||0) + mins;
-      totalExerciseMinutes += mins;
-      totalExerciseSessions += 1;
-    });
-  });
-  document.getElementById('totalExerciseMinutes').textContent = totalExerciseMinutes ? totalExerciseMinutes+' min' : '—';
-  document.getElementById('totalExerciseSessions').textContent = totalExerciseSessions || '—';
+  const dailyExerciseMinutes = dayDatas.map(d=>(d.exercises||[]).reduce((sum,e)=>sum+(Number(e.minutes)||0),0));
+  const totalExerciseMinutes = dailyExerciseMinutes.reduce((sum,val)=>sum+val,0);
+  const totalExerciseSessions = dayDatas.reduce((sum,d)=>(sum + (d.exercises||[]).length),0);
+  document.getElementById('totalExerciseMinutes').textContent = totalExerciseMinutes ? totalExerciseMinutes+' min' : '?';
+  document.getElementById('totalExerciseSessions').textContent = totalExerciseSessions ? totalExerciseSessions : '?';
   const exCanvas = document.getElementById('exerciseChart');
   const exEmpty = document.getElementById('exerciseEmptyState');
   if(exerciseChartInst){ exerciseChartInst.destroy(); exerciseChartInst=null; }
-  const exerciseLabels = Object.keys(exerciseTotals);
-  if(exerciseLabels.length){
+  if(totalExerciseMinutes){
     exCanvas.style.display='block';
     exEmpty.style.display='none';
-    const exercisePalette = ['#FF8F5E','#F3C948','#5FB2E8','#C08CF0','#6BCB9E'];
+    const rolling7 = dailyExerciseMinutes.map((_, idx)=>{
+      const start = Math.max(0, idx - 6);
+      const slice = dailyExerciseMinutes.slice(start, idx + 1);
+      return slice.length ? Math.round(slice.reduce((sum,val)=>sum+val,0) / slice.length) : null;
+    });
     try{
       exerciseChartInst = new Chart(exCanvas, {
-        type:'doughnut',
+        type:'line',
         data:{
-          labels:exerciseLabels,
-          datasets:[{
-            data:exerciseLabels.map(l=>exerciseTotals[l]),
-            backgroundColor:exerciseLabels.map((_,i)=>exercisePalette[i%exercisePalette.length]),
-            borderColor:'#152622',
-            borderWidth:2
-          }]
+          labels,
+          datasets:[
+            {
+              label:'Daily minutes',
+              data:dailyExerciseMinutes,
+              borderColor:'#FF8F5E',
+              backgroundColor:'rgba(255,143,94,0.18)',
+              fill:true,
+              tension:0.35,
+              borderWidth:2.5,
+              pointRadius:3.5,
+              pointHoverRadius:5,
+              pointBackgroundColor:'#FF8F5E',
+              pointBorderColor:'#152622',
+              pointBorderWidth:1.2
+            },
+            {
+              label:'7-day average',
+              data:rolling7,
+              borderColor:'#6BCB9E',
+              borderDash:[6,4],
+              borderWidth:2,
+              pointRadius:0,
+              tension:0.35,
+              fill:false
+            }
+          ]
         },
         options:{
-          cutout:'62%',
           plugins:{
             legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
-            tooltip:{callbacks:{label:(item)=>`${item.label}: ${item.parsed} min`}}
+            tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0} min`}}
+          },
+          scales:{
+            x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
+            y:{beginAtZero:true, ticks:{color:'#6D897E', callback:(v)=>`${v} min`}, grid:{color:'#2C4941'}}
           }
         }
       });
@@ -1463,25 +1551,28 @@ async function renderTrends(){
     exEmpty.style.display='block';
   }
 
-  try{
-    const ctx2 = document.getElementById('calorieChart');
-    if(calorieChartInst) calorieChartInst.destroy();
-    calorieChartInst = new Chart(ctx2, {
-      type:'bar',
-      data:{labels, datasets:[
-        {type:'bar', label:'Intake', data:withinTarget, backgroundColor:'#FF8F5E', stack:'intake', order:2},
-        {type:'bar', label:'Over target', data:overTarget, backgroundColor:'#E8544B', stack:'intake', order:2},
-        {type:'bar', label:'Burned', data:burns, backgroundColor:'#6BCB9E', stack:'burned', order:2},
-        {type:'line', label:'Target', data:labels.map(()=>calTarget), borderColor:'#EAF3EF', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, order:1},
-      ]},
-      options:{plugins:{legend:{labels:{color:'#EAF3EF'}}}, scales:{
-        x:{stacked:true, ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
-        y:{stacked:true, ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}
-      }}
-    });
-  }catch(err){
-    console.error('Calorie chart failed to render:', err);
-  }
+  const heatmapHost = document.getElementById('calorieHeatmap');
+  const legendHost = document.getElementById('calorieLegend');
+  const legendItems = [
+    {key:'under', label:'Under target', color:'#6BCB9E'},
+    {key:'near', label:'Near target', color:'#F3C948'},
+    {key:'over', label:'Over target', color:'#F0785F'},
+    {key:'empty', label:'No log', color:'#2C4941'}
+  ];
+  legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>`;
+  heatmapHost.className = 'heatmap-grid';
+  heatmapHost.innerHTML = days.map((iso, idx)=>{
+    const day = dayDatas[idx] || {};
+    const intake = intakes[idx] || 0;
+    const d = new Date(iso+'T00:00:00');
+    const dow = d.toLocaleDateString(undefined, {weekday:'short'});
+    const dateNum = d.getDate();
+    const hasFood = (day.foods||[]).length > 0;
+    const state = !hasFood ? 'empty' : (intake > calTarget*1.1 ? 'over' : intake < calTarget*0.9 ? 'under' : 'near');
+    const statusText = !hasFood ? 'No food logged' : (state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target');
+    const kcalText = hasFood ? intake.toLocaleString() : '?';
+    return `<div class="heatmap-tile ${state}"><div class="dow">${dow} ${dateNum}</div><div class="val">${kcalText}${hasFood ? '<span style="font-size:10px; color:var(--text-dim); margin-left:3px; font-weight:500;">kcal</span>' : ''}</div><div class="sub">${statusText}</div></div>`;
+  }).join('');
 
   // Days under 1000 kcal are usually a logging gap, not a real intake day,
   // so they'd drag the average down misleadingly. They're excluded from the
@@ -1490,10 +1581,9 @@ async function renderTrends(){
   const LOW_CAL_FLOOR = 1000;
   const validIntakes = intakes.filter((v,i) => v >= LOW_CAL_FLOOR || dayDatas[i].countLowCalorieDay);
   const validBurns = burns.filter(v=>v>0);
-  document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '—';
-  document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '—';
+  document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '?';
+  document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '?';
 }
-
 /* =========================================================
    ADD MEAL MODAL / GEMINI CALLS
 ========================================================= */
