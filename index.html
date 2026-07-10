@@ -353,6 +353,87 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   border-color:rgba(243,201,72,0.34);
   color:#FFE89A;
 }
+.analysis-panel{
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+}
+.analysis-topline{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+.analysis-score{
+  font-family:var(--font-display);
+  font-size:26px;
+  line-height:1;
+}
+.analysis-score small{
+  font-family:var(--font-body);
+  font-size:11px;
+  color:var(--text-faint);
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  display:block;
+  margin-top:4px;
+}
+.analysis-summary{
+  color:var(--text);
+  font-size:14px;
+  line-height:1.45;
+  margin:0 0 12px;
+}
+.analysis-section{
+  margin-top:12px;
+}
+.analysis-section h3{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  color:var(--text-faint);
+  font-family:var(--font-body);
+  margin:0 0 8px;
+}
+.analysis-list{
+  margin:0;
+  padding-left:18px;
+  color:var(--text-dim);
+  font-size:13px;
+  line-height:1.45;
+}
+.analysis-list li + li{margin-top:6px;}
+.analysis-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+}
+.analysis-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border-radius:999px;
+  padding:7px 10px;
+  font-size:11.5px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--text-dim);
+}
+.analysis-chip.bad{
+  background:rgba(240,120,95,0.15);
+  border-color:rgba(240,120,95,0.35);
+  color:#FFC7B7;
+}
+.analysis-chip.warn{
+  background:rgba(243,201,72,0.15);
+  border-color:rgba(243,201,72,0.35);
+  color:#FFE89A;
+}
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
 .stat-box{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
 .stat-box .l{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
@@ -513,6 +594,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </h2>
       <div id="dayRefreshStatus" style="font-size:12px; color:var(--text-faint); margin:-6px 0 8px;"></div>
       <div id="foodList"></div>
+    </div>
+    <div class="card">
+      <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        Daily diet check
+        <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:500; text-transform:none; letter-spacing:normal;" onclick="analyzeDailyDiet()">Analyze day</button>
+      </h2>
+      <div class="hint" style="margin-top:-2px;">Focuses on missing vitamins, minerals, and other gaps in today’s diary — not just calories.</div>
+      <div id="dietAnalysisArea" style="margin-top:12px;"></div>
     </div>
     <div class="card">
       <h2>Exercise</h2>
@@ -1389,6 +1478,27 @@ function renderNutrients(day){
   const totals = computeTotals(day);
   const groups = {};
   NUTRIENTS.forEach(n=>{ (groups[n.cat] = groups[n.cat]||[]).push(n); });
+
+  const badOverIds = new Set(['calories','saturatedFat','transFat','sodium','cholesterol']);
+  const alerts = [];
+  const lowCandidates = [];
+  NUTRIENTS.forEach(n=>{
+    const target = getTarget(n.id);
+    if(!target) return;
+    const value = totals[n.id] || 0;
+    const pct = (value / target) * 100;
+    if(badOverIds.has(n.id) && pct > 100){
+      alerts.push({kind:'bad', label:n.name, pct:Math.round(pct), note:'over target'});
+    } else if((n.cat === 'vitamin' || n.cat === 'mineral' || n.id === 'protein' || n.id === 'fiber') && pct < 70){
+      lowCandidates.push({kind:'warn', label:n.name, pct:Math.round(pct), note:'low'});
+    }
+  });
+  lowCandidates.sort((a,b)=>a.pct-b.pct);
+  alerts.push(...lowCandidates.slice(0,4));
+  document.getElementById('nutrientAlerts').innerHTML = alerts.length
+    ? `<div class="nutrient-alerts">${alerts.slice(0,6).map(a=>`<div class="alert-chip ${a.kind}"><span class="tag">${a.kind==='bad'?'bad':'watch'}</span>${escapeHtml(a.label)} ${escapeHtml(`${a.pct}%`)} ${escapeHtml(a.note)}</div>`).join('')}</div>`
+    : '';
+
   let html = '';
   Object.keys(CAT_META).forEach(cat=>{
     const meta = CAT_META[cat];
@@ -1403,10 +1513,13 @@ function renderNutrients(day){
       const v = totals[n.id]||0;
       const t = getTarget(n.id);
       const pct = t>0 ? Math.min(999,(v/t)*100) : null;
+      const isBadOver = pct !== null && pct >= 100 && badOverIds.has(n.id);
+      const pctStyle = isBadOver ? 'color:var(--danger);font-weight:700;' : (pct>=100 ? 'color:var(--complete);font-weight:600;' : '');
+      const fill = isBadOver ? 'linear-gradient(90deg, #F0785F, #E8544B)' : barColor(pct, meta.color);
       html += `<div class="nutrient-row" onclick="openNutrientDetail('${n.id}')">
         <div class="name">${n.name}</div>
-        ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${barColor(pct, meta.color)}"></div></div>
-        <div class="pct" style="${pct>=100?'color:var(--complete);font-weight:600;':''}">${Math.round(pct)}%</div>` : `<div class="pct">—</div>`}
+        ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${fill}"></div></div>
+        <div class="pct" style="${pctStyle}">${Math.round(pct)}%</div>` : `<div class="pct">—</div>`}
         <div class="vals">${round1(v)}${t>0?` / ${round1(t)}`:''} ${n.unit}</div>
       </div>`;
     });
@@ -1616,7 +1729,8 @@ async function renderTrends(){
     const state = !hasFood ? 'empty' : (intake > calTarget*1.1 ? 'over' : intake < calTarget*0.9 ? 'under' : 'near');
     const statusText = !hasFood ? 'No food logged' : (state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target');
     const kcalText = hasFood ? intake.toLocaleString() : '?';
-    return `<div class="heatmap-tile ${state}"><div class="dow">${dow} ${dateNum}</div><div class="val">${kcalText}${hasFood ? '<span style="font-size:10px; color:var(--text-dim); margin-left:3px; font-weight:500;">kcal</span>' : ''}</div><div class="sub">${statusText}</div></div>`;
+    const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
+    return `<div class="heatmap-tile ${state}"><div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
   }).join('');
 
   // Days under 1000 kcal are usually a logging gap, not a real intake day,
@@ -1796,6 +1910,128 @@ function normalizeAnalysisItems(items){
   return (items || []).map(normalizeRiceEstimate);
 }
 
+function estimateAnalysisTokens(value){
+  return Math.max(1, Math.ceil(String(value || '').length / 4));
+}
+
+async function loadAnalysisUsage(){
+  const usage = await storeGet('analysisUsage:'+todayStr());
+  return usage && typeof usage === 'object' ? usage : {date:todayStr(), Gemini:0, Groq:0, OpenRouter:0, calls:0};
+}
+
+function fallbackOrderByUsage(usage){
+  return ['Groq', 'OpenRouter'].sort((a, b)=>(Number(usage?.[a] || 0)) - (Number(usage?.[b] || 0)));
+}
+
+function summarizeDayFoods(day){
+  return (day.foods || []).map((food, index)=>{
+    const kcal = Math.round(food?.nutrients?.calories || 0);
+    const grams = food?.grams ? `${Math.round(food.grams)}g` : 'unknown grams';
+    return `${index + 1}. ${food.name} — ${grams}, ${kcal} kcal`;
+  }).join('\n');
+}
+
+function buildDailyDietPrompt(day){
+  const totals = computeTotals(day);
+  const burned = computeBurned(day);
+  const calTarget = getTarget('calories');
+  const goals = [
+    'lean muscle gain',
+    'fat loss / body recomposition',
+    'better skin and less inflammation',
+    'better recovery',
+    'better sleep',
+    'hormonal health',
+    'hair quality',
+    'long-term health and longevity'
+  ].join(', ');
+  const nutrientTargets = NUTRIENTS
+    .map(n=>{
+      const target = getTarget(n.id);
+      if(!target) return null;
+      const value = Number(totals[n.id] || 0);
+      const pct = Math.round((value / target) * 100);
+      return {id:n.id, name:n.name, unit:n.unit, value, target, pct};
+    })
+    .filter(Boolean)
+    .sort((a,b)=>a.pct-b.pct);
+  const lowGaps = nutrientTargets.filter(n=>n.pct < 90).slice(0, 10);
+  const overages = nutrientTargets.filter(n=>n.pct > 100 && ['calories','saturatedFat','transFat','sodium','cholesterol'].includes(n.id)).slice(0, 5);
+
+  return `You are an evidence-based nutrition coach, sports nutritionist, dermatologist, and longevity-focused diet analyst.
+
+Analyze TODAY'S DIET only. Focus primarily on what is missing or weak, especially vitamins and minerals. Do not just list nutrients — interpret what matters most and give practical food fixes that fit the user's existing meals.
+
+User profile:
+- Age: ${profile.age}
+- Sex: ${profile.sex}
+- Height: ${profile.height} cm
+- Weight: ${profile.weight} kg
+- Activity level: ${profile.activity}
+- Goal adjustment: ${profile.goal}
+
+Primary goals:
+${goals}
+
+Today's totals:
+- Calories consumed: ${Math.round(totals.calories || 0)} kcal
+- Calories burned: ${burned} kcal
+- Calorie target: ${calTarget} kcal
+
+Today's foods:
+${summarizeDayFoods(day) || '- No foods logged yet.'}
+
+Most likely gaps to prioritize first:
+${lowGaps.map(n=>`- ${n.name}: ${n.pct}% (${round1(n.value)} ${n.unit} / ${round1(n.target)} ${n.unit})`).join('\n') || '- None obvious from the current log.'}
+
+Important overages to call out if relevant:
+${overages.map(n=>`- ${n.name}: ${n.pct}% (${round1(n.value)} ${n.unit} / ${round1(n.target)} ${n.unit})`).join('\n') || '- None.'}
+
+Response rules:
+- Return ONLY valid JSON.
+- Keep the answer concise but useful.
+- Prioritize the biggest nutritional gaps instead of every nutrient.
+- Explain why each gap matters.
+- Recommend foods that fit naturally with the current day’s meals.
+- Include swaps when a small change would fix multiple gaps.
+
+JSON schema:
+{
+  "score": 0-100,
+  "summary": "one short paragraph",
+  "wins": ["up to 4 short positives"],
+  "gaps": [
+    {
+      "nutrient": "Vitamin K",
+      "pct": 12,
+      "why": "why this matters",
+      "bestFoods": ["spinach", "broccoli"],
+      "fit": "how to add it naturally"
+    }
+  ],
+  "swaps": [
+    {
+      "from": "current food or habit",
+      "to": "better food or habit",
+      "why": "why this is a better move"
+    }
+  ],
+  "goalTips": ["up to 4 goal-based practical tips"]
+}`;
+}
+
+async function recordAnalysisUsage(provider, promptText, responseData){
+  const usageKey = 'analysisUsage:'+todayStr();
+  const usage = await loadAnalysisUsage();
+  const tokenEstimate = estimateAnalysisTokens(promptText) + estimateAnalysisTokens(JSON.stringify(responseData || {}));
+  usage[provider] = (Number(usage[provider] || 0) + tokenEstimate);
+  usage.calls = Number(usage.calls || 0) + 1;
+  usage.lastProvider = provider;
+  usage.updatedAt = Date.now();
+  await storeSet(usageKey, usage);
+  return usage;
+}
+
 // Calls our own /api/analyze serverless function, which holds the Gemini
 // key server-side and forwards to the Gemini API. `content` keeps the same
 // shape the old direct-to-Claude call used: an array with a {type:'text'}
@@ -1805,11 +2041,13 @@ async function callGemini(content){
   const imagePart = content.find(c=>c.type==='image');
   if(!currentUser) throw new Error('You need to be signed in to analyze a meal.');
   const idToken = await currentUser.getIdToken();
+  const usage = await loadAnalysisUsage();
   const body = JSON.stringify({
     prompt: textPart ? textPart.text : '',
     imageBase64: imagePart ? imagePart.source.data : null,
     imageMime: imagePart ? imagePart.source.media_type : null,
-    analysisMode: imagePart ? 'image' : 'text'
+    analysisMode: imagePart ? 'image' : 'text',
+    preferredFallbackOrder: fallbackOrderByUsage(usage)
   });
 
   try{
@@ -1823,6 +2061,7 @@ async function callGemini(content){
       const parsed = parseGeminiJson(data);
       parsed._apiUsed = data.provider || 'Gemini';
       parsed.items = normalizeAnalysisItems(parsed.items || []);
+      await recordAnalysisUsage(parsed._apiUsed, textPart ? textPart.text : '', data);
       return parsed;
     }
     let errBody = {};
@@ -1979,6 +2218,64 @@ async function analyzeText(){
   }
 }
 
+async function analyzeDailyDiet(){
+  const area = document.getElementById('dietAnalysisArea');
+  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing todayâ€™s dietâ€¦</div>`;
+  try{
+    const day = await loadDay(currentDate);
+    const prompt = buildDailyDietPrompt(day);
+    const parsed = await callGemini([{type:'text', text: prompt}]);
+    renderDietAnalysis(parsed, parsed._apiUsed);
+  }catch(err){
+    area.innerHTML = `<div class="error-box">Couldn't analyze todayâ€™s diet: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderDietAnalysis(result, apiUsed){
+  const area = document.getElementById('dietAnalysisArea');
+  const score = Number(result?.score);
+  const scoreText = Number.isFinite(score) ? `${Math.max(0, Math.min(100, Math.round(score)))}/100` : '—';
+  const summary = result?.summary || 'No summary returned.';
+  const wins = Array.isArray(result?.wins) ? result.wins : [];
+  const gaps = Array.isArray(result?.gaps) ? result.gaps : [];
+  const swaps = Array.isArray(result?.swaps) ? result.swaps : [];
+  const tips = Array.isArray(result?.goalTips) ? result.goalTips : [];
+  area.innerHTML = `
+    <div class="analysis-panel">
+      <div class="analysis-topline">
+        <div class="analysis-score">${scoreText}<small>Nutrition score</small></div>
+        ${apiUsedBadge(apiUsed)}
+      </div>
+      <p class="analysis-summary">${escapeHtml(summary)}</p>
+      ${wins.length ? `<div class="analysis-section">
+        <h3>Biggest wins</h3>
+        <ul class="analysis-list">${wins.slice(0,4).map(item=>`<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      </div>` : ''}
+      ${gaps.length ? `<div class="analysis-section">
+        <h3>Biggest gaps</h3>
+        ${gaps.slice(0,4).map(g=>`
+          <div style="margin-bottom:10px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+              <span class="analysis-chip ${Number(g.pct) >= 100 ? 'bad' : 'warn'}"><strong>${escapeHtml(g.nutrient || 'Gap')}</strong> ${Number.isFinite(Number(g.pct)) ? `${Math.round(Number(g.pct))}%` : ''}</span>
+            </div>
+            <div style="color:var(--text-dim); font-size:13px; line-height:1.45;">${escapeHtml(g.why || '')}</div>
+            ${(g.bestFoods && g.bestFoods.length) ? `<div class="analysis-chip-row">${g.bestFoods.slice(0,4).map(food=>`<span class="analysis-chip">${escapeHtml(food)}</span>`).join('')}</div>` : ''}
+            ${g.fit ? `<div style="margin-top:6px; color:var(--text-faint); font-size:12.5px; line-height:1.45;">${escapeHtml(g.fit)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : ''}
+      ${swaps.length ? `<div class="analysis-section">
+        <h3>Food swaps</h3>
+        <ul class="analysis-list">${swaps.slice(0,3).map(item=>`<li><strong>${escapeHtml(item.from || 'Swap')}</strong> → ${escapeHtml(item.to || '')}${item.why ? ` — ${escapeHtml(item.why)}` : ''}</li>`).join('')}</ul>
+      </div>` : ''}
+      ${tips.length ? `<div class="analysis-section">
+        <h3>Goal tips</h3>
+        <ul class="analysis-list">${tips.slice(0,4).map(item=>`<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      </div>` : ''}
+    </div>
+  `;
+}
+
 function libraryBadge(status){
   if(status==='enriched' || status==='known') return `<span class="tag" style="background:var(--surface-3); color:var(--good, #4CAF7A);" title="Filled in using what we learned from your past logs of this food">🧠 recognized</span>`;
   if(status==='rechecking') return `<span class="tag" title="Periodic accuracy check — verifying this food's data fresh instead of using the cache this time">🔄 verifying</span>`;
@@ -1990,7 +2287,7 @@ function apiUsedBadge(apiUsed){
   return `<div style="display:flex; justify-content:flex-end; margin-top:10px;">
     <div style="display:inline-flex; align-items:center; gap:6px; background:var(--surface-3); border:1px solid var(--line); color:var(--text-dim); border-radius:999px; padding:7px 11px; font-size:12px; font-weight:500;">
       <span style="width:7px; height:7px; border-radius:50%; background:var(--good, #4CAF7A); display:inline-block;"></span>
-      API used: ${escapeHtml(label)}
+      Used: ${escapeHtml(label)}
     </div>
   </div>`;
 }
