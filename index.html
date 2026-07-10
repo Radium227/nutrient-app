@@ -21,7 +21,7 @@
   --text-faint:#6D897E;
   --macro:#FF8F5E;
   --macro-dim:#5C3D2C;
-  --vit:#F3C948;
+  --vit:#FFD60A;
   --vit-dim:#4F4324;
   --min:#5FB2E8;
   --min-dim:#26414F;
@@ -29,8 +29,9 @@
   --amino-dim:#3D2E4D;
   --other:#6BCB9E;
   --other-dim:#294138;
-  --complete:#33D17A;
-  --danger:#F0785F;
+  --complete:#2FEA63;
+  --good:#2FEA63;
+  --danger:#FF453A;
   --radius-lg:20px;
   --radius-md:14px;
   --radius-sm:9px;
@@ -218,6 +219,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 .btn{background:var(--macro); color:#1a0d05; border:none; padding:11px 18px; border-radius:12px; font-weight:600; font-size:14px;}
 .btn.ghost{background:var(--surface-2); color:var(--text); border:1px solid var(--line);}
+.btn.outline{background:transparent; color:var(--macro); border:1.5px solid var(--macro);}
+.btn.outline:active{background:rgba(255,143,94,0.14);}
 .btn.small{padding:8px 14px; font-size:13px;}
 .btn.block{width:100%;}
 .btn:disabled{opacity:.5;}
@@ -288,17 +291,20 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   color:var(--text-faint);
 }
 .heatmap-tile.under{
-  background:linear-gradient(180deg, rgba(107,203,158,0.18), rgba(107,203,158,0.08));
-  border-color:rgba(107,203,158,0.28);
+  background:linear-gradient(180deg, rgba(47,234,99,0.26), rgba(47,234,99,0.10));
+  border-color:rgba(47,234,99,0.55);
 }
 .heatmap-tile.near{
-  background:linear-gradient(180deg, rgba(243,201,72,0.20), rgba(243,201,72,0.08));
-  border-color:rgba(243,201,72,0.28);
+  background:linear-gradient(180deg, rgba(255,214,10,0.26), rgba(255,214,10,0.10));
+  border-color:rgba(255,214,10,0.55);
 }
 .heatmap-tile.over{
-  background:linear-gradient(180deg, rgba(240,120,95,0.20), rgba(240,120,95,0.08));
-  border-color:rgba(240,120,95,0.28);
+  background:linear-gradient(180deg, rgba(255,69,58,0.26), rgba(255,69,58,0.10));
+  border-color:rgba(255,69,58,0.55);
 }
+.heatmap-tile.under .sub{color:var(--good); font-weight:600;}
+.heatmap-tile.near .sub{color:var(--vit); font-weight:600;}
+.heatmap-tile.over .sub{color:var(--danger); font-weight:600;}
 .heatmap-legend{
   display:flex;
   flex-wrap:wrap;
@@ -342,13 +348,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   text-transform:uppercase;
 }
 .alert-chip.bad{
-  background:rgba(240,120,95,0.14);
-  border-color:rgba(240,120,95,0.35);
+  background:rgba(255,69,58,0.16);
+  border-color:rgba(255,69,58,0.45);
   color:#FFC7B7;
 }
 .alert-chip.warn{
-  background:rgba(243,201,72,0.14);
-  border-color:rgba(243,201,72,0.34);
+  background:rgba(255,214,10,0.16);
+  border-color:rgba(255,214,10,0.45);
   color:#FFE89A;
 }
 .analysis-panel{
@@ -423,13 +429,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   color:var(--text-dim);
 }
 .analysis-chip.bad{
-  background:rgba(240,120,95,0.15);
-  border-color:rgba(240,120,95,0.35);
+  background:rgba(255,69,58,0.16);
+  border-color:rgba(255,69,58,0.45);
   color:#FFC7B7;
 }
 .analysis-chip.warn{
-  background:rgba(243,201,72,0.15);
-  border-color:rgba(243,201,72,0.35);
+  background:rgba(255,214,10,0.16);
+  border-color:rgba(255,214,10,0.45);
   color:#FFE89A;
 }
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
@@ -488,7 +494,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .result-card .rgrid div{background:var(--surface-3); border-radius:8px; padding:7px; text-align:center;}
 .result-card .rgrid .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase;}
 .result-card .rgrid .v{font-family:var(--font-mono); font-size:13px; margin-top:2px;}
-.error-box{background:var(--min-dim); color:#FFD9D0; border-radius:var(--radius-md); padding:12px 14px; font-size:13px; margin-bottom:10px; border:1px solid rgba(240,120,95,0.4);}
+.error-box{background:var(--min-dim); color:#FFD9D0; border-radius:var(--radius-md); padding:12px 14px; font-size:13px; margin-bottom:10px; border:1px solid rgba(255,69,58,0.4);}
 
 .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--surface-3); color:var(--text); padding:10px 18px; border-radius:999px; font-size:13px; z-index:60; opacity:0; transition:opacity .25s, transform .25s; border:1px solid var(--line); pointer-events:none;}
 .toast.show{opacity:1; transform:translate(-50%,-6px);}
@@ -587,19 +593,19 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="section-title">Diary</div>
     <div class="card">
       <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        Daily diet check
+        <button class="btn outline" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:600; text-transform:none; letter-spacing:normal;" onclick="analyzeDailyDiet()">Analyze day</button>
+      </h2>
+      <div class="hint" style="margin-top:-2px;">Focuses on missing vitamins, minerals, and other gaps in today's diary - not just calories.</div>
+      <div id="dietAnalysisArea" style="margin-top:12px;"></div>
+    </div>
+    <div class="card">
+      <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
         Food
         <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:500; text-transform:none; letter-spacing:normal;" onclick="refreshAllFoodsForDay()">↻ Re-check nutrients</button>
       </h2>
       <div id="dayRefreshStatus" style="font-size:12px; color:var(--text-faint); margin:-6px 0 8px;"></div>
       <div id="foodList"></div>
-    </div>
-    <div class="card">
-      <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-        Daily diet check
-        <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:500; text-transform:none; letter-spacing:normal;" onclick="analyzeDailyDiet()">Analyze day</button>
-      </h2>
-      <div class="hint" style="margin-top:-2px;">Focuses on missing vitamins, minerals, and other gaps in today's diary - not just calories.</div>
-      <div id="dietAnalysisArea" style="margin-top:12px;"></div>
     </div>
     <div class="card">
       <h2>Exercise</h2>
@@ -1393,7 +1399,7 @@ function renderDashboard(day){
   const pct = calTarget>0 ? Math.min(100, (consumed/calTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
   document.getElementById('calBarFill').style.background = remaining<0
-    ? 'linear-gradient(90deg, #F0785F, #E8544B)'
+    ? 'linear-gradient(90deg, #FF453A, #FF1F1F)'
     : progressColor(pct);
   document.getElementById('calConsumed').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
 
@@ -1559,7 +1565,7 @@ function renderNutrients(day){
       const pct = t>0 ? Math.min(999,(v/t)*100) : null;
       const isBadOver = pct !== null && pct >= 100 && badOverIds.has(n.id);
       const pctStyle = isBadOver ? 'color:var(--danger);font-weight:700;' : (pct>=100 ? 'color:var(--complete);font-weight:600;' : '');
-      const fill = isBadOver ? 'linear-gradient(90deg, #F0785F, #E8544B)' : barColor(pct, meta.color);
+      const fill = isBadOver ? 'linear-gradient(90deg, #FF453A, #FF1F1F)' : barColor(pct, meta.color);
       html += `<div class="nutrient-row" onclick="openNutrientDetail('${n.id}')">
         <div class="name">${n.name}</div>
         ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${fill}"></div></div>
@@ -1609,10 +1615,10 @@ function fmtAmount(value, unit){
 function progressColor(pct){
   pct = Math.max(0, Math.min(100, pct));
   const stops = [
-    {p:0,   c:[239,68,68]},   // red
-    {p:50,  c:[249,115,22]},  // orange
-    {p:75,  c:[234,179,8]},   // yellow
-    {p:100, c:[34,197,94]}    // green
+    {p:0,   c:[255,69,58]},   // red
+    {p:50,  c:[255,149,0]},   // orange
+    {p:75,  c:[255,214,10]},  // yellow
+    {p:100, c:[47,234,99]}    // green
   ];
   let lo = stops[0], hi = stops[stops.length-1];
   for(let i=0;i<stops.length-1;i++){
@@ -1801,9 +1807,9 @@ async function renderTrends(){
   const heatmapHost = document.getElementById('calorieHeatmap');
   const legendHost = document.getElementById('calorieLegend');
   const legendItems = [
-    {key:'under', label:'Under target', color:'#6BCB9E'},
-    {key:'near', label:'Near target', color:'#F3C948'},
-    {key:'over', label:'Over target', color:'#F0785F'},
+    {key:'under', label:'Under target', color:'#2FEA63'},
+    {key:'near', label:'Near target', color:'#FFD60A'},
+    {key:'over', label:'Over target', color:'#FF453A'},
     {key:'empty', label:'No log', color:'#2C4941'}
   ];
   legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>`;
