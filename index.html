@@ -600,7 +600,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         Daily diet check
         <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:500; text-transform:none; letter-spacing:normal;" onclick="analyzeDailyDiet()">Analyze day</button>
       </h2>
-      <div class="hint" style="margin-top:-2px;">Focuses on missing vitamins, minerals, and other gaps in today’s diary — not just calories.</div>
+      <div class="hint" style="margin-top:-2px;">Focuses on missing vitamins, minerals, and other gaps in today's diary - not just calories.</div>
       <div id="dietAnalysisArea" style="margin-top:12px;"></div>
     </div>
     <div class="card">
@@ -1924,27 +1924,22 @@ function fallbackOrderByUsage(usage){
 }
 
 function summarizeDayFoods(day){
-  return (day.foods || []).map((food, index)=>{
-    const kcal = Math.round(food?.nutrients?.calories || 0);
-    const grams = food?.grams ? `${Math.round(food.grams)}g` : 'unknown grams';
-    return `${index + 1}. ${food.name} — ${grams}, ${kcal} kcal`;
-  }).join('\n');
+  return (day.foods || [])
+    .slice()
+    .filter(food => Number(food?.nutrients?.calories || 0) > 0 || Number(food?.grams || 0) > 0)
+    .sort((a,b)=>Number(b?.nutrients?.calories || 0) - Number(a?.nutrients?.calories || 0))
+    .slice(0, 8)
+    .map((food, index)=>{
+      const kcal = Math.round(food?.nutrients?.calories || 0);
+      const grams = food?.grams ? `${Math.round(food.grams)}g` : 'unknown grams';
+      return `${index + 1}. ${food.name} — ${grams}, ${kcal} kcal`;
+    }).join('\n');
 }
 
 function buildDailyDietPrompt(day){
   const totals = computeTotals(day);
   const burned = computeBurned(day);
   const calTarget = getTarget('calories');
-  const goals = [
-    'lean muscle gain',
-    'fat loss / body recomposition',
-    'better skin and less inflammation',
-    'better recovery',
-    'better sleep',
-    'hormonal health',
-    'hair quality',
-    'long-term health and longevity'
-  ].join(', ');
   const nutrientTargets = NUTRIENTS
     .map(n=>{
       const target = getTarget(n.id);
@@ -1955,69 +1950,32 @@ function buildDailyDietPrompt(day){
     })
     .filter(Boolean)
     .sort((a,b)=>a.pct-b.pct);
-  const lowGaps = nutrientTargets.filter(n=>n.pct < 90).slice(0, 10);
-  const overages = nutrientTargets.filter(n=>n.pct > 100 && ['calories','saturatedFat','transFat','sodium','cholesterol'].includes(n.id)).slice(0, 5);
+  const lowGaps = nutrientTargets.filter(n=>n.pct < 90).slice(0, 6);
+  const overages = nutrientTargets.filter(n=>n.pct > 100 && ['calories','saturatedFat','transFat','sodium','cholesterol'].includes(n.id)).slice(0, 3);
 
-  return `You are an evidence-based nutrition coach, sports nutritionist, dermatologist, and longevity-focused diet analyst.
+  return `You are a nutrition coach. Analyze today's diet and give a short, practical summary focused on missing vitamins/minerals and any bad overages.
 
-Analyze TODAY'S DIET only. Focus primarily on what is missing or weak, especially vitamins and minerals. Do not just list nutrients — interpret what matters most and give practical food fixes that fit the user's existing meals.
+User: ${profile.age}yo ${profile.sex}, ${profile.height}cm, ${profile.weight}kg, activity ${profile.activity}, goal ${profile.goal}.
+Today: ${Math.round(totals.calories || 0)} kcal eaten, ${burned} kcal burned, target ${calTarget} kcal.
+Foods:
+${summarizeDayFoods(day) || '- No foods logged.'}
 
-User profile:
-- Age: ${profile.age}
-- Sex: ${profile.sex}
-- Height: ${profile.height} cm
-- Weight: ${profile.weight} kg
-- Activity level: ${profile.activity}
-- Goal adjustment: ${profile.goal}
+Top gaps to consider:
+${lowGaps.map(n=>`- ${n.name}: ${n.pct}%`).join('\n') || '- None obvious.'}
 
-Primary goals:
-${goals}
+Overages to flag:
+${overages.map(n=>`- ${n.name}: ${n.pct}%`).join('\n') || '- None.'}
 
-Today's totals:
-- Calories consumed: ${Math.round(totals.calories || 0)} kcal
-- Calories burned: ${burned} kcal
-- Calorie target: ${calTarget} kcal
-
-Today's foods:
-${summarizeDayFoods(day) || '- No foods logged yet.'}
-
-Most likely gaps to prioritize first:
-${lowGaps.map(n=>`- ${n.name}: ${n.pct}% (${round1(n.value)} ${n.unit} / ${round1(n.target)} ${n.unit})`).join('\n') || '- None obvious from the current log.'}
-
-Important overages to call out if relevant:
-${overages.map(n=>`- ${n.name}: ${n.pct}% (${round1(n.value)} ${n.unit} / ${round1(n.target)} ${n.unit})`).join('\n') || '- None.'}
-
-Response rules:
-- Return ONLY valid JSON.
-- Keep the answer concise but useful.
-- Prioritize the biggest nutritional gaps instead of every nutrient.
-- Explain why each gap matters.
-- Recommend foods that fit naturally with the current day’s meals.
-- Include swaps when a small change would fix multiple gaps.
-
-JSON schema:
+Return ONLY JSON with this compact shape:
 {
   "score": 0-100,
-  "summary": "one short paragraph",
-  "wins": ["up to 4 short positives"],
-  "gaps": [
-    {
-      "nutrient": "Vitamin K",
-      "pct": 12,
-      "why": "why this matters",
-      "bestFoods": ["spinach", "broccoli"],
-      "fit": "how to add it naturally"
-    }
-  ],
-  "swaps": [
-    {
-      "from": "current food or habit",
-      "to": "better food or habit",
-      "why": "why this is a better move"
-    }
-  ],
-  "goalTips": ["up to 4 goal-based practical tips"]
-}`;
+  "summary": "1-2 short sentences",
+  "wins": ["max 3"],
+  "gaps": [{"nutrient":"Vitamin K","pct":12,"why":"short reason","bestFoods":["spinach"],"fit":"short practical fix"}],
+  "swaps": [{"from":"current item","to":"better item","why":"short reason"}],
+  "goalTips": ["max 3 short tips"]
+}
+Keep it concise. Max 4 gaps, 3 wins, 2 swaps, 3 tips.`;
 }
 
 async function recordAnalysisUsage(provider, promptText, responseData){
@@ -2220,14 +2178,14 @@ async function analyzeText(){
 
 async function analyzeDailyDiet(){
   const area = document.getElementById('dietAnalysisArea');
-  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing todayâ€™s dietâ€¦</div>`;
+  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing today's diet...</div>`;
   try{
     const day = await loadDay(currentDate);
     const prompt = buildDailyDietPrompt(day);
     const parsed = await callGemini([{type:'text', text: prompt}]);
     renderDietAnalysis(parsed, parsed._apiUsed);
   }catch(err){
-    area.innerHTML = `<div class="error-box">Couldn't analyze todayâ€™s diet: ${escapeHtml(err.message)}</div>`;
+    area.innerHTML = `<div class="error-box">Couldn't analyze today's diet: ${escapeHtml(err.message)}</div>`;
   }
 }
 
