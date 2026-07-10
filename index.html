@@ -1447,7 +1447,7 @@ function renderDashboard(day){
     const pctCapped = Math.min(100, (v/t)*100);
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
-    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
+    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${fmtAmount(v, n.unit)} / ${fmtAmount(t, n.unit)}"></div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
@@ -1564,7 +1564,7 @@ function renderNutrients(day){
         <div class="name">${n.name}</div>
         ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${fill}"></div></div>
         <div class="pct" style="${pctStyle}">${Math.round(pct)}%</div>` : `<div class="pct">—</div>`}
-        <div class="vals">${round1(v)}${t>0?` / ${round1(t)}`:''} ${n.unit}</div>
+        <div class="vals">${fmtAmount(v, n.unit)}${t>0?` / ${fmtAmount(t, n.unit)}`:''}</div>
       </div>`;
     });
     html += `</div></div>`;
@@ -1576,6 +1576,33 @@ function toggleCat(cat){
   document.getElementById('chev-'+cat).parentElement.classList.toggle('collapsed');
 }
 function round1(v){ return Math.round(v*10)/10; }
+function round2(v){ return Math.round(v*100)/100; }
+// Central unit-safe amount formatter. Every place in the app that shows a
+// nutrient's stored value together with its unit routes through here, so
+// the number and the label it's shown with can never drift apart:
+//  - mg values of 1000 or more are shown in g instead (e.g. 1250mg -> 1.25g)
+//  - mcg values of 1000 or more are shown in mg instead (e.g. 1500mcg -> 1.5mg)
+//  - anything under that threshold is shown in its original unit, untouched
+//  - the unit label is always recomputed alongside the number — the two can
+//    never end up mismatched (e.g. a gram-sized number stuck with an "mg" label)
+function scaledAmount(value, unit){
+  const v = Number(value) || 0;
+  if(unit==='mg' && Math.abs(v)>=1000) return {value:v/1000, unit:'g'};
+  if(unit==='mcg' && Math.abs(v)>=1000) return {value:v/1000, unit:'mg'};
+  return {value:v, unit};
+}
+// Returns {num, unit} separately, for spots that style the number and unit
+// differently (e.g. a big number with a smaller unit label beside it).
+function fmtAmountParts(value, unit){
+  const scaled = scaledAmount(value, unit);
+  const num = scaled.unit!==unit ? round2(scaled.value) : round1(scaled.value);
+  return {num, unit:scaled.unit};
+}
+// Returns a single ready-to-render "12.3mg" style string.
+function fmtAmount(value, unit){
+  const {num, unit:u} = fmtAmountParts(value, unit);
+  return `${num}${u}`;
+}
 // Progress color: smooth red -> orange -> yellow -> green ramp based on % of
 // target reached. Replaces fixed per-category colors (e.g. amino acids no
 // longer show as flat purple) so every bar communicates progress at a glance.
@@ -1899,7 +1926,9 @@ MANDATORY — amino acids: if an item contains roughly 2g of protein or more, yo
 
 MANDATORY — vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
 
-You may omit a field only when it is genuinely and categorically absent for that food — e.g. omega-3/EPA/DHA for a food with essentially no fat, caffeine for something that plainly contains none, alcohol for a non-alcoholic item. "Omit if small" is NOT license to drop amino acids, vitamins, or minerals that the food actually contains in real, if modest, amounts — those must still be reported.`;
+You may omit a field only when it is genuinely and categorically absent for that food — e.g. omega-3/EPA/DHA for a food with essentially no fat, caffeine for something that plainly contains none, alcohol for a non-alcoholic item. "Omit if small" is NOT license to drop amino acids, vitamins, or minerals that the food actually contains in real, if modest, amounts — those must still be reported.
+
+CRITICAL — units for the omega-3 family: omega3, ala, omega6, and linoleicAcid must be reported in GRAMS (g), matching their field's unit. But epa and dha must be reported in MILLIGRAMS (mg), NOT grams — this is a common mistake because most nutrition databases (including USDA) report EPA and DHA in grams by default, and you must convert to mg for these two fields specifically. For example, a supplement or fish with "560 mg EPA, 400 mg DHA" on its label must be recorded as epa: 560, dha: 400 — never as epa: 0.56, dha: 0.4. If a photo shows exact label values (e.g. a supplement bottle), read and use those exact numbers rather than estimating from memory, and double-check that epa/dha are in the hundreds or low thousands (mg scale), not fractions under 10 (which would mean you accidentally used grams).`;
   p += `\n\nCALIBRATION RULES FOR PHOTOS:
 - When you are estimating a plated meal, assume cooked, ready-to-eat edible weights unless the image or notes clearly show uncooked/dry ingredients.
 - Never use raw dry grain weights for plated rice, dal, pasta, noodles, or similar foods unless the photo explicitly shows an uncooked ingredient or package.
@@ -2401,7 +2430,7 @@ function showResults(items, photoBase64, mimeType, apiUsed){
       <div class="rgrid">
         <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
         <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
-        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${round1(h.value)}${h.unit}</div></div>`).join('')}
+        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${fmtAmount(h.value, h.unit)}</div></div>`).join('')}
       </div>
     </div>
   `;}).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
@@ -2826,18 +2855,18 @@ async function openNutrientDetail(id){
   const rows = contributors.length
     ? contributors.map(c=>`<div class="contrib-row">
         <div class="cname">${escapeHtml(c.name)}</div>
-        <div class="camt">${round1(c.amount)} ${n.unit}</div>
+        <div class="camt">${fmtAmount(c.amount, n.unit)}</div>
         <div class="cpct">${t>0?Math.round((c.amount/t)*100):0}%</div>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">Nothing logged today contributes to this yet.</div>`;
   document.getElementById('detailModalBody').innerHTML = `
     <div class="detail-gauge">
       <div class="detail-stat-row">
-        <div class="big">${round1(v)} <span style="font-size:13px;color:var(--text-faint);">${n.unit}</span></div>
+        <div class="big">${fmtAmountParts(v, n.unit).num} <span style="font-size:13px;color:var(--text-faint);">${fmtAmountParts(v, n.unit).unit}</span></div>
         <div class="pctbig" style="${pct>=100?'color:var(--complete);':''}">${Math.round(pct)}%</div>
       </div>
       <div class="detail-gauge-track"><div class="detail-gauge-fill" style="width:${Math.min(100,pct)}%; background:${barColor(pct, meta.color)}"></div></div>
-      <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${t>0?`Target: ${round1(t)} ${n.unit}`:'No target set for this nutrient'}</div>
+      <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${t>0?`Target: ${fmtAmount(t, n.unit)}`:'No target set for this nutrient'}</div>
     </div>
     <div class="contrib-list">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);margin-bottom:4px;">From today's foods</div>
@@ -2865,7 +2894,7 @@ async function openFoodEntryDetail(id){
   const primary = primaryIds.map(pid=>{
     const n = NUTRIENTS.find(x=>x.id===pid);
     const v = nutrients[pid]||0;
-    return `<div><div class="l">${pid==='calories'?'Cal':n.name}</div><div class="v">${pid==='calories'?Math.round(v):round1(v)+n.unit}</div></div>`;
+    return `<div><div class="l">${pid==='calories'?'Cal':n.name}</div><div class="v">${pid==='calories'?Math.round(v):fmtAmount(v, n.unit)}</div></div>`;
   }).join('');
 
   const highlights = nutrientHighlights(nutrients, primaryIds);
@@ -2878,8 +2907,8 @@ async function openFoodEntryDetail(id){
           <span class="dot" style="background:${meta.color}"></span>
           <div class="fname">${escapeHtml(h.name)}${i===0?'<span class="fd-badge">Most notable</span>':''}</div>
           ${t>0
-            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${meta.color}"></span></div><div class="famt">${round1(h.value)}${h.unit} · ${pctDisp}%</div>`
-            : `<div class="famt">${round1(h.value)}${h.unit}</div>`}
+            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${meta.color}"></span></div><div class="famt">${fmtAmount(h.value, h.unit)} · ${pctDisp}%</div>`
+            : `<div class="famt">${fmtAmount(h.value, h.unit)}</div>`}
         </div>`;
       }).join('')
     : `<div class="empty-state" style="padding:16px 0;">No additional nutrient data for this item yet — tap the ↻ on the diary row to check for more.</div>`;
