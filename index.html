@@ -1101,6 +1101,8 @@ function fmtDateLabel(dstr){
 
 let storageHealthy = true;
 let storageWarned = false;
+const CLOUD_READ_TIMEOUT_MS = 1800;
+const CLOUD_WRITE_TIMEOUT_MS = 2500;
 
 function backupKeyFor(key){
   return currentUser ? `nutrient-backup:${currentUser.uid}:${key}` : null;
@@ -1125,6 +1127,13 @@ function writeLocalBackup(key, val){
   }catch(e){}
 }
 
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=>setTimeout(()=>reject(new Error(`${label || 'Request'} timeout`)), ms))
+  ]);
+}
+
 // Every value lives at users/{uid}/kv/{key} as {value: <JSON string>}.
 // This mirrors the old window.storage.get/set(key, value) shape exactly,
 // so everything downstream (loadDay, loadSettings, etc.) is unchanged.
@@ -1134,7 +1143,7 @@ function kvDoc(key){
 }
 async function storeGet(key){
   try{
-    const snap = await kvDoc(key).get();
+    const snap = await withTimeout(kvDoc(key).get(), CLOUD_READ_TIMEOUT_MS, 'Cloud read');
     if(!snap.exists) return null;
     const data = snap.data();
     const parsed = data && data.value ? JSON.parse(data.value) : null;
@@ -1151,7 +1160,11 @@ async function storeGet(key){
 async function storeSet(key, val, attempt = 1){
   writeLocalBackup(key, val);
   try{
-    await kvDoc(key).set({value: JSON.stringify(val), updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+    await withTimeout(
+      kvDoc(key).set({value: JSON.stringify(val), updatedAt: firebase.firestore.FieldValue.serverTimestamp()}),
+      CLOUD_WRITE_TIMEOUT_MS,
+      'Cloud write'
+    );
     storageHealthy = true;
     return true;
   } catch(e){
@@ -1496,6 +1509,13 @@ function renderDiary(day){
         <button class="del" onclick="deleteWeight('${w.id}')">✕</button>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">No weight logged for this day.</div>`;
+
+  const cachedDiet = getCachedDietAnalysis(day);
+  if(cachedDiet){
+    renderDietAnalysis(cachedDiet.result, cachedDiet.apiUsed);
+  }else{
+    document.getElementById('dietAnalysisArea').innerHTML = '';
+  }
 }
 
 function renderNutrients(day){
@@ -1956,9 +1976,18 @@ function estimateAnalysisTokens(value){
   return Math.max(1, Math.ceil(String(value || '').length / 4));
 }
 
+function defaultAnalysisUsage(){
+  return {date:todayStr(), Gemini:0, Groq:0, OpenRouter:0, calls:0};
+}
+
 async function loadAnalysisUsage(){
-  const usage = await storeGet('analysisUsage:'+todayStr());
-  return usage && typeof usage === 'object' ? usage : {date:todayStr(), Gemini:0, Groq:0, OpenRouter:0, calls:0};
+  const key = 'analysisUsage:'+todayStr();
+  const local = readLocalBackup(key);
+  if(local && typeof local === 'object'){
+    return {...defaultAnalysisUsage(), ...local};
+  }
+  const usage = await storeGet(key);
+  return usage && typeof usage === 'object' ? {...defaultAnalysisUsage(), ...usage} : defaultAnalysisUsage();
 }
 
 function fallbackOrderByUsage(usage){
@@ -2028,8 +2057,57 @@ async function recordAnalysisUsage(provider, promptText, responseData){
   usage.calls = Number(usage.calls || 0) + 1;
   usage.lastProvider = provider;
   usage.updatedAt = Date.now();
-  await storeSet(usageKey, usage);
+  writeLocalBackup(usageKey, usage);
+  storeSet(usageKey, usage).catch(()=>{});
   return usage;
+}
+
+function analysisRequestTimeoutMs(analysisMode){
+  if(analysisMode === 'diet') return 16000;
+  if(analysisMode === 'image') return 32000;
+  return 18000;
+}
+
+function buildDietAnalysisSignature(day){
+  const foods = (day.foods || []).map(food=>({
+    name: String(food.name || '').toLowerCase(),
+    grams: Math.round(Number(food.grams || 0)),
+    calories: Math.round(Number(food?.nutrients?.calories || 0))
+  }));
+  const exercises = (day.exercises || []).map(ex=>({
+    name: String(ex.name || '').toLowerCase(),
+    minutes: Math.round(Number(ex.minutes || 0)),
+    calories: Math.round(Number(ex.calories || 0))
+  }));
+  return JSON.stringify({
+    foods,
+    exercises,
+    profile: {
+      age: profile.age,
+      sex: profile.sex,
+      height: profile.height,
+      weight: profile.weight,
+      activity: profile.activity,
+      goal: profile.goal
+    }
+  });
+}
+
+function getCachedDietAnalysis(day){
+  const cached = day && day.dietAnalysis;
+  if(!cached || !cached.result || !cached.signature) return null;
+  return cached.signature === buildDietAnalysisSignature(day) ? cached : null;
+}
+
+function saveDietAnalysisToDay(day, result, apiUsed){
+  day.dietAnalysis = {
+    signature: buildDietAnalysisSignature(day),
+    result,
+    apiUsed,
+    updatedAt: Date.now()
+  };
+  dayCache[currentDate] = day;
+  saveDay(currentDate);
 }
 
 // Calls our own /api/analyze serverless function, which holds the Gemini
@@ -2049,19 +2127,23 @@ async function callGemini(content, analysisMode){
     analysisMode: analysisMode || (imagePart ? 'image' : 'text'),
     preferredFallbackOrder: fallbackOrderByUsage(usage)
   });
+  const controller = new AbortController();
+  const timeoutMs = analysisRequestTimeoutMs(analysisMode || (imagePart ? 'image' : 'text'));
+  const timer = setTimeout(()=>controller.abort(), timeoutMs);
 
   try{
     const res = await fetch('/api/analyze', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
-      body
+      body,
+      signal: controller.signal
     });
     if(res.ok){
       const data = await res.json();
       const parsed = parseGeminiJson(data);
       parsed._apiUsed = data.provider || 'Gemini';
       parsed.items = normalizeAnalysisItems(parsed.items || []);
-      await recordAnalysisUsage(parsed._apiUsed, textPart ? textPart.text : '', data);
+      recordAnalysisUsage(parsed._apiUsed, textPart ? textPart.text : '', data).catch(()=>{});
       return parsed;
     }
     let errBody = {};
@@ -2069,7 +2151,15 @@ async function callGemini(content, analysisMode){
     const msg = errBody.error || `Analysis service error (${res.status})`;
     throw new Error(msg);
   }catch(err){
+    if(err && err.name === 'AbortError'){
+      if((analysisMode || (imagePart ? 'image' : 'text')) === 'diet'){
+        throw new Error('Daily diet check timed out. Try again after adding a few more foods or re-open the page.');
+      }
+      throw new Error('Analysis took too long. Try a simpler meal or try again.');
+    }
     throw err;
+  }finally{
+    clearTimeout(timer);
   }
 }
 // Best-effort recovery: if the model's JSON got cut off partway through the
