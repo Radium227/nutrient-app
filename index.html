@@ -157,6 +157,22 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .remain-row .rpct{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); min-width:34px; text-align:right;}
 
 /* ---------- Nutrient Spectrum (signature element) ---------- */
+.insight-card{background:linear-gradient(160deg, var(--surface-2), var(--surface)); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-bottom:14px;}
+.insight-eyebrow{font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint);}
+.insight-finding{font-family:var(--font-display); font-style:italic; font-size:17px; line-height:1.45; color:var(--text); margin:10px 0 14px;}
+.insight-finding b{font-style:italic; font-weight:600;}
+.insight-tags{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+.insight-tag{display:flex; align-items:center; gap:7px; background:var(--surface-3); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:11.5px; white-space:nowrap;}
+.insight-tag .k{color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px; font-size:9.5px; margin-right:2px;}
+.insight-tag .dot{width:7px; height:7px; border-radius:50%; flex:none;}
+.insight-tag .v{color:var(--text); font-weight:500;}
+.insight-foot{display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--line); padding-top:12px; font-size:11.5px; color:var(--text-faint);}
+.insight-explain{background:none; border:none; color:var(--text-dim); font-size:11.5px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; cursor:pointer; padding:0;}
+.insight-reasoning{font-size:13px; line-height:1.5; color:var(--text-dim); margin:-4px 0 14px; display:none;}
+.insight-reasoning.open{display:block;}
+.insight-skel{height:14px; border-radius:6px; background:var(--surface-3); margin:10px 0; overflow:hidden; position:relative;}
+.insight-skel::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(234,243,239,0.08), transparent); animation:insightShimmer 1.4s infinite;}
+@keyframes insightShimmer{0%{transform:translateX(-100%);} 100%{transform:translateX(100%);}}
 .spectrum-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 16px; margin-bottom:14px;}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
@@ -563,6 +579,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div class="macro-mini" id="macroMini"></div>
     </div>
 
+    <div class="card insight-card" id="insightCard" style="display:none;"></div>
+
     <div class="card water-card">
       <div class="water-head">
         <div class="water-icon">💧</div>
@@ -661,6 +679,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div class="chart-subtitle">Each day is a tile ? under, near, or over target at a glance.</div>
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
+      <div class="chart-canvas-wrap" style="margin-top:14px;"><canvas id="calorieLineChart"></canvas></div>
       <div class="stat-grid">
         <div class="stat-box"><div class="l">Avg intake</div><div class="v mono" id="avgIntake">?</div></div>
         <div class="stat-box"><div class="l">Avg burned</div><div class="v mono" id="avgBurn">?</div></div>
@@ -1486,6 +1505,20 @@ function renderDashboard(day){
   } else {
     preview.innerHTML = foods.slice(-4).reverse().map(foodEntryHTML).join('');
   }
+
+  // AI nutrient-insight card (above Water): reuse the cached result if
+  // today's foods/exercises haven't changed since it was generated,
+  // otherwise fetch a fresh one in the background without blocking the
+  // rest of the dashboard from rendering.
+  const cachedInsight = getCachedNutrientInsight(day);
+  if(cachedInsight){
+    renderNutrientInsightCard(cachedInsight.result);
+  } else if(foods.length){
+    renderNutrientInsightCard('loading');
+    refreshNutrientInsight(day);
+  } else {
+    renderNutrientInsightCard(null);
+  }
 }
 
 function foodEntryHTML(f){
@@ -1701,7 +1734,7 @@ function ensureChartJs(){
 /* =========================================================
    TRENDS
 ========================================================= */
-let weightChartInst=null, exerciseChartInst=null;
+let weightChartInst=null, exerciseChartInst=null, calorieLineChartInst=null;
 async function renderTrends(){
   await ensureChartJs();
   // Root cause of the "compressed on first open, fine after navigating away
@@ -1753,6 +1786,7 @@ async function renderTrends(){
     weightChartInst = new Chart(ctx1, {
       type:'line',
       data:{datasets:[{
+        label:'Weight (kg)',
         data:weightPoints,
         borderColor:'#5FB2E8',
         borderWidth:2.5,
@@ -1869,6 +1903,71 @@ async function renderTrends(){
 
   const heatmapHost = document.getElementById('calorieHeatmap');
   const legendHost = document.getElementById('calorieLegend');
+
+  try{
+    const clCanvas = document.getElementById('calorieLineChart');
+    if(calorieLineChartInst){ calorieLineChartInst.destroy(); calorieLineChartInst=null; }
+    calorieLineChartInst = new Chart(clCanvas, {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {
+            label:'Intake',
+            data:intakes,
+            borderColor:'#FF8F5E',
+            backgroundColor:'rgba(255,143,94,0.14)',
+            fill:true,
+            tension:0.35,
+            borderWidth:2.5,
+            pointRadius:3,
+            pointHoverRadius:5,
+            pointBackgroundColor:'#FF8F5E',
+            pointBorderColor:'#152622',
+            pointBorderWidth:1.2
+          },
+          {
+            label:'Burned',
+            data:burns,
+            borderColor:'#5FB2E8',
+            borderDash:[6,4],
+            borderWidth:2,
+            fill:false,
+            tension:0.35,
+            pointRadius:3,
+            pointHoverRadius:5,
+            pointBackgroundColor:'#5FB2E8',
+            pointBorderColor:'#152622',
+            pointBorderWidth:1.2
+          },
+          {
+            label:'Target',
+            data:days.map(()=>calTarget||null),
+            borderColor:'#6D897E',
+            borderWidth:1.5,
+            borderDash:[2,3],
+            pointRadius:0,
+            fill:false,
+            tension:0
+          }
+        ]
+      },
+      options:{
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+          tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
+        },
+        scales:{
+          x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
+          y:{beginAtZero:true, ticks:{color:'#6D897E', callback:(v)=>`${v}`}, grid:{color:'#2C4941'}}
+        }
+      }
+    });
+  }catch(err){
+    console.error('Calorie line chart failed to render:', err);
+  }
+
   const legendItems = [
     {key:'under', label:'Under target', color:'#2FEA63'},
     {key:'near', label:'Near target', color:'#FFD60A'},
@@ -2216,6 +2315,159 @@ function saveDietAnalysisToDay(day, result, apiUsed){
   };
   dayCache[currentDate] = day;
   saveDay(currentDate);
+}
+
+/* =========================================================
+   DASHBOARD NUTRIENT INSIGHT CARD
+   A single, specific nutrient-interaction tip (limiting nutrient / synergy
+   pair / hidden nutrient worth watching), shown above the Water card.
+   Cached on the day object the same way the diet coach is, keyed off the
+   same foods+exercises+profile signature, so it only re-calls the AI when
+   what's actually logged has changed.
+========================================================= */
+function buildNutrientInsightPrompt(day){
+  const totals = computeTotals(day);
+  const gaps = NUTRIENTS.map(n=>{
+    const target = getTarget(n.id);
+    if(!target) return null;
+    const value = Number(totals[n.id] || 0);
+    const pct = Math.round((value / target) * 100);
+    return {name:n.name, pct};
+  }).filter(Boolean).sort((a,b)=>a.pct-b.pct);
+
+  return `You are a nutrition scientist writing ONE short home-screen insight card. Look at the real foods logged today and the nutrient completion percentages below, and surface ONE specific, genuinely useful connection between nutrients — e.g. a nutrient that's low which limits absorption/use of another (like low vitamin C limiting iron uptake, or low zinc competing with magnesium), a synergy between two nutrients both present today, or a non-obvious nutrient worth paying attention to given what's already been eaten. Reference real, established nutrition science (absorption cofactors, competing pathways, known synergistic pairs) — never invent a fake mechanism, and never repeat generic advice like "eat more vegetables".
+
+Foods logged today:
+${summarizeDayFoods(day) || '- No foods logged yet today.'}
+
+Nutrient completion (lowest first, as % of target):
+${gaps.slice(0,12).map(g=>`- ${g.name}: ${g.pct}%`).join('\n') || '- No targets configured.'}
+
+Return ONLY this JSON shape, nothing else:
+{
+  "finding": "1-2 short sentences, under 32 words total, specific and actionable, naming the nutrients involved by name",
+  "limiting": "the single most limiting nutrient's name, or null if nothing stands out",
+  "synergy": "short 'X × Y' label for two interacting nutrients, or null",
+  "hidden": "one non-obvious nutrient worth flagging, or null",
+  "confidence": 0.0-1.0,
+  "reasoning": "2-3 plain-language sentences on the underlying mechanism and why this was flagged today specifically"
+}
+If there isn't enough logged today to say anything specific and genuinely useful, return exactly {"finding": null} and nothing else.`;
+}
+
+function getCachedNutrientInsight(day){
+  const cached = day && day.nutrientInsight;
+  if(!cached || !cached.result || !cached.signature) return null;
+  return cached.signature === buildDietAnalysisSignature(day) ? cached : null;
+}
+
+function saveNutrientInsightToDay(day, result){
+  day.nutrientInsight = {
+    signature: buildDietAnalysisSignature(day),
+    result,
+    updatedAt: Date.now()
+  };
+  dayCache[currentDate] = day;
+  saveDay(currentDate);
+}
+
+// Safely wraps a nutrient name with a colored <b> in the finding sentence,
+// without touching anything else in the string (escapes regex chars, only
+// replaces the first match so it can't run away on short/common words).
+function highlightInsightTerm(text, term, color){
+  if(!text || !term) return text;
+  const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(${escaped})`, 'i');
+  return text.replace(re, `<b style="color:${color}">$1</b>`);
+}
+
+let nutrientInsightInFlight = false;
+function renderNutrientInsightCard(state){
+  const card = document.getElementById('insightCard');
+  if(!state){
+    card.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+  card.style.display = 'block';
+  if(state === 'loading'){
+    card.innerHTML = `
+      <div class="insight-eyebrow">Today's finding</div>
+      <div class="insight-skel" style="width:96%;"></div>
+      <div class="insight-skel" style="width:70%;"></div>
+    `;
+    return;
+  }
+  if(!state.finding){
+    card.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+  let finding = escapeHtml(state.finding);
+  if(state.limiting) finding = highlightInsightTerm(finding, escapeHtml(state.limiting), 'var(--vit)');
+  if(state.hidden) finding = highlightInsightTerm(finding, escapeHtml(state.hidden), 'var(--min)');
+
+  const tags = [
+    state.limiting ? {k:'Limiting', v:state.limiting, color:'var(--danger)'} : null,
+    state.synergy ? {k:'Synergy', v:state.synergy, color:'var(--vit)'} : null,
+    state.hidden ? {k:'Hidden', v:state.hidden, color:'var(--min)'} : null,
+  ].filter(Boolean);
+
+  const confidencePct = state.confidence!=null ? Math.round(Math.min(1,Math.max(0,state.confidence))*100)/100 : null;
+  const updatedAgo = (dayCache[currentDate] && dayCache[currentDate].nutrientInsight && dayCache[currentDate].nutrientInsight.updatedAt)
+    ? timeAgoShort(dayCache[currentDate].nutrientInsight.updatedAt) : 'just now';
+
+  card.innerHTML = `
+    <div class="insight-eyebrow">Today's finding</div>
+    <div class="insight-finding">${finding}</div>
+    ${tags.length ? `<div class="insight-tags">${tags.map(t=>`<div class="insight-tag"><span class="k">${escapeHtml(t.k)}</span><span class="dot" style="background:${t.color}"></span><span class="v">${escapeHtml(t.v)}</span></div>`).join('')}</div>` : ''}
+    <div class="insight-reasoning" id="insightReasoning">${escapeHtml(state.reasoning||'')}</div>
+    <div class="insight-foot">
+      <span>${confidencePct!=null ? `Confidence ${confidencePct} · ` : ''}updated ${updatedAgo}</span>
+      ${state.reasoning ? `<button class="insight-explain" onclick="toggleInsightReasoning()" id="insightExplainBtn">Explain reasoning →</button>` : ''}
+    </div>
+  `;
+}
+function toggleInsightReasoning(){
+  const el = document.getElementById('insightReasoning');
+  const btn = document.getElementById('insightExplainBtn');
+  if(!el || !btn) return;
+  const open = el.classList.toggle('open');
+  btn.textContent = open ? 'Hide reasoning ↑' : 'Explain reasoning →';
+}
+// Small "3m ago" / "2h ago" formatter, local to the insight card footer.
+function timeAgoShort(ts){
+  const diffMin = Math.max(0, Math.round((Date.now()-ts)/60000));
+  if(diffMin < 1) return 'just now';
+  if(diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin/60);
+  if(diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.round(diffHr/24)}d ago`;
+}
+async function refreshNutrientInsight(day){
+  if(nutrientInsightInFlight) return;
+  if(!(day.foods||[]).length){ renderNutrientInsightCard(null); return; }
+  nutrientInsightInFlight = true;
+  const fetchedForDate = currentDate;
+  try{
+    const prompt = buildNutrientInsightPrompt(day);
+    const parsed = await callGemini([{type:'text', text:prompt}], 'text');
+    if(!parsed || !parsed.finding){
+      saveNutrientInsightToDay(day, {finding:null});
+      if(currentDate === fetchedForDate) renderNutrientInsightCard(null);
+      return;
+    }
+    saveNutrientInsightToDay(day, parsed);
+    // Only repaint if the person hasn't navigated to a different day while
+    // this was in flight -- otherwise this result belongs on a day they're
+    // no longer looking at.
+    if(currentDate === fetchedForDate) renderNutrientInsightCard(parsed);
+  }catch(err){
+    console.error('Nutrient insight failed:', err);
+    if(currentDate === fetchedForDate) renderNutrientInsightCard(null);
+  }finally{
+    nutrientInsightInFlight = false;
+  }
 }
 
 // Calls our own /api/analyze serverless function, which holds the Gemini
