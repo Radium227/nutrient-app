@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
-<title>Nutrient â€” AI Food Diary</title>
+<title>Nutrient — AI Food Diary</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -21,7 +21,7 @@
   --text-faint:#6D897E;
   --macro:#FF8F5E;
   --macro-dim:#5C3D2C;
-  --vit:#FFD93D;
+  --vit:#FFD60A;
   --vit-dim:#4F4324;
   --min:#5FB2E8;
   --min-dim:#26414F;
@@ -29,10 +29,9 @@
   --amino-dim:#3D2E4D;
   --other:#6BCB9E;
   --other-dim:#294138;
-  --complete:#39FF6A;
-  --danger:#FF4E42;
-  --good:#39FF6A;
-  --warn:#FFD93D;
+  --complete:#2FEA63;
+  --good:#2FEA63;
+  --danger:#FF453A;
   --radius-lg:20px;
   --radius-md:14px;
   --radius-sm:9px;
@@ -74,6 +73,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-bottom:14px;}
 .card h2{font-size:15px; color:var(--text-dim); font-weight:500; letter-spacing:.3px; text-transform:uppercase; font-family:var(--font-body); margin-bottom:12px;}
+.h2-dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:1px;}
 .section-title{font-size:22px; margin:22px 0 12px; letter-spacing:.2px;}
 .section-title:first-child{margin-top:2px;}
 
@@ -90,13 +90,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .cal-bar{height:8px; border-radius:6px; background:var(--surface-3); margin-top:14px; overflow:hidden;}
 .cal-bar-fill{height:100%; background:linear-gradient(90deg, var(--macro), #FFC08A); border-radius:6px; transition:width .4s ease;}
 .macro-mini{display:flex; gap:10px; margin-top:14px;}
-.macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px;}
+.macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px; border-top:2px solid var(--chip-color, var(--line));}
 .fast-day-chip{margin-bottom:5px; background:transparent; color:var(--macro); border:1px solid var(--macro); border-radius:999px; padding:2px 9px; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;}
 .fast-day-chip.active{background:var(--macro); color:#1a0d05;}
 .macro-chip .l{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint);}
 .macro-chip .v{font-family:var(--font-mono); font-size:15px; margin-top:3px;}
-.macro-chip .bar{height:4px; background:var(--surface-3); border-radius:3px; margin-top:7px; overflow:hidden;}
-.macro-chip .bar span{display:block; height:100%; border-radius:3px;}
+.macro-chip .bar{height:5px; background:var(--surface-3); border-radius:3px; margin-top:7px; overflow:hidden;}
+.macro-chip .bar span{display:block; height:100%; border-radius:3px; box-shadow:0 0 6px currentColor;}
 
 /* ---------- Water card ---------- */
 .water-card{padding-bottom:16px;}
@@ -105,8 +105,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .water-text h2{margin-bottom:2px;}
 .water-amount{font-size:14px; color:var(--text-dim);}
 .water-amount .mono{font-size:17px; color:var(--text); font-weight:600;}
-.water-bar-track{height:8px; border-radius:6px; background:var(--surface-3); margin-top:12px; overflow:hidden;}
-.water-bar-fill{height:100%; background:var(--min); border-radius:6px; transition:width .4s ease;}
+.water-bar-track{height:9px; border-radius:6px; background:var(--surface-3); margin-top:12px; overflow:hidden;}
+.water-bar-fill{height:100%; background:linear-gradient(90deg, var(--min), #9BE0FF); border-radius:6px; transition:width .4s ease; box-shadow:0 0 10px rgba(95,178,232,0.45);}
 .water-quick{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
 .water-quick button{flex:1; min-width:70px; background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:11px 6px; font-size:13px; font-weight:500; min-height:42px;}
 .water-quick button:active{background:var(--surface-3);}
@@ -220,13 +220,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 .btn{background:var(--macro); color:#1a0d05; border:none; padding:11px 18px; border-radius:12px; font-weight:600; font-size:14px;}
 .btn.ghost{background:var(--surface-2); color:var(--text); border:1px solid var(--line);}
+.btn.outline{background:transparent; color:var(--macro); border:1.5px solid var(--macro);}
+.btn.outline:active{background:rgba(255,143,94,0.14);}
 .btn.small{padding:8px 14px; font-size:13px;}
 .btn.block{width:100%;}
 .btn:disabled{opacity:.5;}
 
 /* ---------- Nutrients tab ---------- */
 .cat-group{margin-bottom:8px;}
-.cat-header{display:flex; align-items:center; gap:10px; padding:14px 4px 8px; cursor:pointer;}
+.cat-header{display:flex; align-items:center; gap:10px; padding:14px 10px 8px 12px; cursor:pointer;}
 .cat-header .dot{width:9px;height:9px;border-radius:3px;}
 .cat-header h3{font-size:14px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-dim); font-family:var(--font-body); font-weight:600;}
 .cat-header .chev{margin-left:auto; color:var(--text-faint); transition:transform .2s;}
@@ -241,7 +243,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .nutrient-row .bar-fill{height:100%; border-radius:3px;}
 
 /* ---------- Trends ---------- */
-.chart-card canvas{width:100% !important; height:260px !important; display:block;}
+.chart-card canvas{width:100% !important;}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
 .heatmap-grid{
   display:grid;
@@ -290,17 +292,20 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   color:var(--text-faint);
 }
 .heatmap-tile.under{
-  background:linear-gradient(180deg, rgba(57,255,106,0.24), rgba(57,255,106,0.10));
-  border-color:rgba(57,255,106,0.50);
+  background:linear-gradient(180deg, rgba(47,234,99,0.26), rgba(47,234,99,0.10));
+  border-color:rgba(47,234,99,0.55);
 }
 .heatmap-tile.near{
-  background:linear-gradient(180deg, rgba(255,217,61,0.26), rgba(255,217,61,0.10));
-  border-color:rgba(255,217,61,0.52);
+  background:linear-gradient(180deg, rgba(255,214,10,0.26), rgba(255,214,10,0.10));
+  border-color:rgba(255,214,10,0.55);
 }
 .heatmap-tile.over{
-  background:linear-gradient(180deg, rgba(255,78,66,0.28), rgba(255,78,66,0.11));
-  border-color:rgba(255,78,66,0.56);
+  background:linear-gradient(180deg, rgba(255,69,58,0.26), rgba(255,69,58,0.10));
+  border-color:rgba(255,69,58,0.55);
 }
+.heatmap-tile.under .sub{color:var(--good); font-weight:600;}
+.heatmap-tile.near .sub{color:var(--vit); font-weight:600;}
+.heatmap-tile.over .sub{color:var(--danger); font-weight:600;}
 .heatmap-legend{
   display:flex;
   flex-wrap:wrap;
@@ -344,13 +349,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   text-transform:uppercase;
 }
 .alert-chip.bad{
-  background:rgba(240,120,95,0.14);
-  border-color:rgba(240,120,95,0.35);
+  background:rgba(255,69,58,0.16);
+  border-color:rgba(255,69,58,0.45);
   color:#FFC7B7;
 }
 .alert-chip.warn{
-  background:rgba(243,201,72,0.14);
-  border-color:rgba(243,201,72,0.34);
+  background:rgba(255,214,10,0.16);
+  border-color:rgba(255,214,10,0.45);
   color:#FFE89A;
 }
 .analysis-panel{
@@ -425,23 +430,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   color:var(--text-dim);
 }
 .analysis-chip.bad{
-  background:rgba(240,120,95,0.15);
-  border-color:rgba(240,120,95,0.35);
+  background:rgba(255,69,58,0.16);
+  border-color:rgba(255,69,58,0.45);
   color:#FFC7B7;
 }
 .analysis-chip.warn{
-  background:rgba(243,201,72,0.15);
-  border-color:rgba(243,201,72,0.35);
+  background:rgba(255,214,10,0.16);
+  border-color:rgba(255,214,10,0.45);
   color:#FFE89A;
-}
-.ai-check-card .btn.ghost{
-  background:transparent;
-  color:var(--macro);
-  border-color:var(--macro);
-  box-shadow:0 0 0 1px rgba(255,143,94,0.12) inset;
-}
-.ai-check-card .btn.ghost:active{
-  background:rgba(255,143,94,0.12);
 }
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
 .stat-box{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
@@ -499,7 +495,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .result-card .rgrid div{background:var(--surface-3); border-radius:8px; padding:7px; text-align:center;}
 .result-card .rgrid .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase;}
 .result-card .rgrid .v{font-family:var(--font-mono); font-size:13px; margin-top:2px;}
-.error-box{background:var(--min-dim); color:#FFD9D0; border-radius:var(--radius-md); padding:12px 14px; font-size:13px; margin-bottom:10px; border:1px solid rgba(240,120,95,0.4);}
+.error-box{background:var(--min-dim); color:#FFD9D0; border-radius:var(--radius-md); padding:12px 14px; font-size:13px; margin-bottom:10px; border:1px solid rgba(255,69,58,0.4);}
 
 .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--surface-3); color:var(--text); padding:10px 18px; border-radius:999px; font-size:13px; z-index:60; opacity:0; transition:opacity .25s, transform .25s; border:1px solid var(--line); pointer-events:none;}
 .toast.show{opacity:1; transform:translate(-50%,-6px);}
@@ -526,16 +522,16 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="topbar">
     <div class="brand"><span class="mark"></span><h1>Nutrient</h1></div>
     <div class="date-nav">
-      <button onclick="shiftDate(-1)">â€¹</button>
+      <button onclick="shiftDate(-1)">‹</button>
       <span class="lbl" id="dateLabel">Today</span>
-      <button onclick="shiftDate(1)">â€º</button>
+      <button onclick="shiftDate(1)">›</button>
     </div>
   </div>
 
   <!-- DASHBOARD -->
   <div class="view active" id="view-dashboard">
     <div class="card">
-      <h2>Energy</h2>
+      <h2><span class="h2-dot" style="background:var(--macro)"></span>Energy</h2>
       <div class="cal-row">
         <div>
           <div class="cal-big mono" id="calConsumed">0</div>
@@ -557,9 +553,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
     <div class="card water-card">
       <div class="water-head">
-        <div class="water-icon">ðŸ’§</div>
+        <div class="water-icon">💧</div>
         <div class="water-text">
-          <h2>Water</h2>
+          <h2><span class="h2-dot" style="background:var(--min)"></span>Water</h2>
           <div class="water-amount"><span class="mono" id="waterAmount">0 L</span> <span class="dim" id="waterTargetLbl">of 4 L</span></div>
         </div>
       </div>
@@ -588,7 +584,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     </div>
 
     <div class="card">
-      <h2>Today's log</h2>
+      <h2><span class="h2-dot" style="background:var(--other)"></span>Today's log</h2>
       <div id="dashDiaryPreview"></div>
     </div>
   </div>
@@ -596,29 +592,29 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <!-- DIARY -->
   <div class="view" id="view-diary">
     <div class="section-title">Diary</div>
-    <div class="card ai-check-card">
+    <div class="card">
       <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
         Daily diet check
-        <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:600; text-transform:none; letter-spacing:normal;" onclick="analyzeDailyDiet()">Analyze day</button>
+        <button class="btn outline" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:600; text-transform:none; letter-spacing:normal;" onclick="analyzeDailyDiet()">Analyze day</button>
       </h2>
       <div class="hint" style="margin-top:-2px;">Focuses on missing vitamins, minerals, and other gaps in today's diary - not just calories.</div>
       <div id="dietAnalysisArea" style="margin-top:12px;"></div>
     </div>
     <div class="card">
       <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-        Food
-        <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:500; text-transform:none; letter-spacing:normal;" onclick="refreshAllFoodsForDay()">â†» Re-check nutrients</button>
+        <span><span class="h2-dot" style="background:var(--macro)"></span>Food</span>
+        <button class="btn ghost" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto; font-weight:500; text-transform:none; letter-spacing:normal;" onclick="refreshAllFoodsForDay()">↻ Re-check nutrients</button>
       </h2>
       <div id="dayRefreshStatus" style="font-size:12px; color:var(--text-faint); margin:-6px 0 8px;"></div>
       <div id="foodList"></div>
     </div>
     <div class="card">
-      <h2>Exercise</h2>
+      <h2><span class="h2-dot" style="background:#E8544B"></span>Exercise</h2>
       <div id="exerciseList"></div>
       <button class="btn ghost small" style="margin-top:8px;" onclick="openExerciseModal()">+ Add exercise</button>
     </div>
     <div class="card">
-      <h2>Weight</h2>
+      <h2><span class="h2-dot" style="background:var(--min)"></span>Weight</h2>
       <div id="weightToday"></div>
       <button class="btn ghost small" style="margin-top:8px;" onclick="openWeightModal()">+ Log weight</button>
     </div>
@@ -635,12 +631,12 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="view" id="view-trends">
     <div class="section-title">Trends</div>
     <div class="card chart-card">
-      <h2>Weight</h2>
+      <h2><span class="h2-dot" style="background:var(--min)"></span>Weight</h2>
       <canvas id="weightChart" height="160"></canvas>
     </div>
     <div class="card chart-card">
-      <h2>Exercise minutes</h2>
-      <div class="chart-subtitle">Minutes per day plus calories burned, with a 7-day average to make progress easier to spot.</div>
+      <h2><span class="h2-dot" style="background:#E8544B"></span>Exercise minutes</h2>
+      <div class="chart-subtitle">Minutes per day over time, with a 7-day average to make progress easier to spot.</div>
       <div class="empty-state" id="exerciseEmptyState" style="display:none; padding:20px 0;">No exercise logged in the last 14 days.</div>
       <canvas id="exerciseChart" height="180"></canvas>
       <div class="stat-grid">
@@ -649,7 +645,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
     </div>
     <div class="card chart-card">
-      <h2>Calories (last 14 days)</h2>
+      <h2><span class="h2-dot" style="background:var(--macro)"></span>Calories (last 14 days)</h2>
       <div class="chart-subtitle">Each day is a tile ? under, near, or over target at a glance.</div>
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
@@ -666,15 +662,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="card">
       <h2>Account</h2>
       <div class="settings-account-row">
-        <span class="email" id="settingsEmail">â€”</span>
+        <span class="email" id="settingsEmail">—</span>
         <button class="btn ghost" style="padding:9px 16px;" onclick="signOutUser()">Sign out</button>
       </div>
-      <div class="hint">Your diary is synced to the cloud under this account â€” sign in with the same Google account on any device to see it.</div>
+      <div class="hint">Your diary is synced to the cloud under this account — sign in with the same Google account on any device to see it.</div>
     </div>
 
     <div class="card">
       <h2>Meal analysis</h2>
-      <div class="hint">Photo and text analysis is powered by Gemini, called through a small server function â€” your API key never touches the browser.</div>
+      <div class="hint">Photo and text analysis is powered by Gemini, called through a small server function — your API key never touches the browser.</div>
     </div>
 
     <div class="card">
@@ -708,7 +704,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         </select>
       </div>
       <button class="btn block" onclick="saveProfile()">Save &amp; recalculate targets</button>
-      <div class="hint" style="margin-top:10px;">Calorie &amp; macro targets default to your coach's plan. Hit this button to instead calculate them from your stats (Mifflin-St Jeor). Micronutrient targets are pre-set to your personalized plan â€” tap any nutrient in the Nutrients tab to override.</div>
+      <div class="hint" style="margin-top:10px;">Calorie &amp; macro targets default to your coach's plan. Hit this button to instead calculate them from your stats (Mifflin-St Jeor). Micronutrient targets are pre-set to your personalized plan — tap any nutrient in the Nutrients tab to override.</div>
     </div>
 
     <div class="card">
@@ -749,7 +745,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="addModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3>Log a meal</h3><button onclick="closeModal('addModal')">âœ•</button></div>
+    <div class="modal-head"><h3>Log a meal</h3><button onclick="closeModal('addModal')">✕</button></div>
 
     <div class="seg" style="margin-bottom:16px;">
       <button id="segPhoto" class="active" onclick="setAddMode('photo')">Photo</button>
@@ -760,13 +756,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
     <div id="addPhotoPane">
       <label class="photo-drop" id="photoDropLabel">
-        <span id="photoDropText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG Â· Ctrl/âŒ˜+V to paste</span></span>
+        <span id="photoDropText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span></span>
         <input type="file" accept="image/*" capture="environment" id="photoInput" onchange="handlePhotoChosen(event)">
       </label>
       <div class="field">
         <label>Anything the photo won't show? (optional)</label>
         <textarea id="photoNotesInput" placeholder="e.g. homemade with 1 tbsp olive oil, double portion, no cheese, brand-name protein bar..."></textarea>
-        <div class="hint">Add cooking oil, brand, portion size, hidden ingredients â€” anything that helps estimate nutrients more accurately.</div>
+        <div class="hint">Add cooking oil, brand, portion size, hidden ingredients — anything that helps estimate nutrients more accurately.</div>
       </div>
       <button class="btn block" id="analyzePhotoBtn" style="display:none;" onclick="analyzePhoto(pendingPhotoMime)">Analyze photo</button>
     </div>
@@ -810,7 +806,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <div class="detail-edit-link" style="text-align:left; padding:0 0 10px;" onclick="toggleManualAdvanced()" id="manualAdvancedToggle">+ Add more nutrients (fiber, sugar, sodium...)</div>
       <div id="manualAdvancedFields" style="display:none;"></div>
-      <div class="hint" style="margin-bottom:12px;">Anything left blank counts as 0. Use this to log something without needing a photo or AI lookup â€” handy if the AI analyzer is rate-limited or you already know the numbers off a label.</div>
+      <div class="hint" style="margin-bottom:12px;">Anything left blank counts as 0. Use this to log something without needing a photo or AI lookup — handy if the AI analyzer is rate-limited or you already know the numbers off a label.</div>
       <button class="btn block" onclick="saveManualFood()">Add to diary</button>
     </div>
 
@@ -826,10 +822,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="saveMealModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3>Save meal</h3><button onclick="closeModal('saveMealModal')">âœ•</button></div>
+    <div class="modal-head"><h3>Save meal</h3><button onclick="closeModal('saveMealModal')">✕</button></div>
     <div class="field">
       <label>Name</label>
       <input type="text" id="saveMealName">
+    </div>
+    <div class="field">
+      <label>How many items did this entry cover?</label>
+      <input type="number" id="saveMealUnitCount" step="0.5" min="0.5" value="1">
+      <div class="hint">e.g. if you logged 5 eggs, enter 5 — the meal gets saved per single egg, so later you can log any quantity you like.</div>
     </div>
     <div class="field">
       <label>Photo (optional)</label>
@@ -842,7 +843,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <label>Description / notes (optional)</label>
       <textarea id="saveMealNote" placeholder="e.g. Homemade, 1 tbsp olive oil, no cheese"></textarea>
     </div>
-    <button class="btn block" onclick="confirmSaveMeal()">â˜… Save to Saved Meals</button>
+    <button class="btn block" onclick="confirmSaveMeal()">★ Save to Saved Meals</button>
   </div>
 </div>
 
@@ -850,7 +851,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="logSavedMealModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3 id="logSavedMealTitle">Log saved meal</h3><button onclick="closeModal('logSavedMealModal')">âœ•</button></div>
+    <div class="modal-head"><h3 id="logSavedMealTitle">Log saved meal</h3><button onclick="closeModal('logSavedMealModal')">✕</button></div>
     <div id="logSavedMealSummary" style="font-size:13px;color:var(--text-dim);margin-bottom:14px;"></div>
     <div class="field">
       <label>Quantity</label>
@@ -865,7 +866,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="exerciseModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3>Log exercise</h3><button onclick="closeModal('exerciseModal')">âœ•</button></div>
+    <div class="modal-head"><h3>Log exercise</h3><button onclick="closeModal('exerciseModal')">✕</button></div>
     <div class="field"><label>Activity</label><input type="text" id="exName" placeholder="e.g. Running"></div>
     <div class="row2">
       <div class="field"><label>Minutes</label><input type="number" id="exMinutes" placeholder="30"></div>
@@ -879,7 +880,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="weightModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3>Log weight</h3><button onclick="closeModal('weightModal')">âœ•</button></div>
+    <div class="modal-head"><h3>Log weight</h3><button onclick="closeModal('weightModal')">✕</button></div>
     <div class="field"><label>Weight (kg)</label><input type="number" step="0.1" id="weightInput" placeholder="e.g. 72.4"></div>
     <button class="btn block" onclick="saveWeight()">Save</button>
   </div>
@@ -889,7 +890,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="targetModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3 id="targetModalName">Edit target</h3><button onclick="closeModal('targetModal')">âœ•</button></div>
+    <div class="modal-head"><h3 id="targetModalName">Edit target</h3><button onclick="closeModal('targetModal')">✕</button></div>
     <div class="field"><label>Daily target</label><input type="number" step="any" id="targetInput"></div>
     <button class="btn block" onclick="saveTargetOverride()">Save</button>
   </div>
@@ -899,7 +900,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="detailModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3 id="detailModalName">Nutrient</h3><button onclick="closeModal('detailModal')">âœ•</button></div>
+    <div class="modal-head"><h3 id="detailModalName">Nutrient</h3><button onclick="closeModal('detailModal')">✕</button></div>
     <div id="detailModalBody"></div>
   </div>
 </div>
@@ -908,7 +909,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="foodDetailModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3 id="foodDetailModalName">Food</h3><button onclick="closeModal('foodDetailModal')">âœ•</button></div>
+    <div class="modal-head"><h3 id="foodDetailModalName">Food</h3><button onclick="closeModal('foodDetailModal')">✕</button></div>
     <div id="foodDetailModalBody"></div>
   </div>
 </div>
@@ -917,7 +918,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 <div class="modal-backdrop" id="remainingModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-head"><h3>Nutrient completion</h3><button onclick="closeModal('remainingModal')">âœ•</button></div>
+    <div class="modal-head"><h3>Nutrient completion</h3><button onclick="closeModal('remainingModal')">✕</button></div>
     <div id="remainingModalBody"></div>
   </div>
 </div>
@@ -932,7 +933,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
    FIREBASE (AUTH + CLOUD STORAGE)
    Fill in firebaseConfig below with the values from your own
    Firebase project (Project settings > General > Your apps).
-   These values are meant to be public â€” they identify your
+   These values are meant to be public — they identify your
    project, they don't grant access on their own. Access is
    controlled by the Firestore security rules instead.
 ========================================================= */
@@ -957,7 +958,7 @@ let currentUser = null;
 
 function signInWithGoogle(){
   const statusEl = document.getElementById('loginStatus');
-  statusEl.textContent = 'Opening sign-inâ€¦';
+  statusEl.textContent = 'Opening sign-in…';
   const provider = new firebase.auth.GoogleAuthProvider();
   auth.signInWithPopup(provider).catch(err=>{
     console.error(err);
@@ -1167,7 +1168,7 @@ async function storeGet(key){
 // spamming the console. Returns true if it actually persisted, false if not
 // (caller keeps working off in-memory state either way). Firestore's own
 // offline cache means writes still queue locally and sync later even when
-// this "fails" due to being offline â€” this flag is about surfacing that.
+// this "fails" due to being offline — this flag is about surfacing that.
 async function storeSet(key, val, attempt = 1){
   writeLocalBackup(key, val);
   try{
@@ -1184,10 +1185,10 @@ async function storeSet(key, val, attempt = 1){
       return storeSet(key, val, attempt + 1);
     }
     storageHealthy = false;
-    console.error('Cloud storage save failed after retry â€” continuing with in-memory data for this session.', e);
+    console.error('Cloud storage save failed after retry — continuing with in-memory data for this session.', e);
     if(!storageWarned){
       storageWarned = true;
-      showToast('Cloud sync unavailable â€” working offline for this session');
+      showToast('Cloud sync unavailable — working offline for this session');
     }
     return false;
   }
@@ -1225,7 +1226,7 @@ function latestWeight(day){
 function fmtTime(ts){
   return new Date(ts).toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'});
 }
-// Photos are never written to Firestore â€” they bloat every day document
+// Photos are never written to Firestore — they bloat every day document
 // (each is 100s of KB of base64) which is what was making saves and syncs
 // slow. We strip them right before the network write but leave dayCache
 // (in-memory) untouched, so the photo still shows instantly in this
@@ -1279,11 +1280,11 @@ function getTarget(id){
   return def ? def.rda : 0;
 }
 
-// Ranks a food's nutrients by "density" â€” how much of the daily target a
-// typical serving covers â€” so the standout nutrient (e.g. potassium for a
+// Ranks a food's nutrients by "density" — how much of the daily target a
+// typical serving covers — so the standout nutrient (e.g. potassium for a
 // banana, vitamin C for an orange) surfaces first instead of always
 // leading with the same generic macro list.
-// Ordered by general nutritional importance to the body â€” foundational
+// Ordered by general nutritional importance to the body — foundational
 // energy/macros first, then the vitamins/minerals most commonly emphasized
 // for health and most often deficient, then other essential micronutrients,
 // then essential amino acids (the body can't make these), then non-essential
@@ -1364,18 +1365,6 @@ function computeTotals(day){
 function computeBurned(day){
   return (day.exercises||[]).reduce((s,e)=>s+(Number(e.calories)||0),0);
 }
-const BAD_OVER_NUTRIENT_IDS = new Set(['calories','saturatedFat','transFat','sodium','cholesterol','addedSugars','sugars']);
-function isBadOverNutrient(id, pct){
-  return BAD_OVER_NUTRIENT_IDS.has(id) && Number(pct) > 100;
-}
-function nutrientPctStyle(id, pct){
-  if(isBadOverNutrient(id, pct)) return 'color:var(--danger);font-weight:700;';
-  return pct>=100 ? 'color:var(--complete);font-weight:600;' : '';
-}
-function nutrientBarColor(id, pct){
-  if(isBadOverNutrient(id, pct)) return 'linear-gradient(90deg, #FF4E42, #FF7A3D)';
-  return progressColor(pct);
-}
 
 /* =========================================================
    RENDER: NAV / VIEWS
@@ -1409,14 +1398,14 @@ function renderDashboard(day){
   const remaining = calTarget - consumed + burned;
   document.getElementById('calConsumed').textContent = consumed;
   document.getElementById('calTarget').textContent = calTarget;
-  document.getElementById('calSub').textContent = burned>0 ? `consumed Â· ${burned} kcal burned` : 'consumed today';
+  document.getElementById('calSub').textContent = burned>0 ? `consumed · ${burned} kcal burned` : 'consumed today';
   document.getElementById('calRemaining').textContent = Math.abs(remaining);
   document.getElementById('calRemaining').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
   document.getElementById('calRemainingLabel').textContent = remaining<0 ? 'kcal over' : 'kcal remaining';
   const pct = calTarget>0 ? Math.min(100, (consumed/calTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
   document.getElementById('calBarFill').style.background = remaining<0
-    ? nutrientBarColor('calories', 101)
+    ? 'linear-gradient(90deg, #FF453A, #FF1F1F)'
     : progressColor(pct);
   document.getElementById('calConsumed').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
 
@@ -1429,8 +1418,8 @@ function renderDashboard(day){
     const flagged = !!day.countLowCalorieDay;
     fastChip.style.display = 'inline-block';
     fastChip.classList.toggle('active', flagged);
-    fastChip.textContent = flagged ? 'âœ“ Added' : 'Add';
-    fastChip.title = flagged ? 'Counted toward your average â€” tap to remove' : 'Count this fasting day toward your average intake';
+    fastChip.textContent = flagged ? '✓ Added' : 'Add';
+    fastChip.title = flagged ? 'Counted toward your average — tap to remove' : 'Count this fasting day toward your average intake';
   } else {
     fastChip.style.display = 'none';
   }
@@ -1443,10 +1432,11 @@ function renderDashboard(day){
   document.getElementById('macroMini').innerHTML = macros.map(m=>{
     const v = totals[m.id]||0; const t = getTarget(m.id)||1;
     const p = Math.min(100, (v/t)*100);
-    return `<div class="macro-chip">
+    const fillColor = barColor(p, m.color);
+    return `<div class="macro-chip" style="--chip-color:${m.color}">
       <div class="l">${m.label}</div>
       <div class="v">${Math.round(v)}<span style="color:var(--text-faint)">/${Math.round(t)}g</span></div>
-      <div class="bar"><span style="width:${p}%; background:${barColor(p, m.color)}"></span></div>
+      <div class="bar"><span style="width:${p}%; background:${fillColor}; color:${fillColor};"></span></div>
     </div>`;
   }).join('');
 
@@ -1470,17 +1460,17 @@ function renderDashboard(day){
     const pctCapped = Math.min(100, (v/t)*100);
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
-    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${Math.round(v*10)/10}${n.unit} / ${t}${n.unit}"></div>`;
+    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${fmtAmount(v, n.unit)} / ${fmtAmount(t, n.unit)}"></div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
-  document.getElementById('spectrumCount').textContent = `${overallPct}% complete Â· ${metCount}/${totalCount} at target`;
+  document.getElementById('spectrumCount').textContent = `${overallPct}% complete · ${metCount}/${totalCount} at target`;
 
   // diary preview
   const foods = day.foods||[];
   const preview = document.getElementById('dashDiaryPreview');
   if(foods.length===0){
-    preview.innerHTML = `<div class="empty-state"><div class="icon">ðŸ½ï¸</div>No meals logged yet.<br>Tap + to add your first meal.</div>`;
+    preview.innerHTML = `<div class="empty-state"><div class="icon">🍽️</div>No meals logged yet.<br>Tap + to add your first meal.</div>`;
   } else {
     preview.innerHTML = foods.slice(-4).reverse().map(foodEntryHTML).join('');
   }
@@ -1490,21 +1480,21 @@ function foodEntryHTML(f){
   const canSave = !f.isWater && !f.id.startsWith('manual-');
   const saved = canSave && savedMealFor(f.id);
   const starBtn = canSave
-    ? `<button class="star ${saved?'active':''}" onclick="event.stopPropagation(); ${saved?`unsaveMeal('${f.id}')`:`openSaveMealModal('${f.id}')`}">${saved?'â˜…':'â˜†'}</button>`
+    ? `<button class="star ${saved?'active':''}" onclick="event.stopPropagation(); ${saved?`unsaveMeal('${f.id}')`:`openSaveMealModal('${f.id}')`}">${saved?'★':'☆'}</button>`
     : '';
   const refreshBtn = canSave
-    ? `<button class="refresh" id="refresh-${f.id}" title="Re-check this food's nutrients (fixes gaps like missing amino acids, without retyping anything)" onclick="event.stopPropagation(); refreshFoodNutrients('${f.id}')">â†»</button>`
+    ? `<button class="refresh" id="refresh-${f.id}" title="Re-check this food's nutrients (fixes gaps like missing amino acids, without retyping anything)" onclick="event.stopPropagation(); refreshFoodNutrients('${f.id}')">↻</button>`
     : '';
   return `<div class="entry" style="cursor:pointer;" onclick="openFoodEntryDetail('${f.id}')">
-    <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? 'ðŸ’§' : 'ðŸ´')}</div>
+    <div class="thumb">${f.photo ? `<img src="${f.photo}">` : (f.isWater ? '💧' : '🍴')}</div>
     <div class="info">
       <div class="name">${escapeHtml(f.name)}</div>
-      <div class="meta">${f.isWater ? (f.grams||0)+' ml Â· ' : (f.grams?f.grams+'g Â· ':'')}${f.time||''}</div>
+      <div class="meta">${f.isWater ? (f.grams||0)+' ml · ' : (f.grams?f.grams+'g · ':'')}${f.time||''}</div>
     </div>
     <div class="kcal">${f.isWater ? '0 kcal' : Math.round(f.nutrients?.calories||0)+' kcal'}</div>
     ${starBtn}
     ${refreshBtn}
-    <button class="del" onclick="event.stopPropagation(); deleteFood('${f.id}')">âœ•</button>
+    <button class="del" onclick="event.stopPropagation(); deleteFood('${f.id}')">✕</button>
   </div>`;
 }
 
@@ -1517,19 +1507,19 @@ function renderDiary(day){
   const exercises = day.exercises||[];
   document.getElementById('exerciseList').innerHTML = exercises.length
     ? exercises.map(e=>`<div class="entry">
-        <div class="thumb">ðŸƒ</div>
-        <div class="info"><div class="name">${escapeHtml(e.name)}</div><div class="meta">${e.minutes||'â€”'} min</div></div>
-        <div class="kcal">-${e.calories} kcal</div>
-        <button class="del" onclick="deleteExercise('${e.id}')">âœ•</button>
+        <div class="thumb" style="background:linear-gradient(135deg, #FF8F5E, #E8544B);">🏃</div>
+        <div class="info"><div class="name">${escapeHtml(e.name)}</div><div class="meta">${e.minutes||'—'} min</div></div>
+        <div class="kcal" style="color:var(--complete); font-weight:600;">-${e.calories} kcal</div>
+        <button class="del" onclick="deleteExercise('${e.id}')">✕</button>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">No exercise logged.</div>`;
 
   const weightList = (day.weights||[]).slice().sort((a,b)=>b.ts-a.ts);
   document.getElementById('weightToday').innerHTML = weightList.length
     ? weightList.map(w=>`<div class="entry">
-        <div class="thumb">âš–ï¸</div>
+        <div class="thumb">⚖️</div>
         <div class="info"><div class="name">${w.value} kg</div><div class="meta">${fmtTime(w.ts)}</div></div>
-        <button class="del" onclick="deleteWeight('${w.id}')">âœ•</button>
+        <button class="del" onclick="deleteWeight('${w.id}')">✕</button>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">No weight logged for this day.</div>`;
 
@@ -1546,6 +1536,7 @@ function renderNutrients(day){
   const groups = {};
   NUTRIENTS.forEach(n=>{ (groups[n.cat] = groups[n.cat]||[]).push(n); });
 
+  const badOverIds = new Set(['calories','saturatedFat','transFat','sodium','cholesterol']);
   const alerts = [];
   const lowCandidates = [];
   NUTRIENTS.forEach(n=>{
@@ -1553,7 +1544,7 @@ function renderNutrients(day){
     if(!target) return;
     const value = totals[n.id] || 0;
     const pct = (value / target) * 100;
-    if(isBadOverNutrient(n.id, pct)){
+    if(badOverIds.has(n.id) && pct > 100){
       alerts.push({kind:'bad', label:n.name, pct:Math.round(pct), note:'over target'});
     } else if((n.cat === 'vitamin' || n.cat === 'mineral' || n.id === 'protein' || n.id === 'fiber') && pct < 70){
       lowCandidates.push({kind:'warn', label:n.name, pct:Math.round(pct), note:'low'});
@@ -1569,23 +1560,24 @@ function renderNutrients(day){
   Object.keys(CAT_META).forEach(cat=>{
     const meta = CAT_META[cat];
     html += `<div class="cat-group">
-      <div class="cat-header" onclick="toggleCat('${cat}')">
-        <span class="dot" style="background:${meta.color}"></span>
+      <div class="cat-header" style="background:color-mix(in srgb, ${meta.color} 10%, transparent); border-left:3px solid ${meta.color}; border-radius:0 10px 10px 0; margin-bottom:2px;" onclick="toggleCat('${cat}')">
+        <span class="dot" style="background:${meta.color}; box-shadow:0 0 8px ${meta.color};"></span>
         <h3>${meta.label}</h3>
-        <span class="chev" id="chev-${cat}">â–¾</span>
+        <span class="chev" id="chev-${cat}">▾</span>
       </div>
       <div class="cat-body" id="body-${cat}">`;
     groups[cat].forEach(n=>{
       const v = totals[n.id]||0;
       const t = getTarget(n.id);
       const pct = t>0 ? Math.min(999,(v/t)*100) : null;
-      const pctStyle = pct !== null ? nutrientPctStyle(n.id, pct) : '';
-      const fill = pct !== null ? nutrientBarColor(n.id, pct) : meta.color;
+      const isBadOver = pct !== null && pct >= 100 && badOverIds.has(n.id);
+      const pctStyle = isBadOver ? 'color:var(--danger);font-weight:700;' : (pct>=100 ? 'color:var(--complete);font-weight:600;' : '');
+      const fill = isBadOver ? 'linear-gradient(90deg, #FF453A, #FF1F1F)' : barColor(pct, meta.color);
       html += `<div class="nutrient-row" onclick="openNutrientDetail('${n.id}')">
         <div class="name">${n.name}</div>
         ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${fill}"></div></div>
-        <div class="pct" style="${pctStyle}">${Math.round(pct)}%</div>` : `<div class="pct">â€”</div>`}
-        <div class="vals">${round1(v)}${t>0?` / ${round1(t)}`:''} ${n.unit}</div>
+        <div class="pct" style="${pctStyle}">${Math.round(pct)}%</div>` : `<div class="pct">—</div>`}
+        <div class="vals">${fmtAmount(v, n.unit)}${t>0?` / ${fmtAmount(t, n.unit)}`:''}</div>
       </div>`;
     });
     html += `</div></div>`;
@@ -1597,16 +1589,43 @@ function toggleCat(cat){
   document.getElementById('chev-'+cat).parentElement.classList.toggle('collapsed');
 }
 function round1(v){ return Math.round(v*10)/10; }
+function round2(v){ return Math.round(v*100)/100; }
+// Central unit-safe amount formatter. Every place in the app that shows a
+// nutrient's stored value together with its unit routes through here, so
+// the number and the label it's shown with can never drift apart:
+//  - mg values of 1000 or more are shown in g instead (e.g. 1250mg -> 1.25g)
+//  - mcg values of 1000 or more are shown in mg instead (e.g. 1500mcg -> 1.5mg)
+//  - anything under that threshold is shown in its original unit, untouched
+//  - the unit label is always recomputed alongside the number — the two can
+//    never end up mismatched (e.g. a gram-sized number stuck with an "mg" label)
+function scaledAmount(value, unit){
+  const v = Number(value) || 0;
+  if(unit==='mg' && Math.abs(v)>=1000) return {value:v/1000, unit:'g'};
+  if(unit==='mcg' && Math.abs(v)>=1000) return {value:v/1000, unit:'mg'};
+  return {value:v, unit};
+}
+// Returns {num, unit} separately, for spots that style the number and unit
+// differently (e.g. a big number with a smaller unit label beside it).
+function fmtAmountParts(value, unit){
+  const scaled = scaledAmount(value, unit);
+  const num = scaled.unit!==unit ? round2(scaled.value) : round1(scaled.value);
+  return {num, unit:scaled.unit};
+}
+// Returns a single ready-to-render "12.3mg" style string.
+function fmtAmount(value, unit){
+  const {num, unit:u} = fmtAmountParts(value, unit);
+  return `${num}${u}`;
+}
 // Progress color: smooth red -> orange -> yellow -> green ramp based on % of
 // target reached. Replaces fixed per-category colors (e.g. amino acids no
 // longer show as flat purple) so every bar communicates progress at a glance.
 function progressColor(pct){
   pct = Math.max(0, Math.min(100, pct));
   const stops = [
-    {p:0,   c:[255,78,66]},
-    {p:50,  c:[255,143,94]},
-    {p:75,  c:[255,217,61]},
-    {p:100, c:[57,255,106]}
+    {p:0,   c:[255,69,58]},   // red
+    {p:50,  c:[255,149,0]},   // orange
+    {p:75,  c:[255,214,10]},  // yellow
+    {p:100, c:[47,234,99]}    // green
   ];
   let lo = stops[0], hi = stops[stops.length-1];
   for(let i=0;i<stops.length-1;i++){
@@ -1645,7 +1664,6 @@ function ensureChartJs(){
 let weightChartInst=null, exerciseChartInst=null;
 async function renderTrends(){
   await ensureChartJs();
-  await new Promise(resolve=>requestAnimationFrame(resolve));
   const days = [];
   for(let i=13;i>=0;i--){
     const d = new Date(); d.setDate(d.getDate()-i);
@@ -1704,8 +1722,6 @@ async function renderTrends(){
         pointBorderWidth:1.5
       }]},
       options:{
-        responsive:true,
-        maintainAspectRatio:false,
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{
@@ -1729,7 +1745,6 @@ async function renderTrends(){
   }
 
   const dailyExerciseMinutes = dayDatas.map(d=>(d.exercises||[]).reduce((sum,e)=>sum+(Number(e.minutes)||0),0));
-  const dailyExerciseBurns = dayDatas.map(d=>computeBurned(d));
   const totalExerciseMinutes = dailyExerciseMinutes.reduce((sum,val)=>sum+val,0);
   const totalExerciseSessions = dayDatas.reduce((sum,d)=>(sum + (d.exercises||[]).length),0);
   document.getElementById('totalExerciseMinutes').textContent = totalExerciseMinutes ? totalExerciseMinutes+' min' : '?';
@@ -1752,20 +1767,8 @@ async function renderTrends(){
           labels,
           datasets:[
             {
-              type:'bar',
-              label:'Calories burned',
-              data:dailyExerciseBurns,
-              yAxisID:'yBurn',
-              backgroundColor:'rgba(57,255,106,0.20)',
-              borderColor:'rgba(57,255,106,0.72)',
-              borderWidth:1,
-              borderRadius:6,
-              maxBarThickness:28
-            },
-            {
               label:'Daily minutes',
               data:dailyExerciseMinutes,
-              yAxisID:'y',
               borderColor:'#FF8F5E',
               backgroundColor:'rgba(255,143,94,0.18)',
               fill:true,
@@ -1780,7 +1783,6 @@ async function renderTrends(){
             {
               label:'7-day average',
               data:rolling7,
-              yAxisID:'y',
               borderColor:'#6BCB9E',
               borderDash:[6,4],
               borderWidth:2,
@@ -1791,16 +1793,13 @@ async function renderTrends(){
           ]
         },
         options:{
-          responsive:true,
-          maintainAspectRatio:false,
           plugins:{
             legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
-            tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0}${item.dataset.yAxisID==='yBurn' ? ' kcal' : ' min'}`}}
+            tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0} min`}}
           },
           scales:{
             x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
-            y:{beginAtZero:true, position:'left', ticks:{color:'#6D897E', callback:(v)=>`${v} min`}, grid:{color:'#2C4941'}},
-            yBurn:{beginAtZero:true, position:'right', ticks:{color:'#39FF6A', callback:(v)=>`${v} kcal`}, grid:{drawOnChartArea:false}}
+            y:{beginAtZero:true, ticks:{color:'#6D897E', callback:(v)=>`${v} min`}, grid:{color:'#2C4941'}}
           }
         }
       });
@@ -1815,9 +1814,9 @@ async function renderTrends(){
   const heatmapHost = document.getElementById('calorieHeatmap');
   const legendHost = document.getElementById('calorieLegend');
   const legendItems = [
-    {key:'under', label:'Under target', color:'#6BCB9E'},
-    {key:'near', label:'Near target', color:'#F3C948'},
-    {key:'over', label:'Over target', color:'#F0785F'},
+    {key:'under', label:'Under target', color:'#2FEA63'},
+    {key:'near', label:'Near target', color:'#FFD60A'},
+    {key:'over', label:'Over target', color:'#FF453A'},
     {key:'empty', label:'No log', color:'#2C4941'}
   ];
   legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>`;
@@ -1851,7 +1850,7 @@ async function renderTrends(){
 ========================================================= */
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-const PHOTO_DROP_PLACEHOLDER = '<span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG Â· Ctrl/âŒ˜+V to paste</span>';
+const PHOTO_DROP_PLACEHOLDER = '<span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span>';
 function openAddModal(){
   pendingPhotoBase64=null; pendingPhotoMime=null; pendingResults=[];
   document.getElementById('analysisArea').innerHTML='';
@@ -1932,22 +1931,28 @@ const NUTRIENT_KEY_LIST = NUTRIENTS.map(n=>`${n.id} (${n.unit})`).join(', ');
 function buildPrompt(context, notes){
   let p = `You are a professional nutrition analyst with USDA FoodData Central-level knowledge of food composition. Identify each distinct food/drink item in the ${context}, and estimate a realistic portion size in grams for what was actually consumed.
 
-For each item, estimate a COMPLETE nutrient profile. Your response has a generous length budget, so there is no reason to skip categories to save space â€” completeness and accuracy matter far more than brevity.
+For each item, estimate a COMPLETE nutrient profile. Your response has a generous length budget, so there is no reason to skip categories to save space — completeness and accuracy matter far more than brevity.
 
 Nutrient fields to estimate: ${NUTRIENT_KEY_LIST}
 
-MANDATORY â€” amino acids: if an item contains roughly 2g of protein or more, you MUST estimate ALL 18 amino acids listed (histidine, isoleucine, leucine, lysine, methionine, cystine, phenylalanine, tyrosine, threonine, tryptophan, valine, alanine, arginine, aspartic acid, glutamic acid, glycine, proline, serine), scaled to that food's real, typical amino acid composition per gram of protein. Eggs, poultry, meat, fish, and dairy are complete proteins particularly rich in leucine, lysine, and the branched-chain amino acids â€” their amino acid fields should never come back as zero or be left out. A small mg value is still real, meaningful data â€” it is not "negligible" just because the number looks small next to a calorie count.
+MANDATORY — amino acids: if an item contains roughly 2g of protein or more, you MUST estimate ALL 18 amino acids listed (histidine, isoleucine, leucine, lysine, methionine, cystine, phenylalanine, tyrosine, threonine, tryptophan, valine, alanine, arginine, aspartic acid, glutamic acid, glycine, proline, serine), scaled to that food's real, typical amino acid composition per gram of protein. Eggs, poultry, meat, fish, and dairy are complete proteins particularly rich in leucine, lysine, and the branched-chain amino acids — their amino acid fields should never come back as zero or be left out. A small mg value is still real, meaningful data — it is not "negligible" just because the number looks small next to a calorie count.
 
-MANDATORY â€” vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
+AMINO ACID CALIBRATION — reference points (do not undershoot these): a common failure mode is estimating amino acids roughly 5-10x too LOW because they feel "minor" next to calorie/macro numbers — that instinct is wrong and must be corrected using these real USDA reference values as calibration anchors:
+- 1 large egg (~50g, ~6.3g protein) contains approximately: leucine 560mg, lysine 460mg, isoleucine 350mg, valine 430mg, arginine 410mg, glycine 230mg, threonine 280mg, phenylalanine 330mg, methionine 190mg, histidine 150mg, tryptophan 90mg, glutamic acid 800mg, aspartic acid 630mg, alanine 350mg, proline 220mg, serine 440mg, tyrosine 250mg, cystine 140mg.
+- 100g cooked chicken breast (~31g protein) contains approximately: leucine 2400mg, lysine 2800mg, isoleucine 1400mg, valine 1600mg, arginine 2000mg, glycine 1500mg, threonine 1300mg.
+- 100g cheddar cheese (~25g protein) contains approximately: leucine 2400mg, lysine 2000mg, isoleucine 1400mg, valine 1600mg, arginine 900mg, glutamic acid 5300mg, proline 2700mg.
+Scale these proportionally to the actual grams and protein content of what you're estimating — e.g. if you calculate 12g of protein from a food, and that food's profile resembles egg, per-amino-acid values should land roughly twice the single-egg numbers above, not a fraction of them. If your estimate for any amino acid is coming out lower than roughly 4% of the food's total protein weight combined across all 18 amino acids, you are almost certainly undershooting — total amino acid weight typically recovers 80-90% of total protein weight.
 
-Before returning JSON, run a sanity check: amino acids are in mg, and a complete-protein food's listed amino acids should be roughly consistent with its protein grams. For example, 4 boiled eggs should not show near-zero leucine, lysine, valine, isoleucine, threonine, or other amino acids. If a value is implausibly low, correct it from the food's typical profile.
+MANDATORY — vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
 
-You may omit a field only when it is genuinely and categorically absent for that food â€” e.g. omega-3/EPA/DHA for a food with essentially no fat, caffeine for something that plainly contains none, alcohol for a non-alcoholic item. "Omit if small" is NOT license to drop amino acids, vitamins, or minerals that the food actually contains in real, if modest, amounts â€” those must still be reported.`;
+You may omit a field only when it is genuinely and categorically absent for that food — e.g. omega-3/EPA/DHA for a food with essentially no fat, caffeine for something that plainly contains none, alcohol for a non-alcoholic item. "Omit if small" is NOT license to drop amino acids, vitamins, or minerals that the food actually contains in real, if modest, amounts — those must still be reported.
+
+CRITICAL — units for the omega-3 family: omega3, ala, omega6, and linoleicAcid must be reported in GRAMS (g), matching their field's unit. But epa and dha must be reported in MILLIGRAMS (mg), NOT grams — this is a common mistake because most nutrition databases (including USDA) report EPA and DHA in grams by default, and you must convert to mg for these two fields specifically. For example, a supplement or fish with "560 mg EPA, 400 mg DHA" on its label must be recorded as epa: 560, dha: 400 — never as epa: 0.56, dha: 0.4. If a photo shows exact label values (e.g. a supplement bottle), read and use those exact numbers rather than estimating from memory, and double-check that epa/dha are in the hundreds or low thousands (mg scale), not fractions under 10 (which would mean you accidentally used grams).`;
   p += `\n\nCALIBRATION RULES FOR PHOTOS:
 - When you are estimating a plated meal, assume cooked, ready-to-eat edible weights unless the image or notes clearly show uncooked/dry ingredients.
 - Never use raw dry grain weights for plated rice, dal, pasta, noodles, or similar foods unless the photo explicitly shows an uncooked ingredient or package.
 - For cooked white rice on a plate, a realistic baseline is about 130 kcal per 100 g and about 28 g carbohydrate per 100 g.
-- If your estimate for a plated rice portion is much higher than that, you are probably treating cooked rice as dry rice â€” correct it downward before responding.
+- If your estimate for a plated rice portion is much higher than that, you are probably treating cooked rice as dry rice — correct it downward before responding.
 - Prefer the most conservative cooked estimate when the image is ambiguous.
 
 RECOGNITION RULES:
@@ -1961,9 +1966,9 @@ RECOGNITION RULES:
   if(notes && notes.trim()){
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
   }
-  p += `\n\nRespond with ONLY valid, complete JSON â€” no markdown fences, no commentary â€” matching exactly this schema:
+  p += `\n\nRespond with ONLY valid, complete JSON — no markdown fences, no commentary — matching exactly this schema:
 {"items":[{"name":"string, short food name","gramsEstimate":number,"confidence":"high|medium|low","nutrients":{"<nutrientId>":number, ...}}]}
-Keep item names short. Fully complete every item's nutrient object â€” including its amino acids, vitamins, and minerals â€” before starting the next item; never truncate mid-object.`;
+Keep item names short. Fully complete every item's nutrient object — including its amino acids, vitamins, and minerals — before starting the next item; never truncate mid-object.`;
   return p;
 }
 
@@ -1982,7 +1987,7 @@ function parseGeminiJson(data){
     const repaired = repairTruncatedItemsJson(jsonStr);
     if(repaired) return repaired;
     if(data.finishReason==='MAX_TOKENS'){
-      throw new Error('That meal has too many items/details for one pass â€” try logging it in two smaller batches.');
+      throw new Error('That meal has too many items/details for one pass — try logging it in two smaller batches.');
     }
     throw parseErr;
   }
@@ -2011,39 +2016,8 @@ function normalizeRiceEstimate(item){
   return {...item, nutrients, _calibration:'cooked-rice'};
 }
 
-const AMINO_ACID_PER_G_PROTEIN = {
-  histidine:22, isoleucine:54, leucine:86, lysine:70, methionine:25, cystine:20,
-  phenylalanine:47, tyrosine:38, threonine:47, tryptophan:15, valine:66,
-  alanine:52, arginine:62, asparticAcid:93, glutamicAcid:126, glycine:37,
-  proline:42, serine:65
-};
-
-function isCompleteProteinName(name){
-  const text = normalizeFoodName(name);
-  if(!text) return false;
-  if(/\b(noodle|pasta|bread|rice|roti|chapati)\b/.test(text) && /\begg\b/.test(text)) return false;
-  return /\b(egg|paneer|cheese|milk|curd|yogurt|chicken|fish|meat|mutton|beef|pork|turkey|soy|tofu|whey)\b/.test(text);
-}
-
-function normalizeAminoAcids(item){
-  if(!item || !item.nutrients) return item;
-  const nutrients = {...item.nutrients};
-  const protein = Number(nutrients.protein || 0);
-  if(protein < 2 || !isCompleteProteinName(item.name)) return item;
-  let repaired = false;
-  Object.entries(AMINO_ACID_PER_G_PROTEIN).forEach(([id, mgPerG])=>{
-    const expected = protein * mgPerG;
-    const current = Number(nutrients[id] || 0);
-    if(!current || current < expected * 0.55){
-      nutrients[id] = round1(expected);
-      repaired = true;
-    }
-  });
-  return repaired ? {...item, nutrients, _calibration:item._calibration || 'amino-acid-protein-profile'} : item;
-}
-
 function normalizeAnalysisItems(items){
-  return (items || []).map(item=>normalizeAminoAcids(normalizeRiceEstimate(item)));
+  return (items || []).map(normalizeRiceEstimate);
 }
 
 function estimateAnalysisTokens(value){
@@ -2077,7 +2051,7 @@ function summarizeDayFoods(day){
     .map((food, index)=>{
       const kcal = Math.round(food?.nutrients?.calories || 0);
       const grams = food?.grams ? `${Math.round(food.grams)}g` : 'unknown grams';
-      return `${index + 1}. ${food.name} â€” ${grams}, ${kcal} kcal`;
+      return `${index + 1}. ${food.name} — ${grams}, ${kcal} kcal`;
     }).join('\n');
 }
 
@@ -2137,9 +2111,17 @@ async function recordAnalysisUsage(provider, promptText, responseData){
 }
 
 function analysisRequestTimeoutMs(analysisMode){
-  if(analysisMode === 'diet') return 16000;
-  if(analysisMode === 'image') return 32000;
-  return 18000;
+  // These must stay comfortably above the server's own per-provider budget
+  // (see getAnalysisConfig in analyze.js: diet=25000ms, image=40000ms,
+  // text/default=30000ms) or the browser aborts a request that was still
+  // legitimately in progress -- which is exactly what "Analysis took too
+  // long" meant here: a real, working analysis of a multi-item meal being
+  // cut off client-side before the server even finished its first attempt,
+  // not an actual Gemini/provider failure. Retrying hit the same wall every
+  // time because the timeout, not the analysis, was the failure.
+  if(analysisMode === 'diet') return 40000;
+  if(analysisMode === 'image') return 55000;
+  return 45000;
 }
 
 function buildDietAnalysisSignature(day){
@@ -2270,7 +2252,7 @@ function repairTruncatedItemsJson(jsonStr){
       using what it told us about that same food last time.
    2) Every RECHECK_EVERY uses, skip the cache once and trust a
       fresh Gemini read instead, so the library can't drift stale
-      forever â€” then re-learn from that fresh result.
+      forever — then re-learn from that fresh result.
 ========================================================= */
 const RECHECK_EVERY = 8;
 
@@ -2293,7 +2275,7 @@ function findLibraryMatch(name){
 }
 
 // Runs on Gemini's raw items before they're shown to the person. Fills only
-// the fields Gemini left blank/zero â€” anything Gemini did estimate this
+// the fields Gemini left blank/zero — anything Gemini did estimate this
 // time is left alone, since a fresh read is generally at least as good.
 function enrichItemsWithLibrary(items){
   return (items||[]).map(it=>{
@@ -2315,7 +2297,7 @@ function enrichItemsWithLibrary(items){
   });
 }
 
-// Called whenever a food is actually committed to the diary â€” teaches the
+// Called whenever a food is actually committed to the diary — teaches the
 // library this food's per-gram profile so next time is faster and more
 // complete. `trustFully=true` (manual entries, or a recheck pass) replaces
 // the stored profile outright instead of blending with the old one.
@@ -2355,7 +2337,7 @@ async function analyzePhoto(mimeType){
   if(!pendingPhotoBase64){ return; }
   const notes = document.getElementById('photoNotesInput').value;
   const area = document.getElementById('analysisArea');
-  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your photoâ€¦</div>`;
+  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your photo…</div>`;
   try{
     const prompt = buildPrompt('photo', notes);
     const parsed = await callGemini([
@@ -2372,7 +2354,7 @@ async function analyzeText(){
   const desc = document.getElementById('textDescInput').value.trim();
   if(!desc){ return; }
   const area = document.getElementById('analysisArea');
-  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your mealâ€¦</div>`;
+  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your meal…</div>`;
   try{
     const prompt = buildPrompt('meal description') + `\n\nMeal description: """${desc}"""`;
     const parsed = await callGemini([{type:'text', text: prompt}], 'text');
@@ -2384,18 +2366,12 @@ async function analyzeText(){
 
 async function analyzeDailyDiet(){
   const area = document.getElementById('dietAnalysisArea');
+  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing today's diet...</div>`;
   try{
     const day = await loadDay(currentDate);
-    const cached = getCachedDietAnalysis(day);
-    if(cached){
-      renderDietAnalysis(cached.result, cached.apiUsed);
-      return;
-    }
-    area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing today's diet...</div>`;
     const prompt = buildDailyDietPrompt(day);
     const parsed = await callGemini([{type:'text', text: prompt}], 'diet');
     renderDietAnalysis(parsed, parsed._apiUsed);
-    saveDietAnalysisToDay(day, parsed, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze today's diet: ${escapeHtml(err.message)}</div>`;
   }
@@ -2404,7 +2380,7 @@ async function analyzeDailyDiet(){
 function renderDietAnalysis(result, apiUsed){
   const area = document.getElementById('dietAnalysisArea');
   const score = Number(result?.score);
-  const scoreText = Number.isFinite(score) ? `${Math.max(0, Math.min(100, Math.round(score)))}/100` : 'â€”';
+  const scoreText = Number.isFinite(score) ? `${Math.max(0, Math.min(100, Math.round(score)))}/100` : '—';
   const summary = result?.summary || 'No summary returned.';
   const wins = Array.isArray(result?.wins) ? result.wins : [];
   const gaps = Array.isArray(result?.gaps) ? result.gaps : [];
@@ -2436,7 +2412,7 @@ function renderDietAnalysis(result, apiUsed){
       </div>` : ''}
       ${swaps.length ? `<div class="analysis-section">
         <h3>Food swaps</h3>
-        <ul class="analysis-list">${swaps.slice(0,3).map(item=>`<li><strong>${escapeHtml(item.from || 'Swap')}</strong> â†’ ${escapeHtml(item.to || '')}${item.why ? ` â€” ${escapeHtml(item.why)}` : ''}</li>`).join('')}</ul>
+        <ul class="analysis-list">${swaps.slice(0,3).map(item=>`<li><strong>${escapeHtml(item.from || 'Swap')}</strong> → ${escapeHtml(item.to || '')}${item.why ? ` — ${escapeHtml(item.why)}` : ''}</li>`).join('')}</ul>
       </div>` : ''}
       ${tips.length ? `<div class="analysis-section">
         <h3>Goal tips</h3>
@@ -2447,8 +2423,8 @@ function renderDietAnalysis(result, apiUsed){
 }
 
 function libraryBadge(status){
-  if(status==='enriched' || status==='known') return `<span class="tag" style="background:var(--surface-3); color:var(--good, #4CAF7A);" title="Filled in using what we learned from your past logs of this food">ðŸ§  recognized</span>`;
-  if(status==='rechecking') return `<span class="tag" title="Periodic accuracy check â€” verifying this food's data fresh instead of using the cache this time">ðŸ”„ verifying</span>`;
+  if(status==='enriched' || status==='known') return `<span class="tag" style="background:var(--surface-3); color:var(--good, #4CAF7A);" title="Filled in using what we learned from your past logs of this food">🧠 recognized</span>`;
+  if(status==='rechecking') return `<span class="tag" title="Periodic accuracy check — verifying this food's data fresh instead of using the cache this time">🔄 verifying</span>`;
   return '';
 }
 
@@ -2477,11 +2453,11 @@ function showResults(items, photoBase64, mimeType, apiUsed){
     return `
     <div class="result-card" id="card-${it._id}">
       <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span> ${libraryBadge(it._libraryStatus)}</div>
-      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` Â· rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
+      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
       <div class="rgrid">
         <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
         <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
-        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${round1(h.value)}${h.unit}</div></div>`).join('')}
+        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${fmtAmount(h.value, h.unit)}</div></div>`).join('')}
       </div>
     </div>
   `;}).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
@@ -2508,7 +2484,7 @@ async function confirmAddAll(photoTag){
   persistFoodLibrary();
 }
 
-/* ---------- Manual entry (bypasses AI â€” also the fallback when the
+/* ---------- Manual entry (bypasses AI — also the fallback when the
    analyzer is rate-limited) ---------- */
 const MANUAL_PRIMARY_IDS = ['calories','protein','carbs','fat'];
 function toggleManualAdvanced(){
@@ -2530,7 +2506,7 @@ function toggleManualAdvanced(){
     box.dataset.built = '1';
   }
   box.style.display = 'block';
-  toggle.textContent = 'âˆ’ Hide extra nutrients';
+  toggle.textContent = '− Hide extra nutrients';
 }
 async function saveManualFood(){
   const name = document.getElementById('manualName').value.trim() || 'Manual entry';
@@ -2597,6 +2573,7 @@ async function openSaveMealModal(foodId){
   pendingSaveMealPhoto = food.photo || null;
   document.getElementById('saveMealName').value = food.name;
   document.getElementById('saveMealNote').value = '';
+  document.getElementById('saveMealUnitCount').value = '1';
   const label = document.getElementById('saveMealPhotoLabel');
   label.querySelectorAll('img').forEach(i=>i.remove());
   const txt = document.getElementById('saveMealPhotoText');
@@ -2639,8 +2616,9 @@ async function confirmSaveMeal(){
   if(!food) return;
   const name = document.getElementById('saveMealName').value.trim() || food.name;
   const note = document.getElementById('saveMealNote').value.trim();
-  const baseGrams = Number(food.grams || 1) || 1;
-  const baseNutrients = {...(food.nutrients||{})};
+  const unitCount = Number(document.getElementById('saveMealUnitCount').value || 1) || 1;
+  const baseGrams = (Number(food.grams || 1) || 1) / unitCount;
+  const baseNutrients = scaleNutrients(food.nutrients || {}, 1 / unitCount);
   savedMeals.push({
     id: 'sm'+Date.now(),
     savedFrom: food.id,
@@ -2655,7 +2633,7 @@ async function confirmSaveMeal(){
   });
   closeModal('saveMealModal');
   renderAll();
-  showToast('Meal saved â˜…');
+  showToast('Meal saved ★');
   storeSet('savedMeals', savedMeals.map(m => m.photo ? {...m, photo:null} : m));
 }
 async function unsaveMeal(foodId){
@@ -2668,18 +2646,18 @@ function renderSavedMealsPane(){
   const el = document.getElementById('savedMealsList');
   if(!el) return;
   if(!savedMeals.length){
-    el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No saved meals yet. Tap the â˜† on any logged meal to save it here.</div>`;
+    el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No saved meals yet. Tap the ☆ on any logged meal to save it here.</div>`;
     return;
   }
   el.innerHTML = savedMeals.slice().reverse().map(m=>`
     <div class="entry">
-      <div class="thumb">${m.photo?`<img src="${m.photo}">`:'ðŸ´'}</div>
+      <div class="thumb">${m.photo?`<img src="${m.photo}">`:'🍴'}</div>
       <div class="info">
         <div class="name">${escapeHtml(m.name)}</div>
-        <div class="meta">${Math.round((m.baseNutrients||m.nutrients||{}).calories||0)} kcal${m.note?' Â· '+escapeHtml(m.note):''}</div>
+        <div class="meta">${Math.round((m.baseNutrients||m.nutrients||{}).calories||0)} kcal${m.note?' · '+escapeHtml(m.note):''}</div>
       </div>
        <button class="btn" style="padding:8px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="openLogSavedMealModal('${m.id}')">+ Log</button>
-      <button class="del" onclick="deleteSavedMealById('${m.id}')">âœ•</button>
+      <button class="del" onclick="deleteSavedMealById('${m.id}')">✕</button>
     </div>
   `).join('');
 }
@@ -2688,7 +2666,7 @@ function openLogSavedMealModal(id){
   if(!meal) return;
   pendingLogSavedMealId = id;
   document.getElementById('logSavedMealTitle').textContent = `Log ${meal.name}`;
-  document.getElementById('logSavedMealSummary').textContent = `Base portion: ${round1(meal.baseGrams || meal.grams || 1)}g${meal.note ? ' Â· ' + meal.note : ''}`;
+  document.getElementById('logSavedMealSummary').textContent = `Base portion: ${round1(meal.baseGrams || meal.grams || 1)}g${meal.note ? ' · ' + meal.note : ''}`;
   document.getElementById('logSavedMealQty').value = '1';
   openModal('logSavedMealModal');
 }
@@ -2715,7 +2693,7 @@ async function confirmLogSavedMeal(){
   closeModal('logSavedMealModal');
   pendingLogSavedMealId = null;
   renderAll();
-  showToast(`Added ${meal.name} Ã— ${quantity}`);
+  showToast(`Added ${meal.name} × ${quantity}`);
   saveDay(currentDate);
 }
 async function deleteSavedMealById(id){
@@ -2735,8 +2713,8 @@ const refreshingFoodIds = new Set();
 
 async function reanalyzeSingleFood(food){
   const desc = food.grams ? `${food.grams}g of ${food.name}` : food.name;
-  const prompt = buildPrompt('a single already-identified food (not a full meal â€” return exactly one item in the items array)')
-    + `\n\nFood: "${desc}". This exact food and quantity is already logged â€” do not re-estimate the portion size, just provide its complete nutrient profile for this amount.`;
+  const prompt = buildPrompt('a single already-identified food (not a full meal — return exactly one item in the items array)')
+    + `\n\nFood: "${desc}". This exact food and quantity is already logged — do not re-estimate the portion size, just provide its complete nutrient profile for this amount.`;
   const parsed = await callGemini([{type:'text', text: prompt}], 'text');
   const raw = (parsed.items||[])[0];
   if(!raw) return null;
@@ -2768,7 +2746,7 @@ async function refreshFoodNutrients(id){
   }
 }
 
-// Bulk version â€” re-checks every eligible food logged on the currently
+// Bulk version — re-checks every eligible food logged on the currently
 // viewed day in one go (use shiftDate to land on yesterday first).
 async function refreshAllFoodsForDay(){
   const day = await loadDay(currentDate);
@@ -2777,7 +2755,7 @@ async function refreshAllFoodsForDay(){
   const statusEl = document.getElementById('dayRefreshStatus');
   let done = 0, failed = 0;
   for(const food of targets){
-    if(statusEl) statusEl.textContent = `Re-checking ${done+failed+1}/${targets.length}: ${food.name}â€¦`;
+    if(statusEl) statusEl.textContent = `Re-checking ${done+failed+1}/${targets.length}: ${food.name}…`;
     try{
       const fresh = await reanalyzeSingleFood(food);
       if(fresh){
@@ -2898,8 +2876,6 @@ async function openNutrientDetail(id){
   const t = getTarget(id);
   const pct = t>0 ? (v/t)*100 : 0;
   const meta = CAT_META[n.cat];
-  const pctStyle = nutrientPctStyle(id, pct);
-  const fillColor = nutrientBarColor(id, pct);
   document.getElementById('detailModalName').textContent = n.name;
   const contributors = (day.foods||[])
     .map(f=>({name:f.name, amount:(f.nutrients && f.nutrients[id])||0}))
@@ -2908,18 +2884,18 @@ async function openNutrientDetail(id){
   const rows = contributors.length
     ? contributors.map(c=>`<div class="contrib-row">
         <div class="cname">${escapeHtml(c.name)}</div>
-        <div class="camt">${round1(c.amount)} ${n.unit}</div>
+        <div class="camt">${fmtAmount(c.amount, n.unit)}</div>
         <div class="cpct">${t>0?Math.round((c.amount/t)*100):0}%</div>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">Nothing logged today contributes to this yet.</div>`;
   document.getElementById('detailModalBody').innerHTML = `
     <div class="detail-gauge">
       <div class="detail-stat-row">
-        <div class="big">${round1(v)} <span style="font-size:13px;color:var(--text-faint);">${n.unit}</span></div>
-        <div class="pctbig" style="${pctStyle}">${Math.round(pct)}%</div>
+        <div class="big">${fmtAmountParts(v, n.unit).num} <span style="font-size:13px;color:var(--text-faint);">${fmtAmountParts(v, n.unit).unit}</span></div>
+        <div class="pctbig" style="${pct>=100?'color:var(--complete);':''}">${Math.round(pct)}%</div>
       </div>
-      <div class="detail-gauge-track"><div class="detail-gauge-fill" style="width:${Math.min(100,pct)}%; background:${fillColor}"></div></div>
-      <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${t>0?`Target: ${round1(t)} ${n.unit}`:'No target set for this nutrient'}</div>
+      <div class="detail-gauge-track"><div class="detail-gauge-fill" style="width:${Math.min(100,pct)}%; background:${barColor(pct, meta.color)}"></div></div>
+      <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${t>0?`Target: ${fmtAmount(t, n.unit)}`:'No target set for this nutrient'}</div>
     </div>
     <div class="contrib-list">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);margin-bottom:4px;">From today's foods</div>
@@ -2933,7 +2909,7 @@ async function openNutrientDetail(id){
 
 // Shows every nutrient logged for one diary entry: calories/protein/carbs/fat
 // first as the basics, then everything else ranked by how much of the daily
-// target it covers â€” so the food's standout nutrient (potassium for a
+// target it covers — so the food's standout nutrient (potassium for a
 // banana, vitamin C for an orange, etc.) surfaces at the top instead of
 // being buried in a flat alphabetical list.
 async function openFoodEntryDetail(id){
@@ -2947,7 +2923,7 @@ async function openFoodEntryDetail(id){
   const primary = primaryIds.map(pid=>{
     const n = NUTRIENTS.find(x=>x.id===pid);
     const v = nutrients[pid]||0;
-    return `<div><div class="l">${pid==='calories'?'Cal':n.name}</div><div class="v">${pid==='calories'?Math.round(v):round1(v)+n.unit}</div></div>`;
+    return `<div><div class="l">${pid==='calories'?'Cal':n.name}</div><div class="v">${pid==='calories'?Math.round(v):fmtAmount(v, n.unit)}</div></div>`;
   }).join('');
 
   const highlights = nutrientHighlights(nutrients, primaryIds);
@@ -2956,19 +2932,18 @@ async function openFoodEntryDetail(id){
         const t = getTarget(h.id);
         const pctDisp = t>0 ? Math.round(h.pct) : null;
         const meta = CAT_META[h.cat] || {color:'var(--text-faint)'};
-        const fill = t>0 ? nutrientBarColor(h.id, h.pct) : meta.color;
         return `<div class="fd-row${i===0?' standout':''}">
           <span class="dot" style="background:${meta.color}"></span>
           <div class="fname">${escapeHtml(h.name)}${i===0?'<span class="fd-badge">Most notable</span>':''}</div>
           ${t>0
-            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${fill}"></span></div><div class="famt">${round1(h.value)}${h.unit} Â· ${pctDisp}%</div>`
-            : `<div class="famt">${round1(h.value)}${h.unit}</div>`}
+            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${meta.color}"></span></div><div class="famt">${fmtAmount(h.value, h.unit)} · ${pctDisp}%</div>`
+            : `<div class="famt">${fmtAmount(h.value, h.unit)}</div>`}
         </div>`;
       }).join('')
-    : `<div class="empty-state" style="padding:16px 0;">No additional nutrient data for this item yet â€” tap the â†» on the diary row to check for more.</div>`;
+    : `<div class="empty-state" style="padding:16px 0;">No additional nutrient data for this item yet — tap the ↻ on the diary row to check for more.</div>`;
 
   document.getElementById('foodDetailModalBody').innerHTML = `
-    <div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">${f.grams?f.grams+(f.isWater?'ml':'g'):''}${f.grams&&f.time?' Â· ':''}${f.time||''}</div>
+    <div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">${f.grams?f.grams+(f.isWater?'ml':'g'):''}${f.grams&&f.time?' · ':''}${f.time||''}</div>
     <div class="fd-basics">${primary}</div>
     <div class="fd-section-label">Ranked by nutrient density (% of your daily target)</div>
     ${rows}
@@ -2994,7 +2969,7 @@ async function openRemainingModal(){
     </div>
     ${list.map(x=>{
       const capped = Math.min(100,x.pct);
-      const col = nutrientBarColor(x.n.id, x.pct);
+      const col = barColor(capped, `var(--${x.n.cat})`);
       return `<div class="remain-row" onclick="closeModal('remainingModal'); openNutrientDetail('${x.n.id}')">
         <span class="dot" style="background:${col}"></span>
         <div class="rname">${x.n.name}</div>
@@ -3012,7 +2987,7 @@ async function openRemainingModal(){
 function openTargetModal(id){
   editingTargetId = id;
   const n = NUTRIENTS.find(x=>x.id===id);
-  document.getElementById('targetModalName').textContent = 'Edit target â€” '+n.name;
+  document.getElementById('targetModalName').textContent = 'Edit target — '+n.name;
   document.getElementById('targetInput').value = getTarget(id);
   openModal('targetModal');
 }
