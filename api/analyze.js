@@ -1,5 +1,5 @@
 const FIREBASE_WEB_API_KEY = 'AIzaSyA5Jp_4A4hUTTn29_EsgbYxPqdWzomas3M';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const JSON_ONLY_PROMPT = 'Return only a valid JSON object. Do not wrap it in markdown or add any extra text.';
