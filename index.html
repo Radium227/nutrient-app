@@ -1432,7 +1432,7 @@ function renderDashboard(day){
   document.getElementById('macroMini').innerHTML = macros.map(m=>{
     const v = totals[m.id]||0; const t = getTarget(m.id)||1;
     const p = Math.min(100, (v/t)*100);
-    const fillColor = barColor(p, m.color);
+    const fillColor = nutrientStatusColor(m.id, p);
     return `<div class="macro-chip" style="--chip-color:${m.color}">
       <div class="l">${m.label}</div>
       <div class="v">${Math.round(v)}<span style="color:var(--text-faint)">/${Math.round(t)}g</span></div>
@@ -1460,7 +1460,7 @@ function renderDashboard(day){
     const pctCapped = Math.min(100, (v/t)*100);
     pctSum += pctCapped;
     if(pctCapped>=100) metCount++;
-    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${progressColor(pctCapped)}" title="${n.name}: ${fmtAmount(v, n.unit)} / ${fmtAmount(t, n.unit)}"></div>`;
+    bars += `<div class="bar" style="height:${Math.max(3,pctCapped*0.62)}px; background:${nutrientStatusColor(n.id, pctCapped)}" title="${n.name}: ${fmtAmount(v, n.unit)} / ${fmtAmount(t, n.unit)}"></div>`;
   });
   document.getElementById('spectrumBars').innerHTML = bars;
   const overallPct = totalCount ? Math.round(pctSum/totalCount) : 0;
@@ -1536,7 +1536,6 @@ function renderNutrients(day){
   const groups = {};
   NUTRIENTS.forEach(n=>{ (groups[n.cat] = groups[n.cat]||[]).push(n); });
 
-  const badOverIds = new Set(['calories','saturatedFat','transFat','sodium','cholesterol']);
   const alerts = [];
   const lowCandidates = [];
   NUTRIENTS.forEach(n=>{
@@ -1544,7 +1543,7 @@ function renderNutrients(day){
     if(!target) return;
     const value = totals[n.id] || 0;
     const pct = (value / target) * 100;
-    if(badOverIds.has(n.id) && pct > 100){
+    if((isUpperLimitNutrient(n.id) || n.id==='calories') && pct > 100){
       alerts.push({kind:'bad', label:n.name, pct:Math.round(pct), note:'over target'});
     } else if((n.cat === 'vitamin' || n.cat === 'mineral' || n.id === 'protein' || n.id === 'fiber') && pct < 70){
       lowCandidates.push({kind:'warn', label:n.name, pct:Math.round(pct), note:'low'});
@@ -1570,9 +1569,8 @@ function renderNutrients(day){
       const v = totals[n.id]||0;
       const t = getTarget(n.id);
       const pct = t>0 ? Math.min(999,(v/t)*100) : null;
-      const isBadOver = pct !== null && pct >= 100 && badOverIds.has(n.id);
-      const pctStyle = isBadOver ? 'color:var(--danger);font-weight:700;' : (pct>=100 ? 'color:var(--complete);font-weight:600;' : '');
-      const fill = isBadOver ? 'linear-gradient(90deg, #FF453A, #FF1F1F)' : barColor(pct, meta.color);
+      const pctStyle = nutrientStatusTextStyle(n.id, pct);
+      const fill = nutrientStatusColor(n.id, pct, {gradient:true});
       html += `<div class="nutrient-row" onclick="openNutrientDetail('${n.id}')">
         <div class="name">${n.name}</div>
         ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${fill}"></div></div>
@@ -1639,6 +1637,36 @@ function progressColor(pct){
   return `rgb(${r},${g},${b})`;
 }
 function barColor(pct, baseColor){ return progressColor(pct); }
+
+// Nutrients where going OVER target is bad, not good — a ceiling to stay
+// under rather than a floor to reach. Every bar, chip, popup, and detail
+// view that colors a nutrient by its %-of-target routes through the two
+// helpers below instead of re-implementing this check locally, so the
+// "over limit" status can never show green/complete in one place and
+// red/warning in another.
+const UPPER_LIMIT_NUTRIENT_IDS = new Set(['saturatedFat','sodium','cholesterol','addedSugars','transFat']);
+function isUpperLimitNutrient(id){
+  return UPPER_LIMIT_NUTRIENT_IDS.has(id);
+}
+function isOverLimit(id, pct){
+  return pct!==null && pct!==undefined && pct>=100 && isUpperLimitNutrient(id);
+}
+// Single source of truth for a nutrient's status color. Pass {gradient:true}
+// for elements that use the existing red gradient fill style (progress bars)
+// instead of a flat color (dots, text).
+function nutrientStatusColor(id, pct, opts){
+  if(isOverLimit(id, pct)){
+    return (opts && opts.gradient) ? 'linear-gradient(90deg, #FF453A, #FF1F1F)' : 'var(--danger)';
+  }
+  return progressColor(Math.max(0, Math.min(100, pct||0)));
+}
+// Matching text style (color + weight) for the same status, used wherever a
+// percentage number itself needs to reflect over-limit vs. on-target vs. in-progress.
+function nutrientStatusTextStyle(id, pct){
+  if(isOverLimit(id, pct)) return 'color:var(--danger);font-weight:700;';
+  if(pct!==null && pct!==undefined && pct>=100) return 'color:var(--complete);font-weight:600;';
+  return '';
+}
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 
 let chartJsPromise = null;
@@ -1664,6 +1692,19 @@ function ensureChartJs(){
 let weightChartInst=null, exerciseChartInst=null;
 async function renderTrends(){
   await ensureChartJs();
+  // Root cause of the "compressed on first open, fine after navigating away
+  // and back" bug: switchView() flips the Trends view from display:none to
+  // display:block in the same tick that calls this function. Chart.js sizes
+  // itself off the canvas's parent element, and measuring that immediately
+  // (before the browser has actually run a layout/paint pass for the new
+  // display:block state) can return stale, pre-toggle dimensions — so the
+  // very first chart render gets built at the wrong (compressed) size.
+  // Subsequent opens work because the view is already visible and settled.
+  // Waiting two animation frames lets the browser finish that layout pass
+  // before any chart is constructed, so even the first render measures the
+  // real, final size. This only changes *when* construction starts, not
+  // anything about how the charts look, size themselves, or behave.
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   const days = [];
   for(let i=13;i>=0;i--){
     const d = new Date(); d.setDate(d.getDate()-i);
@@ -2629,7 +2670,7 @@ function showResults(items, photoBase64, mimeType, apiUsed){
       <div class="rgrid">
         <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
         <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
-        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v">${fmtAmount(h.value, h.unit)}</div></div>`).join('')}
+        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v"${isOverLimit(h.id, h.pct)?' style="color:var(--danger);font-weight:700;"':''}>${fmtAmount(h.value, h.unit)}</div></div>`).join('')}
       </div>
     </div>
   `;}).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
@@ -3068,9 +3109,9 @@ async function openNutrientDetail(id){
     <div class="detail-gauge">
       <div class="detail-stat-row">
         <div class="big">${fmtAmountParts(v, n.unit).num} <span style="font-size:13px;color:var(--text-faint);">${fmtAmountParts(v, n.unit).unit}</span></div>
-        <div class="pctbig" style="${pct>=100?'color:var(--complete);':''}">${Math.round(pct)}%</div>
+        <div class="pctbig" style="${nutrientStatusTextStyle(id, pct)}">${Math.round(pct)}%</div>
       </div>
-      <div class="detail-gauge-track"><div class="detail-gauge-fill" style="width:${Math.min(100,pct)}%; background:${barColor(pct, meta.color)}"></div></div>
+      <div class="detail-gauge-track"><div class="detail-gauge-fill" style="width:${Math.min(100,pct)}%; background:${nutrientStatusColor(id, pct, {gradient:true})}"></div></div>
       <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${t>0?`Target: ${fmtAmount(t, n.unit)}`:'No target set for this nutrient'}</div>
     </div>
     <div class="contrib-list">
@@ -3108,11 +3149,13 @@ async function openFoodEntryDetail(id){
         const t = getTarget(h.id);
         const pctDisp = t>0 ? Math.round(h.pct) : null;
         const meta = CAT_META[h.cat] || {color:'var(--text-faint)'};
+        const overLimit = isOverLimit(h.id, h.pct);
+        const rowColor = overLimit ? 'var(--danger)' : meta.color;
         return `<div class="fd-row${i===0?' standout':''}">
-          <span class="dot" style="background:${meta.color}"></span>
-          <div class="fname">${escapeHtml(h.name)}${i===0?'<span class="fd-badge">Most notable</span>':''}</div>
+          <span class="dot" style="background:${rowColor}"></span>
+          <div class="fname">${escapeHtml(h.name)}${i===0?'<span class="fd-badge">Most notable</span>':''}${overLimit?'<span class="fd-badge" style="color:var(--danger);">Over limit</span>':''}</div>
           ${t>0
-            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${meta.color}"></span></div><div class="famt">${fmtAmount(h.value, h.unit)} · ${pctDisp}%</div>`
+            ? `<div class="fbar"><span style="width:${Math.min(100,pctDisp)}%; background:${rowColor}"></span></div><div class="famt"${overLimit?' style="color:var(--danger);font-weight:700;"':''}>${fmtAmount(h.value, h.unit)} · ${pctDisp}%</div>`
             : `<div class="famt">${fmtAmount(h.value, h.unit)}</div>`}
         </div>`;
       }).join('')
@@ -3145,7 +3188,7 @@ async function openRemainingModal(){
     </div>
     ${list.map(x=>{
       const capped = Math.min(100,x.pct);
-      const col = barColor(capped, `var(--${x.n.cat})`);
+      const col = nutrientStatusColor(x.n.id, x.pct);
       return `<div class="remain-row" onclick="closeModal('remainingModal'); openNutrientDetail('${x.n.id}')">
         <span class="dot" style="background:${col}"></span>
         <div class="rname">${x.n.name}</div>
