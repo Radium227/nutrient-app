@@ -150,6 +150,13 @@ function buildOpenAiMessages(prompt, imageBase64, imageMime) {
   ];
 }
 
+// Status codes worth retrying: rate limiting and server-side/gateway
+// hiccups are temporary by nature and often succeed on a retry a moment
+// later. Anything else (bad request, auth, not found, etc.) is a genuine
+// failure that retrying won't fix, so those still fall straight through.
+const RETRYABLE_GEMINI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const GEMINI_MAX_ATTEMPTS = 3;
+
 async function callGemini(prompt, imageBase64, imageMime, analysisMode) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -166,7 +173,7 @@ async function callGemini(prompt, imageBase64, imageMime, analysisMode) {
   };
 
   let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < GEMINI_MAX_ATTEMPTS; attempt += 1) {
     if (attempt > 0) {
       await delay(attempt * 750);
     }
@@ -183,7 +190,15 @@ async function callGemini(prompt, imageBase64, imageMime, analysisMode) {
         timeoutMs
       );
     } catch (error) {
-      throw new Error(`Gemini request failed: ${truncateText(error && error.message ? error.message : error, 200)}`);
+      // A network-level failure (timeout/abort, connection reset, DNS
+      // hiccup, etc.) is exactly the kind of temporary failure that should
+      // be retried before falling back to Groq/OpenRouter — previously this
+      // threw immediately and skipped Gemini's retry budget entirely.
+      lastError = new Error(`Gemini request failed: ${truncateText(error && error.message ? error.message : error, 200)}`);
+      if (attempt < GEMINI_MAX_ATTEMPTS - 1) {
+        continue;
+      }
+      throw lastError;
     }
 
     if (response.ok) {
@@ -195,11 +210,14 @@ async function callGemini(prompt, imageBase64, imageMime, analysisMode) {
 
     const message = await readResponseError(response, 'Gemini');
     lastError = new Error(message);
-    if (response.status === 503 && attempt < 2) {
+
+    // Retry any transient/temporary status (rate limiting, server overload,
+    // gateway errors) before treating Gemini as having genuinely failed.
+    // Previously only 503 retried; 429 and other 5xx statuses threw
+    // immediately and fell back to Groq/OpenRouter even though a retry
+    // would often have succeeded.
+    if (RETRYABLE_GEMINI_STATUS_CODES.has(response.status) && attempt < GEMINI_MAX_ATTEMPTS - 1) {
       continue;
-    }
-    if (response.status === 429 || response.status === 503) {
-      throw lastError;
     }
     throw lastError;
   }
