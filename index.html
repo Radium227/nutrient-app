@@ -1935,13 +1935,9 @@ For each item, estimate a COMPLETE nutrient profile. Your response has a generou
 
 Nutrient fields to estimate: ${NUTRIENT_KEY_LIST}
 
-MANDATORY — amino acids: if an item contains roughly 2g of protein or more, you MUST estimate ALL 18 amino acids listed (histidine, isoleucine, leucine, lysine, methionine, cystine, phenylalanine, tyrosine, threonine, tryptophan, valine, alanine, arginine, aspartic acid, glutamic acid, glycine, proline, serine), scaled to that food's real, typical amino acid composition per gram of protein. Eggs, poultry, meat, fish, and dairy are complete proteins particularly rich in leucine, lysine, and the branched-chain amino acids — their amino acid fields should never come back as zero or be left out. A small mg value is still real, meaningful data — it is not "negligible" just because the number looks small next to a calorie count.
-
-AMINO ACID CALIBRATION — reference points (do not undershoot these): a common failure mode is estimating amino acids roughly 5-10x too LOW because they feel "minor" next to calorie/macro numbers — that instinct is wrong and must be corrected using these real USDA reference values as calibration anchors:
-- 1 large egg (~50g, ~6.3g protein) contains approximately: leucine 560mg, lysine 460mg, isoleucine 350mg, valine 430mg, arginine 410mg, glycine 230mg, threonine 280mg, phenylalanine 330mg, methionine 190mg, histidine 150mg, tryptophan 90mg, glutamic acid 800mg, aspartic acid 630mg, alanine 350mg, proline 220mg, serine 440mg, tyrosine 250mg, cystine 140mg.
-- 100g cooked chicken breast (~31g protein) contains approximately: leucine 2400mg, lysine 2800mg, isoleucine 1400mg, valine 1600mg, arginine 2000mg, glycine 1500mg, threonine 1300mg.
-- 100g cheddar cheese (~25g protein) contains approximately: leucine 2400mg, lysine 2000mg, isoleucine 1400mg, valine 1600mg, arginine 900mg, glutamic acid 5300mg, proline 2700mg.
-Scale these proportionally to the actual grams and protein content of what you're estimating — e.g. if you calculate 12g of protein from a food, and that food's profile resembles egg, per-amino-acid values should land roughly twice the single-egg numbers above, not a fraction of them. If your estimate for any amino acid is coming out lower than roughly 4% of the food's total protein weight combined across all 18 amino acids, you are almost certainly undershooting — total amino acid weight typically recovers 80-90% of total protein weight.
+AMINO ACIDS — important: the app calculates amino acid values itself using a deterministic, USDA-style reference database for recognizable whole foods (eggs, poultry, fish, beef, pork, dairy/paneer/yogurt/cheese, soy/tofu, legumes/lentils/beans, nuts, seeds). Whatever you put in the "protein" (g) field for those items gets scaled against a fixed reference amino acid profile after your response, and that OVERRIDES any amino acid numbers you provide. Because of this, getting "protein" as accurate as possible matters far more than the individual amino acid numbers for those foods — do not let amino acid guessing distract you from nailing the protein grams.
+You should still estimate all 18 amino acids listed (histidine, isoleucine, leucine, lysine, methionine, cystine, phenylalanine, tyrosine, threonine, tryptophan, valine, alanine, arginine, aspartic acid, glutamic acid, glycine, proline, serine) as a best-effort fallback for items that are NOT a recognizable single whole food (e.g. a mixed dish, a branded packaged product, a sauce, a multi-ingredient recipe) — the app only uses your amino acid numbers when it cannot match the item to its reference database, and it runs them through a biological sanity check first (total amino acid mass vs. protein mass, per-amino-acid ceilings, expected leucine/methionine ranges for animal protein) before trusting them. If your estimate for any amino acid is coming out lower than roughly 4% of the food's total protein weight combined across all 18 amino acids, you are almost certainly undershooting — total amino acid weight typically recovers 80-90% of total protein weight. Never return zero for amino acids on a food with meaningful protein.
+BIOLOGICAL CONSISTENCY — for every item, keep protein, fat, and carbohydrate grams roughly consistent with the calories you report: calories should be within about 15% of (protein_g × 4) + (carbs_g × 4) + (fat_g × 9). Essential amino acids (histidine, isoleucine, leucine, lysine, methionine, phenylalanine, threonine, tryptophan, valine) should never individually exceed the item's total protein mass, and their combined mass plus the non-essential amino acids should land in the 80-100% range of total protein mass, not far below or above it.
 
 MANDATORY — vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
 
@@ -2245,6 +2241,182 @@ function repairTruncatedItemsJson(jsonStr){
 }
 
 /* =========================================================
+   DETERMINISTIC AMINO ACID ENGINE
+   ---------------------------------------------------------
+   Root cause of "same food, different amino acids every time":
+   amino acids were being independently re-guessed by the LLM
+   on every single request, with only prose "calibration" text
+   nudging it — no actual math, no memory, no ground truth. Two
+   requests for "4 boiled eggs" could land anywhere the model
+   felt like that day.
+
+   Fix: for foods that match a known category (egg, poultry,
+   fish, beef, pork, dairy, soy, legume, nut, seed), amino acids
+   are no longer taken from the AI at all. They're computed
+   deterministically from a fixed USDA-style reference profile
+   (mg of each amino acid per gram of protein for that category),
+   scaled by the "protein" grams the AI reported for the item.
+   Same food + same protein amount -> byte-identical amino acid
+   output, every single time, regardless of what the AI felt
+   like guessing.
+
+   For genuinely unrecognized items (mixed dishes, packaged
+   products, sauces) where no reference category applies, the
+   AI's own amino acid numbers are kept — but only after passing
+   a biological sanity check. If they fail it, they're replaced
+   with a generic-protein reference profile instead of being
+   trusted as-is. Either way, a final clamp caps total amino
+   acid mass relative to protein mass as a last line of defense.
+
+   Pipeline:
+     Food -> protein grams (from AI) -> category classified
+       -> reference profile selected -> scaled by protein
+       -> sanity-clamped -> saved
+   instead of:
+     Food -> AI invents amino acids from scratch each time
+========================================================= */
+const AMINO_ACID_IDS = NUTRIENTS.filter(n=>n.cat==='amino').map(n=>n.id);
+
+// mg of each amino acid per gram of PROTEIN (not per gram of food) for
+// each food category — these are fixed reference points (USDA / published
+// amino acid composition tables), not AI estimates, so they never drift.
+const AMINO_ACID_REFERENCE_PROFILES = {
+  egg:      {histidine:27, isoleucine:55, leucine:88, lysine:71, methionine:33, cystine:24, phenylalanine:59, tyrosine:42, threonine:47, tryptophan:15, valine:67, alanine:55, arginine:63, asparticAcid:98,  glutamicAcid:124, glycine:35, proline:35, serine:69},
+  poultry:  {histidine:34, isoleucine:54, leucine:81, lysine:91, methionine:29, cystine:14, phenylalanine:42, tyrosine:36, threonine:47, tryptophan:12, valine:53, alanine:62, arginine:68, asparticAcid:96,  glutamicAcid:158, glycine:51, proline:45, serine:42},
+  fish:     {histidine:30, isoleucine:50, leucine:84, lysine:96, methionine:32, cystine:12, phenylalanine:42, tyrosine:36, threonine:48, tryptophan:12, valine:55, alanine:63, arginine:65, asparticAcid:105, glutamicAcid:155, glycine:50, proline:38, serine:44},
+  beef:     {histidine:38, isoleucine:48, leucine:84, lysine:92, methionine:27, cystine:13, phenylalanine:42, tyrosine:36, threonine:47, tryptophan:13, valine:53, alanine:65, arginine:70, asparticAcid:96,  glutamicAcid:162, glycine:68, proline:50, serine:42},
+  pork:     {histidine:42, isoleucine:50, leucine:82, lysine:93, methionine:28, cystine:14, phenylalanine:41, tyrosine:37, threonine:51, tryptophan:14, valine:55, alanine:60, arginine:68, asparticAcid:94,  glutamicAcid:155, glycine:50, proline:44, serine:43},
+  dairy:    {histidine:27, isoleucine:58, leucine:98, lysine:82, methionine:26, cystine:12, phenylalanine:49, tyrosine:51, threonine:46, tryptophan:15, valine:66, alanine:35, arginine:37, asparticAcid:74,  glutamicAcid:216, glycine:20, proline:98, serine:55},
+  soy:      {histidine:26, isoleucine:48, leucine:82, lysine:65, methionine:13, cystine:15, phenylalanine:52, tyrosine:39, threonine:40, tryptophan:14, valine:51, alanine:44, arginine:78, asparticAcid:121, glutamicAcid:191, glycine:43, proline:56, serine:57},
+  legume:   {histidine:30, isoleucine:45, leucine:79, lysine:71, methionine:11, cystine:12, phenylalanine:54, tyrosine:32, threonine:40, tryptophan:10, valine:51, alanine:42, arginine:85, asparticAcid:119, glutamicAcid:163, glycine:41, proline:44, serine:54},
+  nut:      {histidine:27, isoleucine:36, leucine:68, lysine:27, methionine:14, cystine:17, phenylalanine:48, tyrosine:27, threonine:29, tryptophan:12, valine:43, alanine:38, arginine:110,asparticAcid:106, glutamicAcid:200, glycine:55, proline:40, serine:45},
+  seed:     {histidine:26, isoleucine:39, leucine:65, lysine:32, methionine:20, cystine:20, phenylalanine:44, tyrosine:27, threonine:32, tryptophan:15, valine:47, alanine:40, arginine:130,asparticAcid:88,  glutamicAcid:180, glycine:55, proline:42, serine:48},
+  // Used only as a last-resort fallback when an item has real protein but
+  // matches no known category AND the AI's own numbers fail validation.
+  genericProtein: {histidine:27, isoleucine:48, leucine:80, lysine:68, methionine:22, cystine:15, phenylalanine:45, tyrosine:35, threonine:42, tryptophan:13, valine:55, alanine:48, arginine:60, asparticAcid:95, glutamicAcid:165, glycine:45, proline:50, serine:48},
+};
+
+// Ordered so more specific / less ambiguous matches win (e.g. "peanut
+// butter" hits nut before anything plant-generic could grab it).
+const FOOD_CATEGORY_PATTERNS = [
+  {cat:'egg',     re:/\begg(s)?\b|\bomelet(te)?\b|\bfrittata\b/i},
+  {cat:'poultry', re:/\bchicken\b|\bturkey\b|\bhen\b|\bpoultry\b|\bduck\b/i},
+  {cat:'fish',    re:/\bfish\b|\bsalmon\b|\btuna\b|\bcod\b|\btilapia\b|\bshrimp\b|\bprawn\b|\bmackerel\b|\bsardine\b|\btrout\b|\bseafood\b|\bcrab\b|\blobster\b/i},
+  {cat:'beef',    re:/\bbeef\b|\bsteak\b|\bmutton\b|\blamb\b|\bveal\b/i},
+  {cat:'pork',    re:/\bpork\b|\bbacon\b|\bham\b|\bsausage\b|\bprosciutto\b/i},
+  {cat:'dairy',   re:/\bmilk\b|\bpaneer\b|\bcheese\b|\byog(h)?urt\b|\bcurd\b|\bcottage cheese\b|\bricotta\b|\bwhey\b|\bcasein\b/i},
+  {cat:'soy',     re:/\bsoy(a)?\b|\btofu\b|\bedamame\b|\btempeh\b/i},
+  {cat:'legume',  re:/\bbean(s)?\b|\blentil(s)?\b|\bdal\b|\bdaal\b|\bchickpea(s)?\b|\bchana\b|\brajma\b|\bkidney bean\b|\bblack bean\b|\bhummus\b/i},
+  {cat:'nut',     re:/\balmond\b|\bwalnut\b|\bcashew\b|\bpeanut\b|\bpistachio\b|\bhazelnut\b|\bmacadamia\b|\bnut(s)?\b/i},
+  {cat:'seed',    re:/\bseed(s)?\b|\bchia\b|\bflax\b|\bsesame\b|\bquinoa\b/i},
+];
+function classifyFoodCategory(name){
+  const n = (name||'').toLowerCase();
+  for(const {cat, re} of FOOD_CATEGORY_PATTERNS){
+    if(re.test(n)) return cat;
+  }
+  return null;
+}
+
+// Scales a reference (mg amino acid / g protein) profile by the item's
+// actual protein grams. Same category + same protein grams -> identical
+// output, always — this is the piece that makes results deterministic.
+function deriveAminoAcidsFromReference(category, proteinGrams){
+  const profile = AMINO_ACID_REFERENCE_PROFILES[category] || AMINO_ACID_REFERENCE_PROFILES.genericProtein;
+  const out = {};
+  AMINO_ACID_IDS.forEach(id=>{
+    const perGramProtein = profile[id] || 0;
+    out[id] = Math.round(perGramProtein * proteinGrams * 10) / 10;
+  });
+  return out;
+}
+
+// Biological / mathematical sanity checks, applied to AI-provided amino
+// acid numbers before they're trusted (only reached for items with no
+// matched reference category). Catches exactly the failure mode reported:
+// amino acids that don't add up to a plausible fraction of total protein,
+// or essential amino acids far outside realistic ranges for the food type.
+function validateAminoAcidProfile(nutrients, proteinGrams, category){
+  if(!proteinGrams || proteinGrams<=0) return {valid:true};
+  const proteinMg = proteinGrams*1000;
+  let totalAAmg = 0;
+  AMINO_ACID_IDS.forEach(id=>{ totalAAmg += Number(nutrients[id]||0); });
+
+  const ratio = totalAAmg/proteinMg;
+  if(ratio < 0.45){
+    return {valid:false, reason:`Total amino acids (${Math.round(totalAAmg)}mg) recover only ${Math.round(ratio*100)}% of protein mass (${Math.round(proteinMg)}mg) — implausibly low.`};
+  }
+  if(ratio > 1.3){
+    return {valid:false, reason:`Total amino acids (${Math.round(totalAAmg)}mg) exceed protein mass by too much (${Math.round(ratio*100)}%).`};
+  }
+  for(const id of AMINO_ACID_IDS){
+    const v = Number(nutrients[id]||0);
+    if(v > proteinMg*0.35){
+      return {valid:false, reason:`${id} (${Math.round(v)}mg) is implausibly high relative to total protein (${Math.round(proteinMg)}mg).`};
+    }
+  }
+  const animalCats = ['egg','poultry','fish','beef','pork','dairy'];
+  if(category && animalCats.includes(category)){
+    const leucinePerGProtein = Number(nutrients.leucine||0)/proteinGrams;
+    if(leucinePerGProtein < 40){
+      return {valid:false, reason:`Leucine (${leucinePerGProtein.toFixed(1)}mg/g protein) is far below what's realistic for animal protein (~65-100mg/g) — this is the exact "2% leucine" failure mode.`};
+    }
+    const methioninePerGProtein = Number(nutrients.methionine||0)/proteinGrams;
+    if(methioninePerGProtein > 55){
+      return {valid:false, reason:`Methionine (${methioninePerGProtein.toFixed(1)}mg/g protein) is implausibly high for animal protein.`};
+    }
+  }
+  return {valid:true};
+}
+
+// Final defensive layer, applied no matter where the amino acid numbers
+// came from: total amino acid mass can never exceed protein mass by more
+// than a biologically reasonable margin. If it does, every value is scaled
+// down proportionally rather than stored as-is.
+function clampAminoAcidsToProtein(nutrients, proteinGrams){
+  if(!proteinGrams || proteinGrams<=0) return nutrients;
+  const proteinMg = proteinGrams*1000;
+  const out = {...nutrients};
+  let total = 0;
+  AMINO_ACID_IDS.forEach(id=>{ total += Number(out[id]||0); });
+  const maxTotal = proteinMg*1.15;
+  if(total > maxTotal && total>0){
+    const scale = maxTotal/total;
+    AMINO_ACID_IDS.forEach(id=>{ out[id] = Math.round((Number(out[id]||0)*scale)*10)/10; });
+  }
+  return out;
+}
+
+// The main entry point: for each analyzed item, decide whether its amino
+// acids come from the deterministic reference engine (known category),
+// a validated AI estimate, or a corrected fallback — then clamp as a last
+// safety net. Tags the item with _aminoSource so the rest of the app (food
+// library learning, UI badges) can tell which path was used.
+function applyDeterministicAminoAcids(item){
+  const nutrients = {...(item.nutrients||{})};
+  const proteinGrams = Number(nutrients.protein||0);
+  if(!proteinGrams || proteinGrams<=0){
+    return {...item, nutrients, _aminoSource:'none'};
+  }
+  const category = classifyFoodCategory(item.name);
+  if(category){
+    const deterministic = deriveAminoAcidsFromReference(category, proteinGrams);
+    AMINO_ACID_IDS.forEach(id=>{ nutrients[id] = deterministic[id]; });
+    return {...item, nutrients: clampAminoAcidsToProtein(nutrients, proteinGrams), _aminoSource:'deterministic:'+category};
+  }
+  const check = validateAminoAcidProfile(nutrients, proteinGrams, category);
+  if(!check.valid){
+    const fallback = deriveAminoAcidsFromReference('genericProtein', proteinGrams);
+    AMINO_ACID_IDS.forEach(id=>{ nutrients[id] = fallback[id]; });
+    return {...item, nutrients: clampAminoAcidsToProtein(nutrients, proteinGrams), _aminoSource:'fallback-corrected', _aminoIssue: check.reason};
+  }
+  return {...item, nutrients: clampAminoAcidsToProtein(nutrients, proteinGrams), _aminoSource:'ai-validated'};
+}
+function applyDeterministicNutrition(items){
+  return (items||[]).map(applyDeterministicAminoAcids);
+}
+
+/* =========================================================
    FOOD LIBRARY
    Remembers a per-gram nutrient profile for foods you've logged
    before, keyed by normalized name. Two jobs:
@@ -2344,7 +2516,7 @@ async function analyzePhoto(mimeType){
       {type:'text', text: prompt},
       {type:'image', source:{type:'base64', media_type: mimeType || pendingPhotoMime, data: pendingPhotoBase64}}
     ], 'image');
-    showResults(enrichItemsWithLibrary(parsed.items||[]), pendingPhotoBase64, mimeType || pendingPhotoMime, parsed._apiUsed);
+    showResults(enrichItemsWithLibrary(applyDeterministicNutrition(parsed.items||[])), pendingPhotoBase64, mimeType || pendingPhotoMime, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
   }
@@ -2358,7 +2530,7 @@ async function analyzeText(){
   try{
     const prompt = buildPrompt('meal description') + `\n\nMeal description: """${desc}"""`;
     const parsed = await callGemini([{type:'text', text: prompt}], 'text');
-    showResults(enrichItemsWithLibrary(parsed.items||[]), null, null, parsed._apiUsed);
+    showResults(enrichItemsWithLibrary(applyDeterministicNutrition(parsed.items||[])), null, null, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze that: ${escapeHtml(err.message)}</div>`;
   }
@@ -2475,7 +2647,8 @@ async function confirmAddAll(photoTag){
       photo: photoTag||null,
       nutrients: it.nutrients||{}
     });
-    learnFromFood(it.name, it.gramsEstimate, it.nutrients);
+    const trustFully = !!(it._aminoSource && it._aminoSource.startsWith('deterministic'));
+    learnFromFood(it.name, it.gramsEstimate, it.nutrients, trustFully);
   });
   closeModal('addModal');
   renderAll();
@@ -2718,8 +2891,9 @@ async function reanalyzeSingleFood(food){
   const parsed = await callGemini([{type:'text', text: prompt}], 'text');
   const raw = (parsed.items||[])[0];
   if(!raw) return null;
-  const enriched = enrichItemsWithLibrary([raw])[0];
-  return enriched.nutrients || {};
+  const withAminos = applyDeterministicNutrition([raw])[0];
+  const enriched = enrichItemsWithLibrary([withAminos])[0];
+  return enriched || null;
 }
 
 async function refreshFoodNutrients(id){
@@ -2733,8 +2907,9 @@ async function refreshFoodNutrients(id){
   try{
     const fresh = await reanalyzeSingleFood(food);
     if(!fresh){ showToast(`Couldn't refresh ${food.name}`); return; }
-    food.nutrients = fresh;
-    learnFromFood(food.name, food.grams, food.nutrients);
+    food.nutrients = fresh.nutrients || {};
+    const trustFully = !!(fresh._aminoSource && fresh._aminoSource.startsWith('deterministic'));
+    learnFromFood(food.name, food.grams, food.nutrients, trustFully);
     renderAll();
     showToast(`Refreshed ${food.name}`);
     saveDay(currentDate);
@@ -2759,8 +2934,9 @@ async function refreshAllFoodsForDay(){
     try{
       const fresh = await reanalyzeSingleFood(food);
       if(fresh){
-        food.nutrients = fresh;
-        learnFromFood(food.name, food.grams, food.nutrients);
+        food.nutrients = fresh.nutrients || {};
+        const trustFully = !!(fresh._aminoSource && fresh._aminoSource.startsWith('deterministic'));
+        learnFromFood(food.name, food.grams, food.nutrients, trustFully);
         done++;
       } else {
         failed++;
