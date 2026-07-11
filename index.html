@@ -244,6 +244,18 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 /* ---------- Trends ---------- */
 .chart-card canvas{width:100% !important;}
+/* Root-cause fix for chart sizing: Chart.js's default (maintainAspectRatio:
+   true, no explicit aspectRatio) derives its own height from whatever the
+   canvas's width/height happen to measure as at construction time — which
+   is a race the very first time a view goes from display:none to
+   display:block. Depending on exactly when that measurement lands, it can
+   fall back to a generic 2:1 ratio against the full container width,
+   producing a chart 2-3x taller than intended. Giving the canvas a fixed-
+   height CSS wrapper and setting maintainAspectRatio:false (in JS) removes
+   that self-referential math entirely — the chart always fills this fixed
+   box, so first render and every render after it are pixel-identical.*/
+.chart-canvas-wrap{position:relative; width:100%; height:220px;}
+.chart-canvas-wrap canvas{width:100% !important; height:100% !important;}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
 .heatmap-grid{
   display:grid;
@@ -632,13 +644,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="section-title">Trends</div>
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:var(--min)"></span>Weight</h2>
-      <canvas id="weightChart" height="160"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="weightChart"></canvas></div>
     </div>
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:#E8544B"></span>Exercise minutes</h2>
       <div class="chart-subtitle">Minutes per day over time, with a 7-day average to make progress easier to spot.</div>
       <div class="empty-state" id="exerciseEmptyState" style="display:none; padding:20px 0;">No exercise logged in the last 14 days.</div>
-      <canvas id="exerciseChart" height="180"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="exerciseChart"></canvas></div>
       <div class="stat-grid">
         <div class="stat-box"><div class="l">Total time</div><div class="v mono" id="totalExerciseMinutes">?</div></div>
         <div class="stat-box"><div class="l">Sessions</div><div class="v mono" id="totalExerciseSessions">?</div></div>
@@ -1763,8 +1775,8 @@ async function renderTrends(){
         pointBorderWidth:1.5
       }]},
       options:{
+        maintainAspectRatio:false,
         plugins:{
-          legend:{display:false},
           tooltip:{callbacks:{
             title:(items)=> new Date(items[0].parsed.x).toLocaleString(undefined,{month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}),
             label:(item)=> `${item.parsed.y} kg`
@@ -1795,6 +1807,7 @@ async function renderTrends(){
   if(exerciseChartInst){ exerciseChartInst.destroy(); exerciseChartInst=null; }
   if(totalExerciseMinutes){
     exCanvas.style.display='block';
+    exCanvas.parentElement.style.display='block';
     exEmpty.style.display='none';
     const rolling7 = dailyExerciseMinutes.map((_, idx)=>{
       const start = Math.max(0, idx - 6);
@@ -1834,6 +1847,7 @@ async function renderTrends(){
           ]
         },
         options:{
+          maintainAspectRatio:false,
           plugins:{
             legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
             tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0} min`}}
@@ -1849,6 +1863,7 @@ async function renderTrends(){
     }
   } else {
     exCanvas.style.display='none';
+    exCanvas.parentElement.style.display='none';
     exEmpty.style.display='block';
   }
 
