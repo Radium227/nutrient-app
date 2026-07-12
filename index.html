@@ -368,6 +368,24 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .heatmap-tile.under .sub{color:var(--good); font-weight:600;}
 .heatmap-tile.near .sub{color:var(--vit); font-weight:600;}
 .heatmap-tile.over .sub{color:var(--danger); font-weight:600;}
+.heatmap-tile .tile-del{
+  position:absolute;
+  top:4px;
+  right:4px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  border:none;
+  background:rgba(0,0,0,0.28);
+  color:var(--text-dim);
+  font-size:11px;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+}
+.heatmap-tile .tile-del:active{background:rgba(255,69,58,0.55); color:#fff;}
 .heatmap-legend{
   display:flex;
   flex-wrap:wrap;
@@ -2049,7 +2067,7 @@ async function renderTrends(){
     const statusText = !hasFood ? 'No food logged' : (state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target');
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
-    return `<div class="heatmap-tile ${state}"><div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
+    return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
   }).join('');
 
   // Days under 1000 kcal are usually a logging gap, not a real intake day,
@@ -2061,6 +2079,21 @@ async function renderTrends(){
   const validBurns = burns.filter(v=>v>0);
   document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '?';
   document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '?';
+}
+
+// Resets a single day back to empty — for fixing a day whose data got
+// corrupted or duplicated from another day (e.g. logged wrong, or a stale
+// background save clobbered it). Wipes foods/exercises/weights/cached
+// AI insights for that date only, both in memory and in storage, then
+// re-renders whichever views are currently showing that data.
+async function clearDay(dstr, label){
+  if(!confirm(`Clear all logged data for ${label}? This can't be undone.`)) return;
+  const empty = {foods:[], exercises:[], weights:[]};
+  dayCache[dstr] = empty;
+  await saveDay(dstr);
+  showToast(`Cleared ${label}`);
+  if(currentDate === dstr) await renderAll();
+  renderTrends();
 }
 /* =========================================================
    ADD MEAL MODAL / GEMINI CALLS
