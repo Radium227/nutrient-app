@@ -1483,6 +1483,91 @@ function computeBurned(day){
 }
 
 /* =========================================================
+   NUTRITION SCORE — deterministic, weighted by biological
+   importance. Replaces the old approach of letting the AI free-
+   guess a 0-100 number (which scored balanced, high-quality days
+   around 60 because it weighted every nutrient equally). Instead:
+   - nutrients are grouped into importance tiers and weighted
+     accordingly (protein/energy/fiber/key vitamins & minerals
+     matter far more than e.g. non-essential amino acids)
+   - shortfall penalties are non-linear and capped per nutrient,
+     so a small gap barely dents the score and even a total miss
+     on one nutrient can't tank the whole score
+   - nutrients that are sub-components of another scored nutrient
+     (e.g. ALA/EPA/DHA under omega-3, mono/poly fat under fat,
+     starch/net-carbs under carbs) are excluded from scoring so
+     the same shortfall isn't counted twice
+   - nutrients you want to LIMIT (sodium, saturated fat, added
+     sugar, trans fat, cholesterol) are scored separately and only
+     penalized when exceeded, not treated as "deficiencies"
+   - a small variety component rewards eating a spread of distinct
+     foods across nutrient categories, not just hitting numbers
+========================================================= */
+const SCORE_TIERS = {
+  critical: {weight:5,   ids:['calories','protein','fiber','calcium','iron','iodine','vitaminD','vitaminB12','potassium']},
+  high:     {weight:3,   ids:['vitaminA','vitaminC','vitaminE','vitaminK','thiaminB1','riboflavinB2','niacinB3','pantothenicAcidB5','vitaminB6','biotinB7','folateB9','choline','magnesium','zinc','selenium','omega3']},
+  medium:   {weight:1.5, ids:['carbs','fat','copper','manganese','phosphorus','chromium','molybdenum','fluoride']},
+  essentialAmino:    {weight:1,   ids:['histidine','isoleucine','leucine','lysine','methionine','phenylalanine','threonine','tryptophan','valine']},
+  nonessentialAmino: {weight:0.2, ids:['glycine','proline','serine','alanine','arginine','asparticAcid','glutamicAcid','tyrosine','cystine']},
+};
+const SCORE_LIMIT_NUTRIENTS = {sodium:1, saturatedFat:1, addedSugars:1, transFat:1, cholesterol:0.5, sugars:0.5};
+
+function scoreAdequacyRatio(ratio){
+  if(!Number.isFinite(ratio)) return null;
+  if(ratio>=1) return 100;
+  if(ratio<=0) return 40; // floor — one missing nutrient never zeroes the score
+  const penalty = Math.pow(1-ratio, 1.4) * 100; // small shortfalls -> small penalty, large -> larger
+  return 100 - Math.min(60, penalty);
+}
+function scoreLimitRatio(ratio){
+  if(!Number.isFinite(ratio)) return null;
+  if(ratio<=1) return 100;
+  const penalty = Math.min(50, (ratio-1) * 60); // over target hurts, but is capped — not excessive
+  return 100 - penalty;
+}
+
+function computeNutritionScore(day){
+  const totals = computeTotals(day);
+  let adequacyWeighted = 0, adequacyWeight = 0;
+  Object.values(SCORE_TIERS).forEach(tier=>{
+    tier.ids.forEach(id=>{
+      const target = getTarget(id);
+      if(!target) return;
+      const ratio = Number(totals[id]||0) / target;
+      const s = scoreAdequacyRatio(ratio);
+      if(s===null) return;
+      adequacyWeighted += s * tier.weight;
+      adequacyWeight += tier.weight;
+    });
+  });
+  const adequacyScore = adequacyWeight>0 ? adequacyWeighted/adequacyWeight : 100;
+
+  let limitWeighted = 0, limitWeight = 0;
+  Object.entries(SCORE_LIMIT_NUTRIENTS).forEach(([id,weight])=>{
+    const target = getTarget(id);
+    if(!target) return;
+    const ratio = Number(totals[id]||0) / target;
+    const s = scoreLimitRatio(ratio);
+    if(s===null) return;
+    limitWeighted += s * weight;
+    limitWeight += weight;
+  });
+  const excessScore = limitWeight>0 ? limitWeighted/limitWeight : 100;
+
+  const distinctFoods = new Set((day.foods||[]).map(f=>normalizeFoodName(f.name)).filter(Boolean)).size;
+  const foodVarietyScore = Math.min(100, (distinctFoods/6)*100);
+  const varietyIds = [...SCORE_TIERS.critical.ids, ...SCORE_TIERS.high.ids, ...SCORE_TIERS.medium.ids];
+  const coveredCount = varietyIds.filter(id=>Number(totals[id]||0) > 0).length;
+  const coverageScore = varietyIds.length ? (coveredCount/varietyIds.length)*100 : 100;
+  const varietyScore = (foodVarietyScore + coverageScore) / 2;
+
+  const finalScore = Math.round(Math.max(0, Math.min(100,
+    adequacyScore*0.75 + excessScore*0.15 + varietyScore*0.10
+  )));
+  return {score: finalScore, adequacyScore: Math.round(adequacyScore), excessScore: Math.round(excessScore), varietyScore: Math.round(varietyScore)};
+}
+
+/* =========================================================
    RENDER: NAV / VIEWS
 ========================================================= */
 function switchView(name){
@@ -2284,14 +2369,17 @@ RECOGNITION RULES:
 - Do not call something "curry" unless the photo truly shows a curry/saucy stew as the dominant food.
 - If the image and notes disagree, prefer the notes for quantity and the image for item identity, but never turn a condiment into a main dish.
 - When you are unsure whether a portion is cooked or raw, default to cooked prepared food for plated meals.`;
+  p += `\n\nIDENTIFICATION PIPELINE — work through these steps in order for every item: (1) food detection — what is it, (2) preparation detection — how was it cooked/prepared, (3) weight estimation — reason using every visual reference available (plate size, bowl size, spoon/fork/knife, hand/fingers, cup/glass/bottle/can, banana/egg for scale, roti/bread-slice size, visible packaging, known object dimensions, perspective, food volume/thickness/density, container dimensions) rather than a rough guess, (4) confidence — your genuine combined certainty in the food identity, preparation, AND weight together. Before finalizing, sanity-check the weight: does it match the visible volume, is it a realistic serving size, does the cooking method change the weight (moisture loss for grilled/roasted/dry foods, oil absorption for fried foods), and does that affect calories? Revise the estimate if the sanity check fails.
+CONFIDENCE & CLARIFICATION — set confidenceScore (0.0-1.0) to your true certainty from that pipeline. Only when confidenceScore is genuinely below 0.9 (a real ambiguity in food identity, preparation, or portion — not routine estimation uncertainty), set clarificationNeeded true and list 1-3 short, specific questions that would resolve the biggest uncertainty (e.g. "Is this whole milk or toned milk?", "Approximately how many milliliters?", "Was this chicken weighed before or after cooking?"). Do not ask questions for foods you can identify and size confidently — most everyday plated meals should NOT need clarification.`;
   if(notes && notes.trim()){
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
   }
   p += `\n\nRespond with ONLY valid, complete JSON — no markdown fences, no commentary — matching exactly this schema:
-{"items":[{"name":"string, short food name","gramsEstimate":number,"confidence":"high|medium|low","refKey":"string, optional — one of the enumerated reference keys above, only when genuinely confident","nutrients":{"<nutrientId>":number, ...}}]}
+{"items":[{"name":"string, short food name","gramsEstimate":number,"expectedErrorGrams":"number, your +/- margin of error in grams","confidence":"high|medium|low","confidenceScore":"number 0.0-1.0 per CONFIDENCE & CLARIFICATION above","clarificationNeeded":"boolean, true only when confidenceScore < 0.9","questions":["short strings, only when clarificationNeeded is true, else omit or empty"],"refKey":"string, optional — one of the enumerated reference keys above, only when genuinely confident","nutrients":{"<nutrientId>":number, ...}}]}
 Keep item names short. Fully complete every item's nutrient object — including its amino acids, vitamins, and minerals — before starting the next item; never truncate mid-object.`;
   return p;
 }
+const CLARIFICATION_CONFIDENCE_THRESHOLD = 0.9;
 
 function parseGeminiJson(data){
   const text = data.text || '';
@@ -2408,7 +2496,6 @@ ${overages.map(n=>`- ${n.name}: ${n.pct}%`).join('\n') || '- None.'}
 
 Return ONLY JSON with this compact shape:
 {
-  "score": 0-100,
   "summary": "1-2 short sentences",
   "wins": ["max 3"],
   "gaps": [{"nutrient":"Vitamin K","pct":12,"why":"short reason","bestFoods":["spinach"],"fit":"short practical fix"}],
@@ -3553,7 +3640,8 @@ async function analyzeDailyDiet(){
     const day = await loadDay(currentDate);
     const prompt = buildDailyDietPrompt(day);
     const parsed = await callGemini([{type:'text', text: prompt}], 'diet');
-    renderDietAnalysis(parsed, parsed._apiUsed);
+    const scored = computeNutritionScore(day);
+    renderDietAnalysis({...parsed, score: scored.score}, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze today's diet: ${escapeHtml(err.message)}</div>`;
   }
@@ -3633,6 +3721,71 @@ function clarifyChipsHtml(it){
   </div>`;
 }
 
+// A clarification is only shown when the AI itself flagged genuine
+// uncertainty (clarificationNeeded) AND its stated confidenceScore is below
+// the threshold — never for foods it estimated confidently.
+function needsClarification(it){
+  return !!it.clarificationNeeded && !it._clarificationResolved
+    && Array.isArray(it.questions) && it.questions.length>0
+    && Number.isFinite(Number(it.confidenceScore)) && Number(it.confidenceScore) < CLARIFICATION_CONFIDENCE_THRESHOLD;
+}
+
+function clarificationQuestionsHtml(it){
+  if(!needsClarification(it)) return '';
+  return `<div class="clarify-row" id="clarify-block-${it._id}" style="margin:8px 0 2px; padding:9px 10px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;">
+    <div style="font-size:11px; color:var(--text-dim); margin-bottom:7px;">A couple of quick questions to get this right:</div>
+    ${it.questions.map((q,i)=>`
+      <div style="margin-bottom:7px;">
+        <label style="font-size:12.5px; color:var(--text); display:block; margin-bottom:4px;">${escapeHtml(q)}</label>
+        <input type="text" id="clarify-ans-${it._id}-${i}" placeholder="Your answer" style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--text); font-size:13px;">
+      </div>
+    `).join('')}
+    <button type="button" class="btn" style="padding:7px 12px; font-size:12.5px;" onclick="submitClarificationAnswers('${it._id}')">Confirm answers</button>
+  </div>`;
+}
+
+// Re-runs analysis for just this one item, folding the person's answers in
+// as reliable context, then clears its clarification flag so it can be
+// added to the diary like any other confidently-estimated item.
+async function submitClarificationAnswers(itemId){
+  const idx = pendingResults.findIndex(x=>x._id===itemId);
+  if(idx===-1) return;
+  const it = pendingResults[idx];
+  const answers = (it.questions||[]).map((q,i)=>{
+    const el = document.getElementById(`clarify-ans-${itemId}-${i}`);
+    const val = el ? el.value.trim() : '';
+    return val ? `${q} -> ${val}` : null;
+  }).filter(Boolean);
+  if(!answers.length){ showToast('Answer at least one question'); return; }
+  const block = document.getElementById('clarify-block-'+itemId);
+  if(block) block.innerHTML = `<span class="spinner"></span> Refining estimate…`;
+  try{
+    const desc = it.gramsEstimate ? `${it.name}, roughly ${it.gramsEstimate}g` : it.name;
+    const prompt = buildPrompt('a single already-identified food (not a full meal — return exactly one item in the items array)')
+      + `\n\nFood: "${desc}". The person has answered your clarification questions: ${answers.join('; ')}. Use these answers to finalize an accurate, confident estimate — clarificationNeeded should now be false.`;
+    const parsed = await callGemini([{type:'text', text: prompt}], 'text');
+    const raw = (parsed.items||[])[0];
+    if(!raw) throw new Error('No result returned');
+    let refined = applyDeterministicNutrition([raw])[0];
+    refined = {...refined, _id: itemId, _clarificationResolved:true, clarificationNeeded:false};
+    pendingResults[idx] = refined;
+  }catch(err){
+    pendingResults[idx] = {...it, _clarificationResolved:true, clarificationNeeded:false};
+    showToast("Couldn't refine — kept original estimate");
+  }
+  const cardEl = document.getElementById('card-'+itemId);
+  if(cardEl) cardEl.outerHTML = buildResultCardHtml(pendingResults[idx]);
+  refreshAddAllButtonState();
+}
+
+function refreshAddAllButtonState(){
+  const btn = document.getElementById('confirmAddAllBtn');
+  if(!btn) return;
+  const pending = pendingResults.some(needsClarification);
+  btn.disabled = pending;
+  btn.textContent = pending ? 'Answer the questions above first' : `Add ${pendingResults.length>1?'all':'to'} diary`;
+}
+
 function buildResultCardHtml(it){
   const nutrients = it.nutrients||{};
   const highlights = pickHighlightNutrients(nutrients, ['calories','protein'], 4);
@@ -3640,8 +3793,9 @@ function buildResultCardHtml(it){
   return `
     <div class="result-card" id="card-${it._id}">
       <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span> ${libraryBadge(it._libraryStatus)}</div>
-      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
+      <div class="rmeta">~${it.gramsEstimate||'?'}g${it.expectedErrorGrams?` (±${Math.round(it.expectedErrorGrams)}g)`:''}${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
       ${clarifyChipsHtml(it)}
+      ${clarificationQuestionsHtml(it)}
       <div class="rgrid">
         <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
         <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
@@ -3683,7 +3837,8 @@ function showResults(items, photoBase64, mimeType, apiUsed){
     return;
   }
   const photoTag = photoBase64 ? `data:${mimeType};base64,${photoBase64}` : null;
-  area.innerHTML = pendingResults.map(buildResultCardHtml).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  const hasPending = pendingResults.some(needsClarification);
+  area.innerHTML = pendingResults.map(buildResultCardHtml).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" id="confirmAddAllBtn" ${hasPending?'disabled':''} onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">${hasPending?'Answer the questions above first':`Add ${pendingResults.length>1?'all':'to'} diary`}</button>`;
 }
 
 async function confirmAddAll(photoTag){
