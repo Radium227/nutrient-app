@@ -914,6 +914,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     </div>
 
     <div id="addSavedPane" style="display:none;">
+      <input type="text" id="savedMealSearch" placeholder="Search saved meals…" oninput="renderSavedMealsPane()" style="width:100%; box-sizing:border-box; margin-bottom:12px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;">
       <div id="savedMealsList"></div>
     </div>
 
@@ -2253,7 +2254,10 @@ Nutrient fields to estimate: ${NUTRIENT_KEY_LIST}
 
 AMINO ACIDS — important: the app calculates amino acid values itself using a deterministic, USDA-style reference database for recognizable whole foods (eggs, poultry, fish, beef, pork, dairy/paneer/yogurt/cheese, soy/tofu, legumes/lentils/beans, nuts, seeds). Whatever you put in the "protein" (g) field for those items gets scaled against a fixed reference amino acid profile after your response, and that OVERRIDES any amino acid numbers you provide. Because of this, getting "protein" as accurate as possible matters far more than the individual amino acid numbers for those foods — do not let amino acid guessing distract you from nailing the protein grams.
 You should still estimate all 18 amino acids listed (histidine, isoleucine, leucine, lysine, methionine, cystine, phenylalanine, tyrosine, threonine, tryptophan, valine, alanine, arginine, aspartic acid, glutamic acid, glycine, proline, serine) as a best-effort fallback for items that are NOT a recognizable single whole food (e.g. a mixed dish, a branded packaged product, a sauce, a multi-ingredient recipe) — the app only uses your amino acid numbers when it cannot match the item to its reference database, and it runs them through a biological sanity check first (total amino acid mass vs. protein mass, per-amino-acid ceilings, expected leucine/methionine ranges for animal protein) before trusting them. If your estimate for any amino acid is coming out lower than roughly 4% of the food's total protein weight combined across all 18 amino acids, you are almost certainly undershooting — total amino acid weight typically recovers 80-90% of total protein weight. Never return zero for amino acids on a food with meaningful protein.
-CALORIES/MACROS FOR KNOWN WHOLE FOODS — the same applies to calories, protein, carbs, and fat for a curated set of foods with essentially fixed composition (milk by fat %, eggs, chicken by prep, paneer, tofu, curd, common dals/rajma/chole, rice, roti/chapati, idli, dosa, poha, upma, khichdi, nuts). If the item is one of these, your macro numbers get overridden by a fixed per-100g reference scaled to your gramsEstimate — so for these foods, focus your effort on (a) correctly identifying which VARIANT it is (e.g. state "toned milk" not just "milk" if you can tell; state the chicken's prep — boiled/roasted/fried/tandoori — if visible) and (b) getting gramsEstimate right, since that weight is what actually drives the final numbers. Getting the variant genuinely ambiguous from the photo is fine — say so plainly in the name (e.g. just "milk") rather than guessing a specific fat % you can't actually tell; the app will flag it for the person to confirm rather than silently picking one.
+CALORIES/MACROS FOR KNOWN WHOLE FOODS — for a curated set of foods with essentially fixed composition (milk by species/fat %, eggs, chicken by prep, paneer, tofu, curd, common dals/rajma/chole, rice, roti/chapati, idli, dosa, poha, upma, khichdi, nuts), you decide which exact reference food it is and say so directly with a "refKey" field on that item — you are the one identifying it, not a text-matching script guessing from your free-text name afterward. When you're confident, set refKey to exactly one of the values below (in addition to your own full nutrient estimate as usual); the app then overrides that item's calories/protein/carbs/fat with a fixed per-100g reference scaled to your gramsEstimate. Because of this, for these foods your effort matters most on (a) correctly identifying which refKey applies regardless of how the food is phrased or what other words surround it (e.g. "whole cow milk", "a glass of full-fat buffalo milk", "bhains ka doodh" should all still resolve confidently to the right refKey), and (b) getting gramsEstimate right, since that weight is what actually drives the final numbers.
+Species and fat% genuinely change the numbers — cow milk and buffalo milk are NOT interchangeable (buffalo milk runs roughly 6-7% fat and ~97 kcal/100g vs. cow whole milk's ~3.3% fat and ~61 kcal/100g); never pick a cow-milk refKey when buffalo/bhains is mentioned or visible, or vice versa.
+If you're genuinely unsure which refKey applies (plain "milk" with no fat% or species stated, "chicken" with no prep stated, "nuts" with no raw/roasted stated), omit refKey entirely and just describe it plainly in the name (e.g. just "milk") rather than guessing — the app will flag it for the person to confirm rather than silently picking one. If the item doesn't match any of these foods at all (mixed dishes, packaged/branded products, sauces, multi-ingredient recipes), omit refKey and give your own best full nutrient estimate as normal — that stays entirely your call.
+Available refKey values (use EXACTLY one of these strings, or omit the field — never invent a new one): milk_skim, milk_double_toned, milk_toned, milk_buffalo, milk_whole, egg_fried, egg_scrambled, egg_boiled, chicken_fried, chicken_tandoori, chicken_roasted_skinless, chicken_boiled_skinless, almonds, cashews, peanuts, walnuts, mixed_nuts_raw, mixed_nuts_roasted, paneer, tofu, greek_yogurt, curd, lassi, cheddar_cheese, salmon_cooked, tuna_cooked, beef_cooked_lean, pork_cooked_lean, rajma_cooked, chole_cooked, dal_cooked, roti_chapati, idli, dosa_plain, poha, upma, khichdi, rice_cooked_white.
 BIOLOGICAL CONSISTENCY — for every item, keep protein, fat, and carbohydrate grams roughly consistent with the calories you report: calories should be within about 15% of (protein_g × 4) + (carbs_g × 4) + (fat_g × 9). Essential amino acids (histidine, isoleucine, leucine, lysine, methionine, phenylalanine, threonine, tryptophan, valine) should never individually exceed the item's total protein mass, and their combined mass plus the non-essential amino acids should land in the 80-100% range of total protein mass, not far below or above it.
 
 MANDATORY — vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
@@ -2280,7 +2284,7 @@ RECOGNITION RULES:
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
   }
   p += `\n\nRespond with ONLY valid, complete JSON — no markdown fences, no commentary — matching exactly this schema:
-{"items":[{"name":"string, short food name","gramsEstimate":number,"confidence":"high|medium|low","nutrients":{"<nutrientId>":number, ...}}]}
+{"items":[{"name":"string, short food name","gramsEstimate":number,"confidence":"high|medium|low","refKey":"string, optional — one of the enumerated reference keys above, only when genuinely confident","nutrients":{"<nutrientId>":number, ...}}]}
 Keep item names short. Fully complete every item's nutrient object — including its amino acids, vitamins, and minerals — before starting the next item; never truncate mid-object.`;
   return p;
 }
@@ -3203,6 +3207,10 @@ function applyDeterministicNutrition(items){
 // engine above).
 const REFERENCE_FOOD_MACROS = {
   milk_whole:            {calories:61,  protein:3.2, carbs:4.8,  fat:3.3,  fiber:0,   sugars:4.8,  saturatedFat:1.9, sodium:43,  cholesterol:10},
+  // Buffalo milk is genuinely different from cow milk, not just "whole milk
+  // again" -- roughly double the fat and noticeably more protein/calories.
+  // It previously had no entry at all, so it was silently priced as cow milk.
+  milk_buffalo:          {calories:97,  protein:3.75,carbs:5.2,  fat:6.9,  fiber:0,   sugars:5.2,  saturatedFat:4.2, sodium:52,  cholesterol:19},
   milk_toned:            {calories:58,  protein:3.3, carbs:4.9,  fat:3.0,  fiber:0,   sugars:4.9,  saturatedFat:1.8, sodium:44,  cholesterol:9},
   milk_double_toned:     {calories:42,  protein:3.2, carbs:4.9,  fat:1.5,  fiber:0,   sugars:4.9,  saturatedFat:0.9, sodium:46,  cholesterol:5},
   milk_skim:             {calories:34,  protein:3.4, carbs:5.0,  fat:0.1,  fiber:0,   sugars:5.0,  saturatedFat:0.1, sodium:42,  cholesterol:2},
@@ -3243,44 +3251,59 @@ const REFERENCE_FOOD_MACROS = {
 
 // Specific patterns checked first — an unambiguous, direct match, no
 // clarification needed. Ordered most-specific-wins.
+//
+// IMPORTANT — general fix, not a milk-only patch: every entry used to be a
+// single regex requiring the modifier word to sit directly next to the food
+// word ("whole milk" as one phrase). Insert *any* other word -- "whole COW
+// milk", "whole raw milk", "chicken fried in mustard oil" -- and the old
+// regex silently failed to match, and the item fell back to plain
+// AI-guessed macros with no warning. That's the actual bug: it wasn't
+// specific to milk, it affected every food below the same way.
+// Fix: split each entry into foodRe (the food word) and an optional
+// modifierRe (the descriptor), and require both to appear ANYWHERE in the
+// name rather than adjacent to each other. Word order and anything inserted
+// in between no longer matters.
 const REFERENCE_FOOD_PATTERNS = [
-  {key:'milk_skim',                re:/\bskim(med)?\s*milk\b|\bfat.?free\s*milk\b/i},
-  {key:'milk_double_toned',        re:/\bdouble.?toned\s*milk\b|\blow.?fat\s*milk\b/i},
-  {key:'milk_toned',               re:/\btoned\s*milk\b/i},
-  {key:'milk_whole',               re:/\bwhole\s*milk\b|\bfull.?fat\s*milk\b|\bfull\s*cream\s*milk\b/i},
-  {key:'egg_fried',                re:/\bfried\s*egg/i},
-  {key:'egg_scrambled',            re:/\bscrambled\s*egg/i},
-  {key:'egg_boiled',               re:/\bboiled\s*egg|\bhard.?boiled\s*egg\b/i},
-  {key:'chicken_fried',            re:/\bfried\s*chicken\b|\bchicken\s*fry\b/i},
-  {key:'chicken_tandoori',         re:/\btandoori\s*chicken\b/i},
-  {key:'chicken_roasted_skinless', re:/\broast(ed)?\s*chicken\b|\bgrill(ed)?\s*chicken\b/i},
-  {key:'chicken_boiled_skinless',  re:/\bboil(ed)?\s*chicken\b|\bsteam(ed)?\s*chicken\b/i},
-  {key:'almonds',                  re:/\balmonds?\b/i},
-  {key:'cashews',                  re:/\bcashews?\b/i},
-  {key:'peanuts',                  re:/\bpeanuts?\b/i},
-  {key:'walnuts',                  re:/\bwalnuts?\b/i},
-  {key:'mixed_nuts_raw',           re:/\braw\s*(mixed\s*)?nuts?\b/i},
-  {key:'mixed_nuts_roasted',       re:/\broast(ed)?\s*(mixed\s*)?nuts?\b/i},
-  {key:'paneer',                   re:/\bpaneer\b/i},
-  {key:'tofu',                     re:/\btofu\b/i},
-  {key:'greek_yogurt',             re:/\bgreek\s*yog(h)?urt\b/i},
-  {key:'curd',                     re:/\bcurd\b|\byog(h)?urt\b/i},
-  {key:'lassi',                    re:/\blassi\b/i},
-  {key:'cheddar_cheese',           re:/\bcheddar\b|\bcheese\b/i},
-  {key:'salmon_cooked',            re:/\bsalmon\b/i},
-  {key:'tuna_cooked',              re:/\btuna\b/i},
-  {key:'beef_cooked_lean',         re:/\bbeef\b|\bsteak\b/i},
-  {key:'pork_cooked_lean',         re:/\bpork\b/i},
-  {key:'rajma_cooked',             re:/\brajma\b|\bkidney\s*bean/i},
-  {key:'chole_cooked',             re:/\bchole\b|\bchana\b|\bchickpea/i},
-  {key:'dal_cooked',               re:/\bdal\b|\bdaal\b|\blentil/i},
-  {key:'roti_chapati',             re:/\broti\b|\bchapati\b|\bphulka\b/i},
-  {key:'idli',                     re:/\bidli\b/i},
-  {key:'dosa_plain',               re:/\bdosa\b/i},
-  {key:'poha',                     re:/\bpoha\b/i},
-  {key:'upma',                     re:/\bupma\b/i},
-  {key:'khichdi',                  re:/\bkhichdi\b/i},
-  {key:'rice_cooked_white',        re:/\brice\b/i}
+  {key:'milk_skim',                foodRe:/\bmilk\b/i, modifierRe:/\bskim(med)?\b|\bfat.?free\b/i},
+  {key:'milk_double_toned',        foodRe:/\bmilk\b/i, modifierRe:/\bdouble.?toned\b|\blow.?fat\b/i},
+  {key:'milk_toned',               foodRe:/\bmilk\b/i, modifierRe:/\btoned\b/i},
+  // Buffalo milk is checked before the generic "whole milk" pattern so that
+  // "whole buffalo milk" resolves to buffalo, not cow.
+  {key:'milk_buffalo',             foodRe:/\bmilk\b/i, modifierRe:/\bbuffalo\b|\bbhains\b/i},
+  {key:'milk_whole',               foodRe:/\bmilk\b/i, modifierRe:/\bwhole\b|\bfull.?fat\b|\bfull\s*cream\b/i},
+  {key:'egg_fried',                foodRe:/\begg/i,    modifierRe:/\bfried\b/i},
+  {key:'egg_scrambled',            foodRe:/\begg/i,    modifierRe:/\bscrambled\b/i},
+  {key:'egg_boiled',               foodRe:/\begg/i,    modifierRe:/\bboil(ed)?\b|\bhard.?boiled\b/i},
+  {key:'chicken_fried',            foodRe:/\bchicken\b/i, modifierRe:/\bfried\b|\bfry\b|\bbreaded\b/i},
+  {key:'chicken_tandoori',         foodRe:/\bchicken\b/i, modifierRe:/\btandoori\b/i},
+  {key:'chicken_roasted_skinless', foodRe:/\bchicken\b/i, modifierRe:/\broast(ed)?\b|\bgrill(ed)?\b/i},
+  {key:'chicken_boiled_skinless',  foodRe:/\bchicken\b/i, modifierRe:/\bboil(ed)?\b|\bsteam(ed)?\b/i},
+  {key:'almonds',                  foodRe:/\balmonds?\b/i},
+  {key:'cashews',                  foodRe:/\bcashews?\b/i},
+  {key:'peanuts',                  foodRe:/\bpeanuts?\b/i},
+  {key:'walnuts',                  foodRe:/\bwalnuts?\b/i},
+  {key:'mixed_nuts_raw',           foodRe:/\bnuts?\b/i, modifierRe:/\braw\b/i},
+  {key:'mixed_nuts_roasted',       foodRe:/\bnuts?\b/i, modifierRe:/\broast(ed)?\b/i},
+  {key:'paneer',                   foodRe:/\bpaneer\b/i},
+  {key:'tofu',                     foodRe:/\btofu\b/i},
+  {key:'greek_yogurt',             foodRe:/\byog(h)?urt\b/i, modifierRe:/\bgreek\b/i},
+  {key:'curd',                     foodRe:/\bcurd\b|\byog(h)?urt\b/i},
+  {key:'lassi',                    foodRe:/\blassi\b/i},
+  {key:'cheddar_cheese',           foodRe:/\bcheddar\b|\bcheese\b/i},
+  {key:'salmon_cooked',            foodRe:/\bsalmon\b/i},
+  {key:'tuna_cooked',              foodRe:/\btuna\b/i},
+  {key:'beef_cooked_lean',         foodRe:/\bbeef\b|\bsteak\b/i},
+  {key:'pork_cooked_lean',         foodRe:/\bpork\b/i},
+  {key:'rajma_cooked',             foodRe:/\brajma\b|\bkidney\s*bean/i},
+  {key:'chole_cooked',             foodRe:/\bchole\b|\bchana\b|\bchickpea/i},
+  {key:'dal_cooked',               foodRe:/\bdal\b|\bdaal\b|\blentil/i},
+  {key:'roti_chapati',             foodRe:/\broti\b|\bchapati\b|\bphulka\b/i},
+  {key:'idli',                     foodRe:/\bidli\b/i},
+  {key:'dosa_plain',               foodRe:/\bdosa\b/i},
+  {key:'poha',                     foodRe:/\bpoha\b/i},
+  {key:'upma',                     foodRe:/\bupma\b/i},
+  {key:'khichdi',                  foodRe:/\bkhichdi\b/i},
+  {key:'rice_cooked_white',        foodRe:/\brice\b/i}
 ];
 
 // Genuinely ambiguous groups: matched but not specific enough to pick a
@@ -3290,13 +3313,14 @@ const REFERENCE_FOOD_PATTERNS = [
 const AMBIGUOUS_FOOD_GROUPS = {
   milk: {
     detectRe:/\bmilk\b/i,
-    specificRe:/\b(skim|toned|double.?toned|whole|full.?fat|full\s*cream|fat.?free)\b/i,
+    specificRe:/\b(skim|toned|double.?toned|whole|full.?fat|full\s*cream|fat.?free|buffalo|bhains)\b/i,
     defaultKey:'milk_whole',
     options:[
-      {key:'milk_whole', label:'Whole / full-fat'},
+      {key:'milk_whole', label:'Whole / full-fat (cow)'},
       {key:'milk_toned', label:'Toned (~3%)'},
       {key:'milk_double_toned', label:'Double-toned / low-fat'},
-      {key:'milk_skim', label:'Skim / fat-free'}
+      {key:'milk_skim', label:'Skim / fat-free'},
+      {key:'milk_buffalo', label:'Buffalo milk'}
     ]
   },
   chicken: {
@@ -3321,10 +3345,21 @@ const AMBIGUOUS_FOOD_GROUPS = {
   }
 };
 
-function matchReferenceFood(name){
+function matchReferenceFood(name, aiRefKey){
+  // Trust the model's own match first, when it gave one. This is the actual
+  // fix for "the AI isn't being used" -- deciding whether "bhains ka doodh",
+  // "a glass of whole cow milk", and "406g full-cream buffalo milk" all mean
+  // the same reference food is a language-understanding task, which the AI
+  // is far better at than any regex table we hand-maintain here. The regex
+  // loop below still runs whenever the AI didn't supply a refKey (older
+  // cached items, a manual re-analysis pass, or a response that skipped the
+  // field) so nothing regresses if that field is ever missing.
+  if(aiRefKey && REFERENCE_FOOD_MACROS[aiRefKey]){
+    return {refKey:aiRefKey, clarifyGroup:null};
+  }
   const n = (name||'').toLowerCase();
-  for(const {key, re} of REFERENCE_FOOD_PATTERNS){
-    if(re.test(n)) return {refKey:key, clarifyGroup:null};
+  for(const {key, foodRe, modifierRe} of REFERENCE_FOOD_PATTERNS){
+    if(foodRe.test(n) && (!modifierRe || modifierRe.test(n))) return {refKey:key, clarifyGroup:null};
   }
   for(const groupKey of Object.keys(AMBIGUOUS_FOOD_GROUPS)){
     const group = AMBIGUOUS_FOOD_GROUPS[groupKey];
@@ -3348,7 +3383,7 @@ function deriveMacrosFromReference(refKey, grams){
 
 function applyDeterministicMacros(item){
   const grams = Number(item.gramsEstimate)||0;
-  const {refKey, clarifyGroup} = matchReferenceFood(item.name);
+  const {refKey, clarifyGroup} = matchReferenceFood(item.name, item.refKey);
   if(!refKey || !grams){
     return {...item, _macroSource:'ai', _clarifyGroup:null};
   }
@@ -3834,7 +3869,16 @@ function renderSavedMealsPane(){
     el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No saved meals yet. Tap the ☆ on any logged meal to save it here.</div>`;
     return;
   }
-  el.innerHTML = savedMeals.slice().reverse().map(m=>`
+  const searchEl = document.getElementById('savedMealSearch');
+  const term = (searchEl && searchEl.value || '').trim().toLowerCase();
+  const filtered = term
+    ? savedMeals.filter(m => (m.name||'').toLowerCase().includes(term) || (m.note||'').toLowerCase().includes(term))
+    : savedMeals;
+  if(!filtered.length){
+    el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No saved meals match "${escapeHtml(term)}".</div>`;
+    return;
+  }
+  el.innerHTML = filtered.slice().reverse().map(m=>`
     <div class="entry">
       <div class="thumb">${m.photo?`<img src="${m.photo}">`:'🍴'}</div>
       <div class="info">
