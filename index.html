@@ -2253,6 +2253,7 @@ Nutrient fields to estimate: ${NUTRIENT_KEY_LIST}
 
 AMINO ACIDS — important: the app calculates amino acid values itself using a deterministic, USDA-style reference database for recognizable whole foods (eggs, poultry, fish, beef, pork, dairy/paneer/yogurt/cheese, soy/tofu, legumes/lentils/beans, nuts, seeds). Whatever you put in the "protein" (g) field for those items gets scaled against a fixed reference amino acid profile after your response, and that OVERRIDES any amino acid numbers you provide. Because of this, getting "protein" as accurate as possible matters far more than the individual amino acid numbers for those foods — do not let amino acid guessing distract you from nailing the protein grams.
 You should still estimate all 18 amino acids listed (histidine, isoleucine, leucine, lysine, methionine, cystine, phenylalanine, tyrosine, threonine, tryptophan, valine, alanine, arginine, aspartic acid, glutamic acid, glycine, proline, serine) as a best-effort fallback for items that are NOT a recognizable single whole food (e.g. a mixed dish, a branded packaged product, a sauce, a multi-ingredient recipe) — the app only uses your amino acid numbers when it cannot match the item to its reference database, and it runs them through a biological sanity check first (total amino acid mass vs. protein mass, per-amino-acid ceilings, expected leucine/methionine ranges for animal protein) before trusting them. If your estimate for any amino acid is coming out lower than roughly 4% of the food's total protein weight combined across all 18 amino acids, you are almost certainly undershooting — total amino acid weight typically recovers 80-90% of total protein weight. Never return zero for amino acids on a food with meaningful protein.
+CALORIES/MACROS FOR KNOWN WHOLE FOODS — the same applies to calories, protein, carbs, and fat for a curated set of foods with essentially fixed composition (milk by fat %, eggs, chicken by prep, paneer, tofu, curd, common dals/rajma/chole, rice, roti/chapati, idli, dosa, poha, upma, khichdi, nuts). If the item is one of these, your macro numbers get overridden by a fixed per-100g reference scaled to your gramsEstimate — so for these foods, focus your effort on (a) correctly identifying which VARIANT it is (e.g. state "toned milk" not just "milk" if you can tell; state the chicken's prep — boiled/roasted/fried/tandoori — if visible) and (b) getting gramsEstimate right, since that weight is what actually drives the final numbers. Getting the variant genuinely ambiguous from the photo is fine — say so plainly in the name (e.g. just "milk") rather than guessing a specific fat % you can't actually tell; the app will flag it for the person to confirm rather than silently picking one.
 BIOLOGICAL CONSISTENCY — for every item, keep protein, fat, and carbohydrate grams roughly consistent with the calories you report: calories should be within about 15% of (protein_g × 4) + (carbs_g × 4) + (fat_g × 9). Essential amino acids (histidine, isoleucine, leucine, lysine, methionine, phenylalanine, threonine, tryptophan, valine) should never individually exceed the item's total protein mass, and their combined mass plus the non-essential amino acids should land in the 80-100% range of total protein mass, not far below or above it.
 
 MANDATORY — vitamins and minerals: include every vitamin and mineral the food is a genuine, documented source of, even in modest amounts (e.g. don't omit vitamin D, B12, or choline for eggs; iron, zinc, and B vitamins for meat; potassium and vitamin C for produce). Draw on the food's actual well-documented nutrient profile rather than defaulting to only the 3-4 most obvious fields.
@@ -3155,7 +3156,235 @@ function applyDeterministicAminoAcids(item){
   return {...item, nutrients: clampAminoAcidsToProtein(nutrients, proteinGrams), _aminoSource:'ai-validated'};
 }
 function applyDeterministicNutrition(items){
-  return (items||[]).map(applyDeterministicAminoAcids);
+  return (items||[])
+    .map(applyDeterministicMacros)
+    .map(applyDeterministicAminoAcids)
+    .map(validateAndRepairGeneral);
+}
+
+/* =========================================================
+   DETERMINISTIC MACRO / CALORIE REFERENCE ENGINE
+   ---------------------------------------------------------
+   Same root cause as the amino acid problem, one level up:
+   calories, protein, carbs, and fat were being re-guessed by
+   the AI on every request for foods that actually have a
+   well-known, essentially fixed composition (a glass of whole
+   milk, a boiled egg, roasted almonds). That's how the same
+   "206g whole milk" could come back with different macros
+   entry to entry, and how "roasted nuts" once came back at
+   ~120 kcal/100g when real roasted nuts run 550-650 kcal/100g.
+
+   Fix, same shape as the amino acid engine: match the item's
+   name against a small curated reference table (per-100g
+   macro values drawn from standard published nutrition data —
+   this is a static, hand-built reference set, not a live IFCT/
+   USDA/OpenFoodFacts lookup, since none of those are reachable
+   from this client-side code) and, on a match, SCALE that
+   reference by the estimated grams instead of trusting the AI's
+   own calorie/macro numbers. Same food + same grams -> identical
+   macro output, every time.
+
+   Foods with a genuine ambiguity the AI didn't resolve (plain
+   "milk" with no fat-% stated, "chicken" with no prep stated,
+   "nuts" with no raw/roasted stated) still get a value immediately
+   (a reasonable default), but are flagged with _clarifyGroup so
+   the confirm screen can offer a one-tap correction — "only ask
+   when confidence is low" rather than blocking on every item.
+
+   Items that match nothing (mixed dishes, packaged/branded
+   products, sauces, multi-ingredient recipes) keep the AI's own
+   macro numbers, but those still pass through the general
+   Atwater/fat-fraction validator below before being trusted.
+========================================================= */
+
+// Per-100g reference values. Only the fields listed here get overridden on
+// a match -- vitamins/minerals/amino acids the table doesn't cover are left
+// to the AI (amino acids are handled separately, by protein grams, in the
+// engine above).
+const REFERENCE_FOOD_MACROS = {
+  milk_whole:            {calories:61,  protein:3.2, carbs:4.8,  fat:3.3,  fiber:0,   sugars:4.8,  saturatedFat:1.9, sodium:43,  cholesterol:10},
+  milk_toned:            {calories:58,  protein:3.3, carbs:4.9,  fat:3.0,  fiber:0,   sugars:4.9,  saturatedFat:1.8, sodium:44,  cholesterol:9},
+  milk_double_toned:     {calories:42,  protein:3.2, carbs:4.9,  fat:1.5,  fiber:0,   sugars:4.9,  saturatedFat:0.9, sodium:46,  cholesterol:5},
+  milk_skim:             {calories:34,  protein:3.4, carbs:5.0,  fat:0.1,  fiber:0,   sugars:5.0,  saturatedFat:0.1, sodium:42,  cholesterol:2},
+  paneer:                {calories:265, protein:18.3,carbs:1.2,  fat:20.8, fiber:0,   sugars:1.2,  saturatedFat:13,  sodium:18,  cholesterol:65},
+  tofu:                  {calories:76,  protein:8,   carbs:1.9,  fat:4.8,  fiber:0.3, sugars:0.6,  saturatedFat:0.7, sodium:7,   cholesterol:0},
+  curd:                  {calories:61,  protein:3.5, carbs:4.7,  fat:3.3,  fiber:0,   sugars:4.7,  saturatedFat:2.1, sodium:46,  cholesterol:13},
+  greek_yogurt:          {calories:59,  protein:10,  carbs:3.6,  fat:0.4,  fiber:0,   sugars:3.6,  saturatedFat:0.1, sodium:36,  cholesterol:5},
+  lassi:                 {calories:65,  protein:2.2, carbs:9,    fat:2.2,  fiber:0,   sugars:8,    saturatedFat:1.4, sodium:30,  cholesterol:8},
+  cheddar_cheese:        {calories:403, protein:25,  carbs:1.3,  fat:33,   fiber:0,   sugars:0.5,  saturatedFat:21,  sodium:621, cholesterol:105},
+  egg_boiled:            {calories:155, protein:13,  carbs:1.1,  fat:11,   fiber:0,   sugars:1.1,  saturatedFat:3.3, sodium:124, cholesterol:373},
+  egg_fried:             {calories:196, protein:13.6,carbs:0.8,  fat:15,   fiber:0,   sugars:0.6,  saturatedFat:3.6, sodium:207, cholesterol:372},
+  egg_scrambled:         {calories:168, protein:11,  carbs:1.6,  fat:12.5, fiber:0,   sugars:1.2,  saturatedFat:3.7, sodium:178, cholesterol:372},
+  chicken_boiled_skinless:{calories:165,protein:31,  carbs:0,    fat:3.6,  fiber:0,   sugars:0,    saturatedFat:1.0, sodium:74,  cholesterol:85},
+  chicken_roasted_skinless:{calories:190,protein:29, carbs:0,    fat:7.4,  fiber:0,   sugars:0,    saturatedFat:2.0, sodium:70,  cholesterol:88},
+  chicken_fried:         {calories:260, protein:20,  carbs:8,    fat:16,   fiber:0.3, sugars:0.5,  saturatedFat:3.5, sodium:400, cholesterol:90},
+  chicken_tandoori:       {calories:180,protein:27,  carbs:2,    fat:7,    fiber:0,   sugars:1,    saturatedFat:2.0, sodium:350, cholesterol:90},
+  salmon_cooked:         {calories:206, protein:22,  carbs:0,    fat:13,   fiber:0,   sugars:0,    saturatedFat:3.1, sodium:61,  cholesterol:63},
+  tuna_cooked:           {calories:132, protein:28,  carbs:0,    fat:1.3,  fiber:0,   sugars:0,    saturatedFat:0.3, sodium:43,  cholesterol:47},
+  beef_cooked_lean:      {calories:250, protein:26,  carbs:0,    fat:15,   fiber:0,   sugars:0,    saturatedFat:6,   sodium:66,  cholesterol:90},
+  pork_cooked_lean:      {calories:242, protein:27,  carbs:0,    fat:14,   fiber:0,   sugars:0,    saturatedFat:5,   sodium:62,  cholesterol:80},
+  dal_cooked:            {calories:116, protein:7.5, carbs:20,   fat:0.4,  fiber:5,   sugars:1,    saturatedFat:0.1, sodium:5,   cholesterol:0},
+  rajma_cooked:          {calories:127, protein:8.7, carbs:22.8, fat:0.5,  fiber:6.4, sugars:0.3,  saturatedFat:0.1, sodium:2,   cholesterol:0},
+  chole_cooked:          {calories:164, protein:8.9, carbs:27.4, fat:2.6,  fiber:7.6, sugars:4.8,  saturatedFat:0.3, sodium:7,   cholesterol:0},
+  rice_cooked_white:     {calories:130, protein:2.7, carbs:28,   fat:0.3,  fiber:0.4, sugars:0.1,  saturatedFat:0.1, sodium:1,   cholesterol:0},
+  roti_chapati:          {calories:300, protein:8,   carbs:58,   fat:4,    fiber:8,   sugars:1.5,  saturatedFat:0.8, sodium:400, cholesterol:0},
+  idli:                  {calories:150, protein:4,   carbs:30,   fat:0.5,  fiber:1,   sugars:0.5,  saturatedFat:0.1, sodium:200, cholesterol:0},
+  dosa_plain:            {calories:168, protein:3.9, carbs:28,   fat:3.7,  fiber:1,   sugars:0.5,  saturatedFat:0.6, sodium:200, cholesterol:0},
+  poha:                  {calories:130, protein:2.5, carbs:24,   fat:3.5,  fiber:1.5, sugars:1,    saturatedFat:0.5, sodium:200, cholesterol:0},
+  upma:                  {calories:145, protein:3.5, carbs:20,   fat:5.5,  fiber:1.5, sugars:1,    saturatedFat:0.8, sodium:250, cholesterol:0},
+  khichdi:               {calories:120, protein:4,   carbs:20,   fat:2.5,  fiber:2,   sugars:0.5,  saturatedFat:0.4, sodium:150, cholesterol:0},
+  mixed_nuts_roasted:    {calories:607, protein:20,  carbs:21,   fat:54,   fiber:8,   sugars:4,    saturatedFat:8,   sodium:200, cholesterol:0},
+  mixed_nuts_raw:        {calories:583, protein:20,  carbs:21,   fat:51,   fiber:9,   sugars:4,    saturatedFat:6.5, sodium:5,   cholesterol:0},
+  almonds:               {calories:579, protein:21,  carbs:22,   fat:50,   fiber:12.5,sugars:4.4,  saturatedFat:3.8, sodium:1,   cholesterol:0},
+  cashews:               {calories:553, protein:18,  carbs:30,   fat:44,   fiber:3.3, sugars:5.9,  saturatedFat:7.8, sodium:12,  cholesterol:0},
+  peanuts:               {calories:567, protein:26,  carbs:16,   fat:49,   fiber:8.5, sugars:4,    saturatedFat:6.8, sodium:18,  cholesterol:0},
+  walnuts:               {calories:654, protein:15,  carbs:14,   fat:65,   fiber:6.7, sugars:2.6,  saturatedFat:6.1, sodium:2,   cholesterol:0}
+};
+
+// Specific patterns checked first — an unambiguous, direct match, no
+// clarification needed. Ordered most-specific-wins.
+const REFERENCE_FOOD_PATTERNS = [
+  {key:'milk_skim',                re:/\bskim(med)?\s*milk\b|\bfat.?free\s*milk\b/i},
+  {key:'milk_double_toned',        re:/\bdouble.?toned\s*milk\b|\blow.?fat\s*milk\b/i},
+  {key:'milk_toned',               re:/\btoned\s*milk\b/i},
+  {key:'milk_whole',               re:/\bwhole\s*milk\b|\bfull.?fat\s*milk\b|\bfull\s*cream\s*milk\b/i},
+  {key:'egg_fried',                re:/\bfried\s*egg/i},
+  {key:'egg_scrambled',            re:/\bscrambled\s*egg/i},
+  {key:'egg_boiled',               re:/\bboiled\s*egg|\bhard.?boiled\s*egg\b/i},
+  {key:'chicken_fried',            re:/\bfried\s*chicken\b|\bchicken\s*fry\b/i},
+  {key:'chicken_tandoori',         re:/\btandoori\s*chicken\b/i},
+  {key:'chicken_roasted_skinless', re:/\broast(ed)?\s*chicken\b|\bgrill(ed)?\s*chicken\b/i},
+  {key:'chicken_boiled_skinless',  re:/\bboil(ed)?\s*chicken\b|\bsteam(ed)?\s*chicken\b/i},
+  {key:'almonds',                  re:/\balmonds?\b/i},
+  {key:'cashews',                  re:/\bcashews?\b/i},
+  {key:'peanuts',                  re:/\bpeanuts?\b/i},
+  {key:'walnuts',                  re:/\bwalnuts?\b/i},
+  {key:'mixed_nuts_raw',           re:/\braw\s*(mixed\s*)?nuts?\b/i},
+  {key:'mixed_nuts_roasted',       re:/\broast(ed)?\s*(mixed\s*)?nuts?\b/i},
+  {key:'paneer',                   re:/\bpaneer\b/i},
+  {key:'tofu',                     re:/\btofu\b/i},
+  {key:'greek_yogurt',             re:/\bgreek\s*yog(h)?urt\b/i},
+  {key:'curd',                     re:/\bcurd\b|\byog(h)?urt\b/i},
+  {key:'lassi',                    re:/\blassi\b/i},
+  {key:'cheddar_cheese',           re:/\bcheddar\b|\bcheese\b/i},
+  {key:'salmon_cooked',            re:/\bsalmon\b/i},
+  {key:'tuna_cooked',              re:/\btuna\b/i},
+  {key:'beef_cooked_lean',         re:/\bbeef\b|\bsteak\b/i},
+  {key:'pork_cooked_lean',         re:/\bpork\b/i},
+  {key:'rajma_cooked',             re:/\brajma\b|\bkidney\s*bean/i},
+  {key:'chole_cooked',             re:/\bchole\b|\bchana\b|\bchickpea/i},
+  {key:'dal_cooked',               re:/\bdal\b|\bdaal\b|\blentil/i},
+  {key:'roti_chapati',             re:/\broti\b|\bchapati\b|\bphulka\b/i},
+  {key:'idli',                     re:/\bidli\b/i},
+  {key:'dosa_plain',               re:/\bdosa\b/i},
+  {key:'poha',                     re:/\bpoha\b/i},
+  {key:'upma',                     re:/\bupma\b/i},
+  {key:'khichdi',                  re:/\bkhichdi\b/i},
+  {key:'rice_cooked_white',        re:/\brice\b/i}
+];
+
+// Genuinely ambiguous groups: matched but not specific enough to pick a
+// single reference key. Gets a reasonable default immediately (app keeps
+// working with no delay) AND a _clarifyGroup flag so the confirm screen can
+// offer a one-tap correction chip.
+const AMBIGUOUS_FOOD_GROUPS = {
+  milk: {
+    detectRe:/\bmilk\b/i,
+    specificRe:/\b(skim|toned|double.?toned|whole|full.?fat|full\s*cream|fat.?free)\b/i,
+    defaultKey:'milk_whole',
+    options:[
+      {key:'milk_whole', label:'Whole / full-fat'},
+      {key:'milk_toned', label:'Toned (~3%)'},
+      {key:'milk_double_toned', label:'Double-toned / low-fat'},
+      {key:'milk_skim', label:'Skim / fat-free'}
+    ]
+  },
+  chicken: {
+    detectRe:/\bchicken\b/i,
+    specificRe:/\b(boil|steam|roast|grill|fried|fry|tandoori|bbq|barbecue)\w*\b/i,
+    defaultKey:'chicken_roasted_skinless',
+    options:[
+      {key:'chicken_boiled_skinless', label:'Boiled / steamed'},
+      {key:'chicken_roasted_skinless', label:'Roasted / grilled'},
+      {key:'chicken_fried', label:'Fried / breaded'},
+      {key:'chicken_tandoori', label:'Tandoori'}
+    ]
+  },
+  nuts: {
+    detectRe:/\b(almonds?|cashews?|peanuts?|walnuts?|pistachios?|hazelnuts?|nuts?)\b/i,
+    specificRe:/\b(raw|roast(ed)?|salted)\b/i,
+    defaultKey:'mixed_nuts_roasted',
+    options:[
+      {key:'mixed_nuts_roasted', label:'Roasted'},
+      {key:'mixed_nuts_raw', label:'Raw'}
+    ]
+  }
+};
+
+function matchReferenceFood(name){
+  const n = (name||'').toLowerCase();
+  for(const {key, re} of REFERENCE_FOOD_PATTERNS){
+    if(re.test(n)) return {refKey:key, clarifyGroup:null};
+  }
+  for(const groupKey of Object.keys(AMBIGUOUS_FOOD_GROUPS)){
+    const group = AMBIGUOUS_FOOD_GROUPS[groupKey];
+    if(group.detectRe.test(n) && !group.specificRe.test(n)){
+      return {refKey:group.defaultKey, clarifyGroup:groupKey};
+    }
+  }
+  return {refKey:null, clarifyGroup:null};
+}
+
+// Scales a per-100g reference profile by the item's actual gram amount.
+// Same food + same grams -> byte-identical macro output, always.
+function deriveMacrosFromReference(refKey, grams){
+  const ref = REFERENCE_FOOD_MACROS[refKey];
+  if(!ref || !grams || grams<=0) return {};
+  const f = grams/100;
+  const out = {};
+  Object.keys(ref).forEach(id=>{ out[id] = Math.round(ref[id]*f*10)/10; });
+  return out;
+}
+
+function applyDeterministicMacros(item){
+  const grams = Number(item.gramsEstimate)||0;
+  const {refKey, clarifyGroup} = matchReferenceFood(item.name);
+  if(!refKey || !grams){
+    return {...item, _macroSource:'ai', _clarifyGroup:null};
+  }
+  const override = deriveMacrosFromReference(refKey, grams);
+  return {
+    ...item,
+    nutrients: {...(item.nutrients||{}), ...override},
+    _refKey: refKey,
+    _macroSource: 'deterministic:'+refKey,
+    _clarifyGroup: clarifyGroup
+  };
+}
+
+// Last-line general validator, applied to every item regardless of source.
+// Items whose macros came from our own reference table are already
+// internally consistent by construction and are left alone; this exists to
+// catch purely AI-estimated items (mixed dishes, packaged products, sauces)
+// whose calories don't add up to their own macros (Atwater: 4/4/9 kcal per
+// g protein/carb/fat), or whose fat sub-fractions exceed total fat.
+function validateAndRepairGeneral(item){
+  const n = {...(item.nutrients||{})};
+  const protein = Number(n.protein||0), carbs = Number(n.carbs||0), fat = Number(n.fat||0);
+  const reportedCal = Number(n.calories||0);
+  const expectedCal = protein*4 + carbs*4 + fat*9;
+  const isDeterministic = !!(item._macroSource && item._macroSource.startsWith('deterministic'));
+  if(!isDeterministic && expectedCal>0){
+    const diffRatio = Math.abs(reportedCal-expectedCal)/expectedCal;
+    if(diffRatio > 0.25){
+      n.calories = Math.round(expectedCal);
+      item = {...item, _calorieRepaired:true};
+    }
+  }
+  ['saturatedFat','transFat'].forEach(id=>{
+    if(fat>0 && Number(n[id]||0) > fat) n[id] = fat;
+  });
+  return {...item, nutrients:n};
 }
 
 /* =========================================================
@@ -3352,6 +3581,61 @@ function apiUsedBadge(apiUsed){
   </div>`;
 }
 
+function clarifyChipsHtml(it){
+  if(!it._clarifyGroup) return '';
+  const group = AMBIGUOUS_FOOD_GROUPS[it._clarifyGroup];
+  if(!group) return '';
+  const assumedLabel = (group.options.find(o=>o.key===it._refKey)||{}).label || '';
+  return `<div class="clarify-row" style="margin:8px 0 2px; padding:9px 10px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;">
+    <div style="font-size:11px; color:var(--text-dim); margin-bottom:7px;">Which one is this? (assumed ${escapeHtml(assumedLabel)} — tap to correct)</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+      ${group.options.map(o=>`<button type="button" style="padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:${o.key===it._refKey?'var(--surface-3)':'var(--surface)'}; color:var(--text); font-size:12px; cursor:pointer;" onclick="event.stopPropagation(); resolveClarification('${it._id}','${o.key}')">${escapeHtml(o.label)}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function buildResultCardHtml(it){
+  const nutrients = it.nutrients||{};
+  const highlights = pickHighlightNutrients(nutrients, ['calories','protein'], 4);
+  const standout = highlights[0] && highlights[0].pct>0 ? highlights[0] : null;
+  return `
+    <div class="result-card" id="card-${it._id}">
+      <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span> ${libraryBadge(it._libraryStatus)}</div>
+      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
+      ${clarifyChipsHtml(it)}
+      <div class="rgrid">
+        <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
+        <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
+        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v"${isOverLimit(h.id, h.pct)?' style="color:var(--danger);font-weight:700;"':''}>${fmtAmount(h.value, h.unit)}</div></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Called when the person taps a clarification chip (e.g. picks "Toned" for
+// an item that was ambiguously identified as just "milk"). Re-derives that
+// one item's macros deterministically from the chosen reference key, reruns
+// the amino acid engine (protein may have changed), and re-renders just
+// that card in place.
+function resolveClarification(itemId, chosenKey){
+  const idx = pendingResults.findIndex(x=>x._id===itemId);
+  if(idx===-1) return;
+  let it = pendingResults[idx];
+  const grams = Number(it.gramsEstimate)||0;
+  const override = deriveMacrosFromReference(chosenKey, grams);
+  it = {
+    ...it,
+    nutrients: {...(it.nutrients||{}), ...override},
+    _refKey: chosenKey,
+    _macroSource: 'deterministic:'+chosenKey,
+    _clarifyGroup: null
+  };
+  it = applyDeterministicAminoAcids(it);
+  pendingResults[idx] = it;
+  const cardEl = document.getElementById('card-'+itemId);
+  if(cardEl) cardEl.outerHTML = buildResultCardHtml(it);
+}
+
 function showResults(items, photoBase64, mimeType, apiUsed){
   pendingResults = items.map((it,i)=>({...it, _id:'r'+Date.now()+i}));
   const area = document.getElementById('analysisArea');
@@ -3360,21 +3644,7 @@ function showResults(items, photoBase64, mimeType, apiUsed){
     return;
   }
   const photoTag = photoBase64 ? `data:${mimeType};base64,${photoBase64}` : null;
-  area.innerHTML = pendingResults.map(it=>{
-    const nutrients = it.nutrients||{};
-    const highlights = pickHighlightNutrients(nutrients, ['calories','protein'], 4);
-    const standout = highlights[0] && highlights[0].pct>0 ? highlights[0] : null;
-    return `
-    <div class="result-card" id="card-${it._id}">
-      <div class="rname">${escapeHtml(it.name)} <span class="tag">${it.confidence||'estimate'}</span> ${libraryBadge(it._libraryStatus)}</div>
-      <div class="rmeta">~${it.gramsEstimate||'?'}g${standout?` · rich in ${escapeHtml(shortNutrientLabel(standout.name))}`:''}</div>
-      <div class="rgrid">
-        <div><div class="l">Cal</div><div class="v">${Math.round(nutrients.calories||0)}</div></div>
-        <div><div class="l">Protein</div><div class="v">${round1(nutrients.protein||0)}g</div></div>
-        ${highlights.map(h=>`<div><div class="l">${escapeHtml(shortNutrientLabel(h.name))}</div><div class="v"${isOverLimit(h.id, h.pct)?' style="color:var(--danger);font-weight:700;"':''}>${fmtAmount(h.value, h.unit)}</div></div>`).join('')}
-      </div>
-    </div>
-  `;}).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
+  area.innerHTML = pendingResults.map(buildResultCardHtml).join('') + apiUsedBadge(apiUsed) + `<button class="btn block" onclick="confirmAddAll('${photoTag?photoTag.replace(/'/g,"\\'"):''}')">Add ${pendingResults.length>1?'all':'to'} diary</button>`;
 }
 
 async function confirmAddAll(photoTag){
@@ -3389,7 +3659,7 @@ async function confirmAddAll(photoTag){
       photo: photoTag||null,
       nutrients: it.nutrients||{}
     });
-    const trustFully = !!(it._aminoSource && it._aminoSource.startsWith('deterministic'));
+    const trustFully = !!((it._aminoSource && it._aminoSource.startsWith('deterministic')) || (it._macroSource && it._macroSource.startsWith('deterministic')));
     learnFromFood(it.name, it.gramsEstimate, it.nutrients, trustFully);
   });
   closeModal('addModal');
@@ -3650,7 +3920,7 @@ async function refreshFoodNutrients(id){
     const fresh = await reanalyzeSingleFood(food);
     if(!fresh){ showToast(`Couldn't refresh ${food.name}`); return; }
     food.nutrients = fresh.nutrients || {};
-    const trustFully = !!(fresh._aminoSource && fresh._aminoSource.startsWith('deterministic'));
+    const trustFully = !!((fresh._aminoSource && fresh._aminoSource.startsWith('deterministic')) || (fresh._macroSource && fresh._macroSource.startsWith('deterministic')));
     learnFromFood(food.name, food.grams, food.nutrients, trustFully);
     renderAll();
     showToast(`Refreshed ${food.name}`);
@@ -3677,7 +3947,7 @@ async function refreshAllFoodsForDay(){
       const fresh = await reanalyzeSingleFood(food);
       if(fresh){
         food.nutrients = fresh.nutrients || {};
-        const trustFully = !!(fresh._aminoSource && fresh._aminoSource.startsWith('deterministic'));
+        const trustFully = !!((fresh._aminoSource && fresh._aminoSource.startsWith('deterministic')) || (fresh._macroSource && fresh._macroSource.startsWith('deterministic')));
         learnFromFood(food.name, food.grams, food.nutrients, trustFully);
         done++;
       } else {
