@@ -11,14 +11,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  --bg:#0B1220;
-  --surface:#131E30;
-  --surface-2:#1A2A44;
-  --surface-3:#25355A;
-  --line:#31456B;
-  --text:#EDF2FA;
-  --text-dim:#9DB1CE;
-  --text-faint:#647694;
+  --bg:#0A0A0C;
+  --surface:#141416;
+  --surface-2:#1D1D21;
+  --surface-3:#28282D;
+  --line:#38383F;
+  --text:#F5F5F7;
+  --text-dim:#A8A8B0;
+  --text-faint:#6E6E76;
   --macro:#FF8F5E;
   --macro-dim:#5C3D2C;
   --vit:#FFD60A;
@@ -1885,7 +1885,7 @@ async function renderTrends(){
         pointRadius:4,
         pointHoverRadius:6,
         pointBackgroundColor:'#5FB2E8',
-        pointBorderColor:'#EDF2FA',
+        pointBorderColor:'#F5F5F7',
         pointBorderWidth:1.5
       }]},
       options:{
@@ -1900,10 +1900,10 @@ async function renderTrends(){
           x:{
             type:'linear',
             min:rangeStartTs, max:rangeEndTs,
-            ticks:{color:'#647694', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
-            grid:{color:'#31456B'}
+            ticks:{color:'#6E6E76', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
+            grid:{color:'#38383F'}
           },
-          y:{ticks:{color:'#647694'}, grid:{color:'#31456B'}}
+          y:{ticks:{color:'#6E6E76'}, grid:{color:'#38383F'}}
         }
       }
     });
@@ -1945,7 +1945,7 @@ async function renderTrends(){
               pointRadius:3.5,
               pointHoverRadius:5,
               pointBackgroundColor:'#FF8F5E',
-              pointBorderColor:'#131E30',
+              pointBorderColor:'#141416',
               pointBorderWidth:1.2
             },
             {
@@ -1963,12 +1963,12 @@ async function renderTrends(){
         options:{
           maintainAspectRatio:false,
           plugins:{
-            legend:{position:'bottom', labels:{color:'#9DB1CE', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+            legend:{position:'bottom', labels:{color:'#A8A8B0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
             tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0} min`}}
           },
           scales:{
-            x:{ticks:{color:'#647694', maxTicksLimit:5}, grid:{display:false}},
-            y:{beginAtZero:true, ticks:{color:'#647694', callback:(v)=>`${v} min`}, grid:{color:'#31456B'}}
+            x:{ticks:{color:'#6E6E76', maxTicksLimit:5}, grid:{display:false}},
+            y:{beginAtZero:true, ticks:{color:'#6E6E76', callback:(v)=>`${v} min`}, grid:{color:'#38383F'}}
           }
         }
       });
@@ -2003,7 +2003,7 @@ async function renderTrends(){
             pointRadius:3,
             pointHoverRadius:5,
             pointBackgroundColor:'#FF8F5E',
-            pointBorderColor:'#131E30',
+            pointBorderColor:'#141416',
             pointBorderWidth:1.2
           },
           {
@@ -2017,13 +2017,14 @@ async function renderTrends(){
             pointRadius:3,
             pointHoverRadius:5,
             pointBackgroundColor:'#5FB2E8',
-            pointBorderColor:'#131E30',
-            pointBorderWidth:1.2
+            pointBorderColor:'#141416',
+            pointBorderWidth:1.2,
+            yAxisID:'y1'
           },
           {
             label:'Target',
             data:days.map(()=>calTarget||null),
-            borderColor:'#647694',
+            borderColor:'#6E6E76',
             borderWidth:1.5,
             borderDash:[2,3],
             pointRadius:0,
@@ -2035,12 +2036,23 @@ async function renderTrends(){
       options:{
         maintainAspectRatio:false,
         plugins:{
-          legend:{position:'bottom', labels:{color:'#9DB1CE', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+          legend:{position:'bottom', labels:{color:'#A8A8B0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
           tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
         },
         scales:{
-          x:{ticks:{color:'#647694', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, ticks:{color:'#647694', callback:(v)=>`${v}`}, grid:{color:'#31456B'}}
+          x:{ticks:{color:'#6E6E76', maxTicksLimit:5}, grid:{display:false}},
+          y:{beginAtZero:true, ticks:{color:'#6E6E76', callback:(v)=>`${v}`}, grid:{color:'#38383F'}},
+          y1:{
+            beginAtZero:true,
+            position:'right',
+            ticks:{color:'#5FB2E8', callback:(v)=>`${v}`},
+            grid:{display:false},
+            // Give the burned-calorie axis its own headroom (roughly double
+            // the max burned value) instead of sharing the 0-3000+ intake
+            // scale, so a ~300-500 kcal burn isn't rendered as a flat line
+            // hugging the bottom of the chart.
+            suggestedMax: Math.max(500, Math.ceil((Math.max(...burns, 0) * 2.2) / 100) * 100)
+          }
         }
       }
     });
@@ -2052,7 +2064,7 @@ async function renderTrends(){
     {key:'under', label:'Under target', color:'#2FEA63'},
     {key:'near', label:'Near target', color:'#FFD60A'},
     {key:'over', label:'Over target', color:'#FF453A'},
-    {key:'empty', label:'No log', color:'#31456B'}
+    {key:'empty', label:'No log', color:'#38383F'}
   ];
   legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>`;
   heatmapHost.className = 'heatmap-grid';
