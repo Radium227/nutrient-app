@@ -179,6 +179,35 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .insight-skel{height:14px; border-radius:6px; background:var(--surface-3); margin:10px 0; overflow:hidden; position:relative;}
 .insight-skel::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(237,242,250,0.08), transparent); animation:insightShimmer 1.4s infinite;}
 @keyframes insightShimmer{0%{transform:translateX(-100%);} 100%{transform:translateX(100%);}}
+.insight-term{cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;}
+.insight-tag.clickable{cursor:pointer;}
+.insight-tag.clickable:active{background:var(--surface-3); filter:brightness(1.2);}
+
+/* ---------- Weekly Nutrition Analyzer ---------- */
+.weekly-card{background:linear-gradient(160deg, var(--surface-2), var(--surface)); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-bottom:14px;}
+.weekly-obs-list{display:flex; flex-direction:column; gap:0;}
+.weekly-obs{display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px; line-height:1.45;}
+.weekly-obs:last-child{border-bottom:none;}
+.weekly-obs .icon{flex:none; width:18px; text-align:center; margin-top:1px;}
+.weekly-obs.positive .icon{color:var(--good);}
+.weekly-obs.negative .icon{color:var(--danger);}
+.weekly-obs.neutral .icon{color:var(--text-faint);}
+.weekly-empty{color:var(--text-faint); font-size:13px; padding:6px 0;}
+
+/* ---------- Nutrient detail — extended sections ---------- */
+.nd-section{margin-top:18px; padding-top:16px; border-top:1px solid var(--line);}
+.nd-section-title{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint); margin-bottom:10px;}
+.nd-bullets{margin:0; padding-left:18px; font-size:13.5px; line-height:1.55; color:var(--text-dim);}
+.nd-bullets li{margin-bottom:4px;}
+.nd-stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.nd-stat-grid .cell{background:var(--surface-2); border-radius:10px; padding:9px 10px;}
+.nd-stat-grid .cell .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.3px;}
+.nd-stat-grid .cell .v{font-family:var(--font-mono); font-size:14px; margin-top:3px; font-weight:600;}
+.nd-food-chips{display:flex; flex-wrap:wrap; gap:8px;}
+.nd-food-chip{background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:12.5px;}
+.nd-improve{display:flex; align-items:center; justify-content:space-between; background:var(--surface-2); border-radius:12px; padding:12px 14px;}
+.nd-improve .n{font-family:var(--font-mono); font-size:18px; font-weight:600; color:var(--good);}
+.nd-improve .conf{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.3px;}
 .bio-strip{margin-bottom:14px;}
 .bio-strip-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .bio-strip-head h2{font-size:11px; color:var(--text-faint); font-weight:600; letter-spacing:1px; text-transform:uppercase; font-family:var(--font-body);}
@@ -636,6 +665,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     </div>
 
     <div class="card insight-card" id="insightCard" style="display:none;"></div>
+
+    <div class="card weekly-card" id="weeklyAnalyzerCard" style="display:none;">
+      <h2><span class="h2-dot" style="background:var(--other)"></span>Weekly Nutrition Analyzer</h2>
+      <div class="weekly-obs-list" id="weeklyObsList"></div>
+    </div>
 
     <div class="card water-card">
       <div class="water-head">
@@ -1568,8 +1602,8 @@ function scoreLimitRatio(ratio){
   return 100 - penalty;
 }
 
-function computeNutritionScore(day){
-  const totals = computeTotals(day);
+function computeNutritionScore(day, totalsOverride){
+  const totals = totalsOverride || computeTotals(day);
   let adequacyWeighted = 0, adequacyWeight = 0;
   Object.values(SCORE_TIERS).forEach(tier=>{
     tier.ids.forEach(id=>{
@@ -1610,6 +1644,337 @@ function computeNutritionScore(day){
 }
 
 /* =========================================================
+   NUTRIENT NAME RESOLUTION (for clickable chips/terms)
+========================================================= */
+const NUTRIENT_NAME_INDEX = {};
+NUTRIENTS.forEach(n=>{
+  NUTRIENT_NAME_INDEX[n.name.toLowerCase()] = n.id;
+  NUTRIENT_NAME_INDEX[shortNutrientLabel(n.name).toLowerCase()] = n.id;
+});
+function resolveNutrientIdByName(name){
+  if(!name) return null;
+  const key = String(name).trim().toLowerCase();
+  return NUTRIENT_NAME_INDEX[key] || null;
+}
+
+/* =========================================================
+   NUTRIENT EDUCATIONAL FACTS (what each nutrient does)
+   Curated for the nutrients people most often ask about; anything
+   missing falls back to a category-level description generated
+   from the same NUTRIENTS data so every nutrient still works.
+========================================================= */
+const NUTRIENT_FACTS = {
+  calories: ['Fuels every basic body function, from breathing to thinking','Powers physical activity and exercise','Too few slows metabolism; too many gets stored as fat'],
+  protein: ['Builds and repairs muscle, skin, and organs','Makes enzymes, hormones, and antibodies','Helps you feel full and preserves muscle during weight loss'],
+  carbs: ['Main energy source for the brain and muscles','Spares protein from being burned for fuel','Quality matters — whole-food carbs also bring fiber and micronutrients'],
+  fiber: ['Feeds beneficial gut bacteria','Slows digestion, helping steady blood sugar','Supports regularity and long-term heart health'],
+  sugars: ['Provides quick energy but no other nutrients','Excess intake is linked to weight gain and blood sugar swings','Naturally occurring sugars (fruit, dairy) are less concerning than added sugar'],
+  addedSugars: ['Adds calories with no nutritional benefit','Linked to weight gain, insulin resistance, and cavities','Best kept well below the daily limit'],
+  fat: ['Concentrated energy source and cell-membrane building block','Carries fat-soluble vitamins A, D, E, and K','Needed for hormone production'],
+  saturatedFat: ['Can raise LDL ("bad") cholesterol when eaten in excess','Mostly found in fatty meat, butter, and cheese','Best kept under the daily limit for heart health'],
+  transFat: ['Raises LDL cholesterol and lowers HDL cholesterol','Increases cardiovascular disease risk even in small amounts','Mostly found in partially hydrogenated/processed foods'],
+  monounsaturatedFat: ['Supports healthy cholesterol levels','Found in olive oil, nuts, and avocado','A core part of heart-healthy eating patterns'],
+  polyunsaturatedFat: ['Includes essential omega-3 and omega-6 fats your body can\'t make','Supports brain and cell-membrane health','Found in fish, seeds, and vegetable oils'],
+  omega3: ['Supports brain function and mood regulation','Helps lower inflammation and triglycerides','Found in fatty fish, flax, and walnuts'],
+  omega6: ['Supports skin health and cell structure','Provides energy and building blocks for cell membranes','Best balanced with adequate omega-3 intake'],
+  cholesterol: ['Used to build cell membranes and hormones','Dietary impact on blood cholesterol varies by person','Best watched alongside saturated fat intake'],
+  water: ['Regulates body temperature','Transports nutrients and removes waste','Supports joint lubrication and cognitive performance'],
+  caffeine: ['Stimulates alertness by blocking adenosine receptors','Can modestly boost metabolism and exercise performance','Too much can disrupt sleep and raise heart rate'],
+  alcohol: ['Provides calories with no nutritional value','Impairs liver function and nutrient absorption when overused','Best kept minimal or avoided'],
+  vitaminA: ['Supports night vision and overall eye health','Maintains healthy skin and mucous membranes','Supports immune function'],
+  vitaminC: ['Powerful antioxidant that protects cells','Boosts absorption of non-heme (plant-based) iron','Supports immune function and collagen production'],
+  vitaminD: ['Helps the body absorb calcium for strong bones','Supports immune system regulation','Mostly made from sun exposure, so diet matters more in winter'],
+  vitaminE: ['Antioxidant that protects cells from damage','Supports immune function','Helps maintain healthy skin and eyes'],
+  vitaminK: ['Essential for normal blood clotting','Supports bone metabolism','Found in leafy greens and some vegetable oils'],
+  thiaminB1: ['Helps convert food into usable energy','Supports nerve function','Found in whole grains, pork, and legumes'],
+  riboflavinB2: ['Helps convert food into energy','Supports healthy skin and eyes','Works with other B vitamins as an antioxidant'],
+  niacinB3: ['Supports energy metabolism','Helps maintain healthy skin and nerves','Supports healthy cholesterol levels'],
+  pantothenicAcidB5: ['Helps convert food into energy','Needed to make hormones and cholesterol','Widely available across many foods'],
+  vitaminB6: ['Supports brain development and function','Helps make neurotransmitters like serotonin','Involved in protein metabolism'],
+  biotinB7: ['Supports healthy hair, skin, and nails','Helps metabolize fats, carbs, and protein','Deficiency is rare but affects energy metabolism'],
+  folateB9: ['Essential for DNA synthesis and cell division','Critical for fetal development in pregnancy','Works with B12 to form red blood cells'],
+  vitaminB12: ['Needed to form red blood cells and DNA','Supports nerve function','Only found naturally in animal foods — a common gap for plant-based eaters'],
+  choline: ['Supports brain development and memory','Needed for cell-membrane structure','Helps transport fat out of the liver'],
+  calcium: ['Builds and maintains strong bones and teeth','Needed for muscle contraction and nerve signaling','Supports healthy blood clotting'],
+  chromium: ['Helps regulate blood sugar by supporting insulin action','Involved in carbohydrate and fat metabolism','Needed only in trace amounts'],
+  copper: ['Helps form red blood cells and connective tissue','Supports iron metabolism','Acts as an antioxidant cofactor'],
+  fluoride: ['Strengthens tooth enamel','Helps prevent cavities','Supports bone mineralization'],
+  iodine: ['Required to make thyroid hormones','Thyroid hormones regulate metabolism','Deficiency can cause thyroid enlargement (goiter)'],
+  iron: ['Carries oxygen in red blood cells','Supports energy production and focus','Absorption improves significantly with vitamin C'],
+  magnesium: ['Supports muscle and nerve function','Involved in over 300 enzymatic reactions','Helps regulate blood pressure and blood sugar'],
+  manganese: ['Supports bone formation','Helps metabolize carbs, amino acids, and cholesterol','Acts as an antioxidant cofactor'],
+  molybdenum: ['Helps process certain amino acids and toxins','Needed only in trace amounts','Widely available in legumes and grains'],
+  phosphorus: ['Works with calcium to build bones and teeth','Part of every cell membrane','Needed for energy storage (ATP)'],
+  potassium: ['Regulates fluid balance and blood pressure','Supports muscle contraction, including the heart','Helps offset the blood-pressure effects of sodium'],
+  selenium: ['Antioxidant that protects cells from damage','Supports thyroid hormone metabolism','Supports immune function'],
+  sodium: ['Regulates fluid balance and blood pressure','Needed for nerve and muscle function','Excess intake is linked to high blood pressure'],
+  zinc: ['Supports immune function and wound healing','Needed for taste, smell, and growth','Involved in DNA and protein synthesis'],
+  sulfur: ['Component of certain amino acids and proteins','Supports connective tissue structure','Rarely a concern given normal protein intake'],
+};
+const AMINO_NAMES = new Set(NUTRIENTS.filter(n=>n.cat==='amino').map(n=>n.id));
+function getNutrientFacts(id, name, cat){
+  if(NUTRIENT_FACTS[id]) return NUTRIENT_FACTS[id];
+  if(AMINO_NAMES.has(id)){
+    return [
+      `${name} is an amino acid your body uses as a building block for protein`,
+      `Supports muscle repair, enzyme production, and tissue maintenance`,
+      `Obtained from protein-rich foods like meat, dairy, legumes, and eggs`
+    ];
+  }
+  const meta = CAT_META[cat];
+  return [
+    `Part of the body's ${meta?meta.label.toLowerCase():'nutrient'} supply`,
+    `Contributes to normal metabolic and physiological function`,
+    `Best obtained through a varied, whole-food diet`
+  ];
+}
+
+/* =========================================================
+   COMMON FOOD SOURCES (fallback recommendations when the user
+   hasn't logged/saved anything rich in a given nutrient yet)
+========================================================= */
+const COMMON_FOOD_SOURCES = {
+  protein: ['🍗 Chicken breast','🥚 Eggs','🐟 Salmon','🫘 Lentils','🥛 Greek yogurt'],
+  fiber: ['🫘 Beans','🍎 Apple','🥦 Broccoli','🌾 Oats','🥑 Avocado'],
+  vitaminC: ['🥝 Kiwi','🍊 Orange','🫑 Bell pepper','🍓 Strawberries','🥦 Broccoli'],
+  vitaminD: ['🐟 Salmon','🥚 Egg yolk','🍄 Mushrooms','🥛 Fortified milk'],
+  vitaminA: ['🥕 Carrot','🍠 Sweet potato','🥬 Spinach','🥭 Mango'],
+  vitaminE: ['🌻 Sunflower seeds','🌰 Almonds','🥑 Avocado'],
+  vitaminK: ['🥬 Kale','🥦 Broccoli','🫑 Spinach'],
+  vitaminB12: ['🐟 Salmon','🥚 Eggs','🥛 Milk','🍗 Chicken'],
+  folateB9: ['🥬 Spinach','🫘 Lentils','🥦 Broccoli','🍊 Orange'],
+  calcium: ['🥛 Milk','🧀 Cheese','🥬 Kale','🫘 Tofu'],
+  iron: ['🍗 Chicken','🫘 Lentils','🥬 Spinach','🥩 Red meat'],
+  magnesium: ['🥬 Spinach','🌰 Almonds','🫘 Black beans','🥑 Avocado'],
+  potassium: ['🥔 Potato','🍌 Banana','🥛 Milk','🥬 Spinach','🫘 Moong dal'],
+  zinc: ['🥩 Beef','🫘 Chickpeas','🌰 Cashews','🥚 Eggs'],
+  sodium: ['🧂 Table salt','🥫 Canned soup','🍕 Processed foods'],
+  omega3: ['🐟 Salmon','🌰 Walnuts','🌱 Flaxseed','🐟 Sardines'],
+  iodine: ['🐟 Fish','🥛 Dairy','🧂 Iodized salt','🌊 Seaweed'],
+  water: ['💧 Water','🍉 Watermelon','🥒 Cucumber','🍵 Herbal tea'],
+};
+function emojiFor(name){
+  const n = (name||'').toLowerCase();
+  if(/banana/.test(n)) return '🍌'; if(/potato/.test(n)) return '🥔';
+  if(/milk|yogurt|dairy/.test(n)) return '🥛'; if(/spinach|kale|greens/.test(n)) return '🥬';
+  if(/egg/.test(n)) return '🥚'; if(/chicken/.test(n)) return '🍗'; if(/fish|salmon|tuna/.test(n)) return '🐟';
+  if(/bean|lentil|dal|chickpea/.test(n)) return '🫘'; if(/orange|citrus/.test(n)) return '🍊';
+  if(/apple/.test(n)) return '🍎'; if(/nut|almond|cashew|walnut/.test(n)) return '🌰';
+  if(/avocado/.test(n)) return '🥑'; if(/cheese/.test(n)) return '🧀';
+  return '🍽️';
+}
+// Priority order per spec: (1) foods this user has actually eaten before
+// (learned in foodLibrary), (2) their saved meals, (3) common foods known
+// to the app. Fully data-driven — no per-nutrient branching logic.
+function getNutrientFoodRecommendations(id, day){
+  const target = getTarget(id);
+  const eatenToday = new Set((day.foods||[]).map(f=>normalizeFoodName(f.name)));
+  const out = [];
+  const seen = new Set();
+  const fromLibrary = Object.values(foodLibrary||{})
+    .filter(entry=>entry.perGram && entry.perGram[id] > 0)
+    .map(entry=>({name:entry.name, per100g: entry.perGram[id]*100}))
+    .sort((a,b)=>b.per100g-a.per100g);
+  const fromSaved = (savedMeals||[])
+    .filter(m=>m.baseNutrients && m.baseGrams && (m.baseNutrients[id]||0) > 0)
+    .map(m=>({name:m.name||m.baseName||'Saved meal', per100g:(m.baseNutrients[id]/m.baseGrams)*100}))
+    .sort((a,b)=>b.per100g-a.per100g);
+  [...fromLibrary, ...fromSaved].forEach(f=>{
+    const key = normalizeFoodName(f.name);
+    if(!key || seen.has(key) || eatenToday.has(key)) return;
+    seen.add(key);
+    out.push(`${emojiFor(f.name)} ${f.name}`);
+  });
+  if(out.length < 5){
+    (COMMON_FOOD_SOURCES[id]||[]).forEach(entry=>{
+      const label = entry.replace(/^\S+\s/, '');
+      const key = normalizeFoodName(label);
+      if(seen.has(key) || eatenToday.has(key)) return;
+      seen.add(key);
+      out.push(entry);
+    });
+  }
+  return out.slice(0, 5);
+}
+
+/* =========================================================
+   EXPECTED SCORE IMPROVEMENT — reuses the real, deterministic
+   scoring algorithm (computeNutritionScore) to project the effect
+   of bringing one nutrient up to 100% of its target, rather than
+   guessing a number.
+========================================================= */
+function estimateNutrientScoreImprovement(day, id){
+  const totals = computeTotals(day);
+  const target = getTarget(id);
+  const current = computeNutritionScore(day, totals);
+  if(!target || (totals[id]||0) >= target){
+    return {currentScore:current.score, projectedScore:current.score, delta:0, confidence:'—'};
+  }
+  const hypothetical = {...totals, [id]: target};
+  const projected = computeNutritionScore(day, hypothetical);
+  const weight = previewImportanceWeight(id);
+  const confidence = weight>=5 ? 'High' : weight>=3 ? 'Medium' : 'Low';
+  return {currentScore:current.score, projectedScore:projected.score, delta:projected.score-current.score, confidence};
+}
+
+/* =========================================================
+   WEEKLY NUTRITION ANALYZER
+   Deterministic (no AI call) so it stays fast, free, and fully
+   reproducible from the same historical diary/exercise data the
+   rest of the app already stores. Recomputed on every render, so
+   it always reflects the latest 7 days of entries.
+========================================================= */
+async function loadRecentDays(n, endDstr){
+  const end = endDstr || currentDate;
+  const out = [];
+  for(let i=0;i<n;i++){
+    const d = new Date(end+'T00:00:00');
+    d.setDate(d.getDate()-i);
+    const dstr = todayStr(d);
+    const day = await loadDay(dstr);
+    out.push({date:dstr, day});
+  }
+  return out.reverse(); // oldest first
+}
+function dateOffsetStr(dstr, offsetDays){
+  const d = new Date(dstr+'T00:00:00');
+  d.setDate(d.getDate()+offsetDays);
+  return todayStr(d);
+}
+function weekdayIsWeekend(dstr){
+  const d = new Date(dstr+'T00:00:00').getDay();
+  return d===0 || d===6;
+}
+function mealBucketForTime(timeStr){
+  if(!timeStr) return null;
+  const m = String(timeStr).match(/^(\d{1,2}):(\d{2})/);
+  if(!m) return null;
+  const hr = Number(m[1]);
+  if(hr>=5 && hr<11) return 'breakfast';
+  if(hr>=11 && hr<16) return 'lunch';
+  if(hr>=16 && hr<22) return 'dinner';
+  return 'late-night';
+}
+const WEEKLY_WATCH_NUTRIENTS = ['fiber','protein','potassium','magnesium','vitaminC','calcium','iron','sodium','saturatedFat','sugars'];
+async function computeWeeklyTrends(){
+  const thisWeek = await loadRecentDays(7);
+  const prevWeek = await loadRecentDays(7, dateOffsetStr(currentDate, -7));
+  const loggedThis = thisWeek.filter(x=>(x.day.foods||[]).length);
+  const loggedPrev = prevWeek.filter(x=>(x.day.foods||[]).length);
+  if(loggedThis.length < 2) return []; // not enough history yet
+
+  const positives = [], negatives = [], neutrals = [];
+
+  function avgFor(days, id){
+    if(!days.length) return null;
+    const totalsList = days.map(x=>computeTotals(x.day));
+    return totalsList.reduce((s,t)=>s+(t[id]||0),0)/days.length;
+  }
+
+  WEEKLY_WATCH_NUTRIENTS.forEach(id=>{
+    const n = NUTRIENTS.find(x=>x.id===id);
+    const target = getTarget(id);
+    const curAvg = avgFor(loggedThis, id);
+    const prevAvg = avgFor(loggedPrev, id);
+    if(curAvg==null || !target) return;
+    const isLimitNutrient = SCORE_LIMIT_NUTRIENTS[id]!==undefined;
+    if(prevAvg!=null && prevAvg>0.5){
+      const pctChange = Math.round(((curAvg-prevAvg)/prevAvg)*100);
+      if(Math.abs(pctChange) >= 12){
+        const improved = isLimitNutrient ? pctChange < 0 : pctChange > 0;
+        const text = `${n.name} intake ${pctChange>0?'increased':'decreased'} ${Math.abs(pctChange)}% compared to the previous week.`;
+        (improved ? positives : negatives).push(text);
+      }
+    }
+    // Consistency: how many of the logged days this week hit target (non-limit nutrients only)
+    if(!isLimitNutrient){
+      const daysHit = loggedThis.filter(x=>(computeTotals(x.day)[id]||0) >= target).length;
+      if(daysHit >= loggedThis.length - 1 && loggedThis.length>=4){
+        positives.push(`${n.name} intake has been consistently excellent this week.`);
+      } else if(daysHit <= 1 && curAvg/target < 0.6){
+        negatives.push(`${n.name} has averaged below target this week.`);
+      }
+    }
+  });
+
+  // Nutrition score trend across the week
+  const scored = loggedThis.map(x=>({date:x.date, score:computeNutritionScore(x.day).score}));
+  if(scored.length>=2){
+    const first = scored[0].score, last = scored[scored.length-1].score;
+    if(Math.abs(last-first) >= 4){
+      const text = `Nutrition Score ${last>first?'increased':'decreased'} from ${first} → ${last}.`;
+      (last>first ? positives : negatives).push(text);
+    }
+  }
+
+  // Food variety
+  const varietyThis = new Set(loggedThis.flatMap(x=>(x.day.foods||[]).map(f=>normalizeFoodName(f.name)))).size;
+  const varietyPrev = new Set(loggedPrev.flatMap(x=>(x.day.foods||[]).map(f=>normalizeFoodName(f.name)))).size;
+  if(varietyPrev>0 && varietyThis > varietyPrev){
+    positives.push(`Food variety improved this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`);
+  } else if(varietyPrev>0 && varietyThis < varietyPrev){
+    neutrals.push(`Food variety was narrower this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`);
+  }
+
+  // Saturated fat: weekday vs weekend
+  const weekendDays = loggedThis.filter(x=>weekdayIsWeekend(x.date));
+  const weekdayDays = loggedThis.filter(x=>!weekdayIsWeekend(x.date));
+  if(weekendDays.length && weekdayDays.length){
+    const satTarget = getTarget('saturatedFat');
+    const weekendAvg = avgFor(weekendDays, 'saturatedFat');
+    const weekdayAvg = avgFor(weekdayDays, 'saturatedFat');
+    if(satTarget && weekendAvg > satTarget && weekendAvg > weekdayAvg*1.25){
+      negatives.push(`Saturated fat exceeds recommendations mainly on weekends.`);
+    }
+    const sodTarget = getTarget('sodium');
+    const weekendSod = avgFor(weekendDays, 'sodium');
+    const weekdaySod = avgFor(weekdayDays, 'sodium');
+    if(sodTarget && weekendSod > sodTarget && weekendSod > weekdaySod*1.25){
+      negatives.push(`Sodium intake is notably higher on weekends than weekdays.`);
+    }
+  }
+
+  // Sodium spikes by meal time
+  const sodiumByBucket = {breakfast:0, lunch:0, dinner:0, 'late-night':0};
+  loggedThis.forEach(x=>{
+    (x.day.foods||[]).forEach(f=>{
+      const bucket = mealBucketForTime(f.time);
+      if(bucket && f.nutrients && f.nutrients.sodium) sodiumByBucket[bucket] += f.nutrients.sodium;
+    });
+  });
+  const topBucket = Object.entries(sodiumByBucket).sort((a,b)=>b[1]-a[1])[0];
+  const sodiumSum = Object.values(sodiumByBucket).reduce((a,b)=>a+b,0);
+  if(topBucket && sodiumSum>0 && topBucket[1]/sodiumSum > 0.45){
+    negatives.push(`Sodium spikes usually occur during ${topBucket[0]}.`);
+  }
+
+  // Order: positives first, then neutrals, then negatives (spec: "always
+  // prioritize positive improvements before highlighting deficiencies")
+  const combined = [...positives.map(t=>({t,kind:'positive'})), ...neutrals.map(t=>({t,kind:'neutral'})), ...negatives.map(t=>({t,kind:'negative'}))];
+  return combined.slice(0, 10);
+}
+async function renderWeeklyAnalyzer(){
+  const card = document.getElementById('weeklyAnalyzerCard');
+  const list = document.getElementById('weeklyObsList');
+  try{
+    const obs = await computeWeeklyTrends();
+    if(!obs.length){
+      card.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+    card.style.display = 'block';
+    list.innerHTML = obs.map(o=>{
+      const icon = o.kind==='positive' ? '▲' : o.kind==='negative' ? '▼' : '•';
+      return `<div class="weekly-obs ${o.kind}"><span class="icon">${icon}</span><span>${escapeHtml(o.t)}</span></div>`;
+    }).join('');
+  }catch(e){
+    card.style.display = 'none';
+    console.error('Weekly analyzer failed:', e);
+  }
+}
+
+/* =========================================================
    RENDER: NAV / VIEWS
 ========================================================= */
 function switchView(name){
@@ -1633,6 +1998,7 @@ async function renderAll(){
   renderDashboard(day);
   renderDiary(day);
   renderNutrients(day);
+  renderWeeklyAnalyzer();
 }
 
 function renderDashboard(day){
@@ -2679,7 +3045,24 @@ function highlightInsightTerm(text, term, color){
   if(!text || !term) return text;
   const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(`(${escaped})`, 'i');
-  return text.replace(re, `<b style="color:${color}">$1</b>`);
+  const id = resolveNutrientIdByName(term);
+  const inner = id ? `<b class="insight-term" style="color:${color}" onclick="openNutrientDetail('${id}', true)">$1</b>` : `<b style="color:${color}">$1</b>`;
+  return text.replace(re, inner);
+}
+// Wraps a nutrient-name tag value in a clickable span if it resolves to a
+// known nutrient id, so tapping "Limiting", "Hidden", or either half of a
+// "X × Y" synergy label opens that nutrient's detail panel.
+function clickableInsightTagValue(value){
+  const escaped = escapeHtml(value);
+  if(/×/.test(value)){
+    return value.split('×').map(part=>{
+      const trimmed = part.trim();
+      const id = resolveNutrientIdByName(trimmed);
+      return id ? `<span class="insight-term" onclick="event.stopPropagation(); openNutrientDetail('${id}', true)">${escapeHtml(trimmed)}</span>` : escapeHtml(trimmed);
+    }).join(' × ');
+  }
+  const id = resolveNutrientIdByName(value);
+  return id ? `<span class="insight-term" onclick="event.stopPropagation(); openNutrientDetail('${id}', true)">${escaped}</span>` : escaped;
 }
 
 let nutrientInsightInFlight = false;
@@ -2721,7 +3104,7 @@ function renderNutrientInsightCard(state){
   card.innerHTML = `
     <div class="insight-eyebrow">Today's finding</div>
     <div class="insight-finding">${finding}</div>
-    ${tags.length ? `<div class="insight-tags">${tags.map(t=>`<div class="insight-tag"><span class="k">${escapeHtml(t.k)}</span><span class="dot" style="background:${t.color}"></span><span class="v">${escapeHtml(t.v)}</span></div>`).join('')}</div>` : ''}
+    ${tags.length ? `<div class="insight-tags">${tags.map(t=>`<div class="insight-tag clickable"><span class="k">${escapeHtml(t.k)}</span><span class="dot" style="background:${t.color}"></span><span class="v">${clickableInsightTagValue(t.v)}</span></div>`).join('')}</div>` : ''}
     <div class="insight-reasoning" id="insightReasoning">${escapeHtml(state.reasoning||'')}</div>
     <div class="insight-foot">
       <span>${confidencePct!=null ? `Confidence ${confidencePct} · ` : ''}updated ${updatedAgo}</span>
@@ -4435,15 +4818,22 @@ async function deleteWeight(id){
 /* =========================================================
    NUTRIENT DETAIL (per-food breakdown) & OVERALL COMPLETION
 ========================================================= */
-async function openNutrientDetail(id){
+// `fromInsight` is true when opened by tapping a nutrient chip/term inside
+// the Today's Finding card — it adds a "why this was mentioned today"
+// section built from that card's own cached reasoning, on top of the
+// sections every nutrient always gets (facts, today's/weekly stats, food
+// sources, recommendations, projected score impact). One component, driven
+// entirely by data, works identically for any nutrient id.
+async function openNutrientDetail(id, fromInsight){
   const day = await loadDay(currentDate);
   const n = NUTRIENTS.find(x=>x.id===id);
+  if(!n) return;
   const totals = computeTotals(day);
   const v = totals[id]||0;
   const t = getTarget(id);
   const pct = t>0 ? (v/t)*100 : 0;
-  const meta = CAT_META[n.cat];
   document.getElementById('detailModalName').textContent = n.name;
+
   const contributors = (day.foods||[])
     .map(f=>({name:f.name, amount:(f.nutrients && f.nutrients[id])||0}))
     .filter(c=>c.amount>0)
@@ -4452,9 +4842,74 @@ async function openNutrientDetail(id){
     ? contributors.map(c=>`<div class="contrib-row">
         <div class="cname">${escapeHtml(c.name)}</div>
         <div class="camt">${fmtAmount(c.amount, n.unit)}</div>
-        <div class="cpct">${t>0?Math.round((c.amount/t)*100):0}%</div>
+        <div class="cpct">${v>0?Math.round((c.amount/v)*100):0}%</div>
       </div>`).join('')
     : `<div class="empty-state" style="padding:16px 0;">Nothing logged today contributes to this yet.</div>`;
+
+  // 7-day average + trend (first half of the week vs second half)
+  const recent = await loadRecentDays(7);
+  const loggedRecent = recent.filter(x=>(x.day.foods||[]).length);
+  const dailyValues = loggedRecent.map(x=>computeTotals(x.day)[id]||0);
+  const weekAvg = dailyValues.length ? dailyValues.reduce((a,b)=>a+b,0)/dailyValues.length : null;
+  let trendLabel = 'Not enough history yet';
+  if(dailyValues.length>=4){
+    const mid = Math.floor(dailyValues.length/2);
+    const firstHalf = dailyValues.slice(0,mid).reduce((a,b)=>a+b,0)/mid;
+    const secondHalf = dailyValues.slice(mid).reduce((a,b)=>a+b,0)/(dailyValues.length-mid);
+    const isLimitNutrient = SCORE_LIMIT_NUTRIENTS[id]!==undefined;
+    const diffPct = firstHalf>0 ? ((secondHalf-firstHalf)/firstHalf)*100 : 0;
+    if(Math.abs(diffPct) < 8) trendLabel = 'Stable';
+    else{
+      const goingUp = diffPct > 0;
+      const isGood = isLimitNutrient ? !goingUp : goingUp;
+      trendLabel = `${goingUp?'Improving ↑':'Declining ↓'}${isGood?'':' (watch this)'}`;
+    }
+  }
+
+  const factsHtml = getNutrientFacts(id, n.name, n.cat).map(f=>`<li>${escapeHtml(f)}</li>`).join('');
+
+  // "Why the AI mentioned this today" — only for nutrients that were part of
+  // today's cached Today's Finding, using that same generated reasoning
+  // (no extra AI call, always dynamic to today's actual diary).
+  let whyHtml = '';
+  const cachedInsight = getCachedNutrientInsight(day);
+  const insightResult = cachedInsight && cachedInsight.result;
+  const insightMentionsThis = insightResult && [insightResult.limiting, insightResult.hidden, ...(String(insightResult.synergy||'').split('×').map(s=>s.trim()))]
+    .filter(Boolean).some(name=>resolveNutrientIdByName(name)===id);
+  if(fromInsight && insightResult && insightMentionsThis){
+    const statusBullet = t>0
+      ? (pct>=100 ? `Your ${n.name.toLowerCase()} intake is adequate today (${Math.round(pct)}% of target).` : `Your ${n.name.toLowerCase()} intake is only ${Math.round(pct)}% of target today.`)
+      : `Your ${n.name.toLowerCase()} intake today is ${fmtAmount(v, n.unit)}.`;
+    const reasoningBullets = String(insightResult.reasoning||'').split(/(?<=[.!?])\s+/).filter(Boolean).slice(0,3);
+    whyHtml = `
+    <div class="nd-section">
+      <div class="nd-section-title">Why it was mentioned today</div>
+      <ul class="nd-bullets">
+        <li>${escapeHtml(statusBullet)}</li>
+        ${reasoningBullets.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  const recommendations = getNutrientFoodRecommendations(id, day);
+  const recsHtml = recommendations.length
+    ? `<div class="nd-food-chips">${recommendations.map(r=>`<div class="nd-food-chip">${escapeHtml(r)}</div>`).join('')}</div>`
+    : `<div class="weekly-empty">No specific suggestions yet — log a few more meals.</div>`;
+
+  const improvement = estimateNutrientScoreImprovement(day, id);
+  const improveHtml = improvement.delta>0
+    ? `<div class="nd-improve">
+        <div>
+          <div style="font-size:12px;color:var(--text-faint);">Nutrition Score</div>
+          <div style="font-family:var(--font-mono);font-size:15px;">${improvement.currentScore} → ${improvement.projectedScore}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="n">+${improvement.delta}</div>
+          <div class="conf">${improvement.confidence} confidence</div>
+        </div>
+      </div>`
+    : `<div class="weekly-empty">Already at or above target — limited additional score impact.</div>`;
+
   document.getElementById('detailModalBody').innerHTML = `
     <div class="detail-gauge">
       <div class="detail-stat-row">
@@ -4464,10 +4919,37 @@ async function openNutrientDetail(id){
       <div class="detail-gauge-track"><div class="detail-gauge-fill" style="width:${Math.min(100,pct)}%; background:${nutrientStatusColor(id, pct, {gradient:true})}"></div></div>
       <div style="font-size:12px;color:var(--text-faint); margin-top:6px;">${t>0?`Target: ${fmtAmount(t, n.unit)}`:'No target set for this nutrient'}</div>
     </div>
-    <div class="contrib-list">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);margin-bottom:4px;">From today's foods</div>
+
+    <div class="nd-section" style="margin-top:14px; padding-top:0; border-top:none;">
+      <div class="nd-section-title">What it does</div>
+      <ul class="nd-bullets">${factsHtml}</ul>
+    </div>
+
+    <div class="nd-section">
+      <div class="nd-section-title">This week</div>
+      <div class="nd-stat-grid">
+        <div class="cell"><div class="l">7-day average</div><div class="v">${weekAvg!=null?fmtAmount(weekAvg, n.unit):'—'}</div></div>
+        <div class="cell"><div class="l">Trend</div><div class="v" style="font-size:12.5px;">${trendLabel}</div></div>
+      </div>
+    </div>
+
+    ${whyHtml}
+
+    <div class="contrib-list nd-section">
+      <div class="nd-section-title">Foods supplying ${escapeHtml(n.name)} today</div>
       ${rows}
     </div>
+
+    <div class="nd-section">
+      <div class="nd-section-title">Suggested foods</div>
+      ${recsHtml}
+    </div>
+
+    <div class="nd-section">
+      <div class="nd-section-title">Potential Nutrition Score improvement</div>
+      ${improveHtml}
+    </div>
+
     <button class="detail-edit-link" onclick="promptManualNutrient('${id}')">+ Add amount manually</button>
     <button class="detail-edit-link" onclick="closeModal('detailModal'); openTargetModal('${id}')">Edit target</button>
   `;
