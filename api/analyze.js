@@ -205,7 +205,20 @@ async function callGemini(prompt, imageBase64, imageMime, analysisMode) {
       const data = await response.json().catch(() => null);
       const text = extractGeminiText(data);
       const finishReason = normalizeFinishReason(data && data.candidates && data.candidates[0] && data.candidates[0].finishReason);
-      return { text: validateJsonText(text), finishReason, provider: 'Gemini' };
+      try {
+        return { text: validateJsonText(text), finishReason, provider: 'Gemini' };
+      } catch (parseError) {
+        // A malformed/truncated JSON response is exactly the kind of
+        // problem retrying Gemini itself fixes (a fresh generation is
+        // very likely to come back well-formed) -- it is NOT a reason to
+        // give up on Gemini and fall back to Groq/OpenRouter. Only after
+        // exhausting Gemini's own retry budget does this propagate out.
+        lastError = new Error(`Gemini returned invalid JSON: ${truncateText(parseError && parseError.message ? parseError.message : parseError, 200)}`);
+        if (attempt < GEMINI_MAX_ATTEMPTS - 1) {
+          continue;
+        }
+        throw lastError;
+      }
     }
 
     const message = await readResponseError(response, 'Gemini');
