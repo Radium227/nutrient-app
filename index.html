@@ -173,6 +173,21 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .insight-skel{height:14px; border-radius:6px; background:var(--surface-3); margin:10px 0; overflow:hidden; position:relative;}
 .insight-skel::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(234,243,239,0.08), transparent); animation:insightShimmer 1.4s infinite;}
 @keyframes insightShimmer{0%{transform:translateX(-100%);} 100%{transform:translateX(100%);}}
+.bio-strip{margin-bottom:14px;}
+.bio-strip-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.bio-strip-head h2{font-size:11px; color:var(--text-faint); font-weight:600; letter-spacing:1px; text-transform:uppercase; font-family:var(--font-body);}
+.bio-nav{display:flex; gap:6px;}
+.bio-nav button{width:26px; height:26px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line); color:var(--text-dim); display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1;}
+.bio-nav button:active{background:var(--surface-3);}
+.bio-scroll{display:flex; gap:0; overflow-x:auto; scroll-snap-type:x proximity; border:1px solid var(--line); border-radius:var(--radius-lg); background:var(--surface); scrollbar-width:none;}
+.bio-scroll::-webkit-scrollbar{display:none;}
+.bio-card{flex:0 0 152px; scroll-snap-align:start; padding:16px 14px; border-right:1px solid var(--line);}
+.bio-card:last-child{border-right:none;}
+.bio-card .k{font-size:9.5px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-faint); line-height:1.35; height:24px;}
+.bio-card .v{font-family:var(--font-display); font-style:italic; font-weight:600; font-size:22px; margin-top:10px; line-height:1;}
+.bio-card .s{font-size:10.5px; color:var(--text-faint); margin-top:4px;}
+.bio-card .spark{display:flex; align-items:flex-end; gap:2px; height:26px; margin-top:12px;}
+.bio-card .spark div{flex:1; border-radius:2px 2px 0 0; min-height:2px;}
 .spectrum-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 16px; margin-bottom:14px;}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
@@ -611,6 +626,17 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <div class="item"><span class="dot" style="background:var(--amino)"></span>Amino acids</div>
         <div class="item"><span class="dot" style="background:var(--other)"></span>Other</div>
       </div>
+    </div>
+
+    <div class="bio-strip" id="bioStrip" style="display:none;">
+      <div class="bio-strip-head">
+        <h2>7-day snapshot</h2>
+        <div class="bio-nav">
+          <button onclick="scrollBioStrip(-1)">‹</button>
+          <button onclick="scrollBioStrip(1)">›</button>
+        </div>
+      </div>
+      <div class="bio-scroll" id="bioScroll"></div>
     </div>
 
     <div class="card">
@@ -1519,6 +1545,8 @@ function renderDashboard(day){
   } else {
     renderNutrientInsightCard(null);
   }
+
+  refreshBioStrip();
 }
 
 function foodEntryHTML(f){
@@ -2444,6 +2472,148 @@ function timeAgoShort(ts){
   if(diffHr < 24) return `${diffHr}h ago`;
   return `${Math.round(diffHr/24)}d ago`;
 }
+/* =========================================================
+   DASHBOARD 7-DAY SNAPSHOT CAROUSEL
+   A horizontal strip of small, honest metrics computed purely from what's
+   actually logged (no AI call needed) -- momentum, diversity, streak,
+   stability, and goal consistency. Sits above "Today's log" so weekly
+   context and today's specifics live in one place instead of two.
+========================================================= */
+async function computeWeeklyBiologyMetrics(){
+  const days14 = [];
+  for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days14.push(todayStr(d)); }
+  const dayDatas = await Promise.all(days14.map(loadDay));
+  const anyFood = dayDatas.some(d=>(d.foods||[]).length>0);
+  if(!anyFood) return [];
+
+  const thisWeek = dayDatas.slice(7);   // most recent 7 days, oldest-to-newest
+  const lastWeek = dayDatas.slice(0,7); // the 7 before that
+  const nutrientsWithTargets = NUTRIENTS.filter(n=>getTarget(n.id)>0);
+
+  function dailyCompletionPct(day){
+    if(!nutrientsWithTargets.length) return 0;
+    const totals = computeTotals(day);
+    const sum = nutrientsWithTargets.reduce((s,n)=>{
+      const t = getTarget(n.id);
+      const v = Number(totals[n.id]||0);
+      return s + Math.min(100, (v/t)*100);
+    }, 0);
+    return sum/nutrientsWithTargets.length;
+  }
+  function dailyDiverseCount(day){
+    const totals = computeTotals(day);
+    return nutrientsWithTargets.filter(n=>{
+      const t = getTarget(n.id);
+      const v = Number(totals[n.id]||0);
+      return t>0 && (v/t)>=0.5;
+    }).length;
+  }
+  // Normalizes a series of raw values into 4-30px bar heights for the
+  // little sparkline row, clamped against a sensible max per metric.
+  function sparkHeights(arr, max){
+    return arr.map(v=>Math.max(4, Math.round((Math.min(v,max)/(max||1))*26)));
+  }
+
+  const thisWeekCompletion = thisWeek.map(dailyCompletionPct);
+  const lastWeekCompletion = lastWeek.map(dailyCompletionPct);
+  const avgThis = thisWeekCompletion.reduce((a,b)=>a+b,0)/7;
+  const avgLast = lastWeekCompletion.reduce((a,b)=>a+b,0)/7;
+  const momentumDelta = avgThis - avgLast;
+
+  const thisWeekDiversity = thisWeek.map(dailyDiverseCount);
+  const avgDiversity = Math.round(thisWeekDiversity.reduce((a,b)=>a+b,0)/7);
+  const diversityRatio = nutrientsWithTargets.length ? avgDiversity/nutrientsWithTargets.length : 0;
+
+  // Current logging streak: walk backward from today while a day has at
+  // least one food entry, stop at the first gap.
+  let streak = 0;
+  for(let i=dayDatas.length-1;i>=0;i--){
+    if((dayDatas[i].foods||[]).length>0) streak++; else break;
+  }
+
+  const calTarget = getTarget('calories')||0;
+  const loggedThisWeek = thisWeek.filter(d=>(d.foods||[]).length>0);
+  const calDeviations = calTarget ? loggedThisWeek.map(d=>Math.abs((computeTotals(d).calories||0)-calTarget)/calTarget*100) : [];
+  const avgDeviation = calDeviations.length ? calDeviations.reduce((a,b)=>a+b,0)/calDeviations.length : null;
+  const stabilityScore = avgDeviation==null ? null : Math.max(0, Math.round(100 - avgDeviation));
+
+  const waterTarget = getTarget('water')||0;
+  const waterHitDays = waterTarget ? thisWeek.filter(d=>(computeTotals(d).water||0) >= waterTarget).length : 0;
+  const waterPct = Math.round((waterHitDays/7)*100);
+
+  const proteinTarget = getTarget('protein')||0;
+  const proteinHitDays = proteinTarget ? thisWeek.filter(d=>(computeTotals(d).protein||0) >= proteinTarget).length : 0;
+  const proteinPct = Math.round((proteinHitDays/7)*100);
+
+  return [
+    {
+      label:'Completion Momentum',
+      value: `${momentumDelta>=0?'+':''}${momentumDelta.toFixed(1)}%`,
+      sub:'vs prior 7 days',
+      color: momentumDelta>1 ? 'var(--complete)' : momentumDelta<-1 ? 'var(--danger)' : 'var(--vit)',
+      spark: sparkHeights(thisWeekCompletion, 100)
+    },
+    {
+      label:'Micronutrient Diversity',
+      value: `${avgDiversity}/${nutrientsWithTargets.length}`,
+      sub:'avg ≥50% of target/day',
+      color: diversityRatio>=0.6 ? 'var(--complete)' : diversityRatio>=0.35 ? 'var(--vit)' : 'var(--danger)',
+      spark: sparkHeights(thisWeekDiversity, nutrientsWithTargets.length||1)
+    },
+    {
+      label:'Logging Streak',
+      value: `${streak} day${streak===1?'':'s'}`,
+      sub:'consecutive days logged',
+      color:'var(--vit)',
+      spark: sparkHeights(thisWeek.map(d=>(d.foods||[]).length>0?100:6), 100)
+    },
+    {
+      label:'Calorie Stability',
+      value: stabilityScore==null ? '—' : `${stabilityScore}`,
+      sub:'consistency index',
+      color: stabilityScore==null ? 'var(--text-faint)' : stabilityScore>=80 ? 'var(--complete)' : stabilityScore>=60 ? 'var(--vit)' : 'var(--danger)',
+      spark: sparkHeights(thisWeek.map(d=>calTarget ? Math.min(150,((computeTotals(d).calories||0)/calTarget)*100) : 0), 150)
+    },
+    {
+      label:'Hydration Consistency',
+      value: `${waterPct}%`,
+      sub:'days water goal hit',
+      color: waterPct>=70 ? 'var(--complete)' : waterPct>=40 ? 'var(--min)' : 'var(--danger)',
+      spark: sparkHeights(thisWeek.map(d=>waterTarget ? Math.min(100,((computeTotals(d).water||0)/waterTarget)*100) : 0), 100)
+    },
+    {
+      label:'Protein Consistency',
+      value: `${proteinPct}%`,
+      sub:'days protein goal hit',
+      color: proteinPct>=70 ? 'var(--complete)' : proteinPct>=40 ? 'var(--macro)' : 'var(--danger)',
+      spark: sparkHeights(thisWeek.map(d=>proteinTarget ? Math.min(100,((computeTotals(d).protein||0)/proteinTarget)*100) : 0), 100)
+    }
+  ];
+}
+function renderBioStrip(metrics){
+  const strip = document.getElementById('bioStrip');
+  const scroll = document.getElementById('bioScroll');
+  if(!metrics || !metrics.length){ strip.style.display='none'; scroll.innerHTML=''; return; }
+  strip.style.display='block';
+  scroll.innerHTML = metrics.map(m=>`
+    <div class="bio-card">
+      <div class="k">${escapeHtml(m.label)}</div>
+      <div class="v" style="color:${m.color}">${escapeHtml(m.value)}</div>
+      <div class="s">${escapeHtml(m.sub)}</div>
+      <div class="spark">${m.spark.map(h=>`<div style="height:${h}px; background:${m.color}; opacity:.55;"></div>`).join('')}</div>
+    </div>`).join('');
+}
+function scrollBioStrip(dir){
+  document.getElementById('bioScroll').scrollBy({left: dir*164, behavior:'smooth'});
+}
+async function refreshBioStrip(){
+  try{
+    renderBioStrip(await computeWeeklyBiologyMetrics());
+  }catch(err){
+    console.error('Weekly snapshot metrics failed:', err);
+  }
+}
+
 async function refreshNutrientInsight(day){
   if(nutrientInsightInFlight) return;
   if(!(day.foods||[]).length){ renderNutrientInsightCard(null); return; }
