@@ -1828,6 +1828,22 @@ function ensureChartJs(){
    TRENDS
 ========================================================= */
 let weightChartInst=null, exerciseChartInst=null, calorieLineChartInst=null, burnedLineChartInst=null;
+// Builds per-point style arrays for a Chart.js dataset so whichever point
+// corresponds to the day currently open on the Dashboard/Diary (currentDate)
+// is drawn larger and green, distinct from every other point on the line.
+// `isCurrent` is a per-index predicate so callers can match however their
+// data is shaped (aligned day array, or raw timestamps for weight logs).
+function buildPointStyles(length, isCurrent, baseColor, baseRadius, baseHoverRadius, baseBorderColor){
+  const bg=[], radius=[], hoverRadius=[], border=[];
+  for(let i=0;i<length;i++){
+    const cur = isCurrent(i);
+    bg.push(cur ? '#2FEA63' : baseColor);
+    radius.push(cur ? baseRadius+2.5 : baseRadius);
+    hoverRadius.push(cur ? baseHoverRadius+2.5 : baseHoverRadius);
+    border.push(cur ? '#FFFFFF' : baseBorderColor);
+  }
+  return {bg, radius, hoverRadius, border};
+}
 async function renderTrends(){
   await ensureChartJs();
   // Root cause of the "compressed on first open, fine after navigating away
@@ -1876,6 +1892,11 @@ async function renderTrends(){
   try{
     const ctx1 = document.getElementById('weightChart');
     if(weightChartInst) weightChartInst.destroy();
+    const weightPointStyles = buildPointStyles(
+      weightPoints.length,
+      (i)=> todayStr(new Date(weightPoints[i].x)) === currentDate,
+      '#5FB2E8', 4, 6, '#FFFFFF'
+    );
     weightChartInst = new Chart(ctx1, {
       type:'line',
       data:{datasets:[{
@@ -1895,10 +1916,10 @@ async function renderTrends(){
         fill:true,
         tension:0.3,
         spanGaps:true,
-        pointRadius:4,
-        pointHoverRadius:6,
-        pointBackgroundColor:'#5FB2E8',
-        pointBorderColor:'#FFFFFF',
+        pointRadius:weightPointStyles.radius,
+        pointHoverRadius:weightPointStyles.hoverRadius,
+        pointBackgroundColor:weightPointStyles.bg,
+        pointBorderColor:weightPointStyles.border,
         pointBorderWidth:1.5
       }]},
       options:{
@@ -1942,6 +1963,7 @@ async function renderTrends(){
       return slice.length ? Math.round(slice.reduce((sum,val)=>sum+val,0) / slice.length) : null;
     });
     try{
+      const dailyMinPointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#FF8F5E', 3.5, 5, '#141416');
       exerciseChartInst = new Chart(exCanvas, {
         type:'line',
         data:{
@@ -1955,10 +1977,10 @@ async function renderTrends(){
               fill:true,
               tension:0.35,
               borderWidth:2.5,
-              pointRadius:3.5,
-              pointHoverRadius:5,
-              pointBackgroundColor:'#FF8F5E',
-              pointBorderColor:'#141416',
+              pointRadius:dailyMinPointStyles.radius,
+              pointHoverRadius:dailyMinPointStyles.hoverRadius,
+              pointBackgroundColor:dailyMinPointStyles.bg,
+              pointBorderColor:dailyMinPointStyles.border,
               pointBorderWidth:1.2
             },
             {
@@ -2000,6 +2022,7 @@ async function renderTrends(){
   try{
     const clCanvas = document.getElementById('calorieLineChart');
     if(calorieLineChartInst){ calorieLineChartInst.destroy(); calorieLineChartInst=null; }
+    const intakePointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#FF8F5E', 3, 5, '#141416');
     calorieLineChartInst = new Chart(clCanvas, {
       type:'line',
       data:{
@@ -2013,10 +2036,10 @@ async function renderTrends(){
             fill:true,
             tension:0.35,
             borderWidth:2.5,
-            pointRadius:3,
-            pointHoverRadius:5,
-            pointBackgroundColor:'#FF8F5E',
-            pointBorderColor:'#141416',
+            pointRadius:intakePointStyles.radius,
+            pointHoverRadius:intakePointStyles.hoverRadius,
+            pointBackgroundColor:intakePointStyles.bg,
+            pointBorderColor:intakePointStyles.border,
             pointBorderWidth:1.2
           },
           {
@@ -2055,6 +2078,7 @@ async function renderTrends(){
   try{
     const burnCanvas = document.getElementById('burnedLineChart');
     if(burnedLineChartInst){ burnedLineChartInst.destroy(); burnedLineChartInst=null; }
+    const burnPointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#5FB2E8', 3, 5, '#141416');
     burnedLineChartInst = new Chart(burnCanvas, {
       type:'line',
       data:{
@@ -2067,10 +2091,10 @@ async function renderTrends(){
           fill:true,
           tension:0.35,
           borderWidth:2.5,
-          pointRadius:3,
-          pointHoverRadius:5,
-          pointBackgroundColor:'#5FB2E8',
-          pointBorderColor:'#141416',
+          pointRadius:burnPointStyles.radius,
+          pointHoverRadius:burnPointStyles.hoverRadius,
+          pointBackgroundColor:burnPointStyles.bg,
+          pointBorderColor:burnPointStyles.border,
           pointBorderWidth:1.2
         }]
       },
