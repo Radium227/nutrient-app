@@ -18,7 +18,7 @@
   --line:#38383F;
   --text:#FFFFFF;
   --text-dim:#D3D4DA;
-  --text-faint:#9799A3;
+  --text-faint:#C2C3CB;
   --macro:#FF8F5E;
   --macro-dim:#5C3D2C;
   --vit:#FFD60A;
@@ -1910,10 +1910,10 @@ async function renderTrends(){
           x:{
             type:'linear',
             min:rangeStartTs, max:rangeEndTs,
-            ticks:{color:'#9799A3', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
+            ticks:{color:'#C2C3CB', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
             grid:{color:'#38383F'}
           },
-          y:{ticks:{color:'#9799A3'}, grid:{color:'#38383F'}}
+          y:{ticks:{color:'#C2C3CB'}, grid:{color:'#38383F'}}
         }
       }
     });
@@ -1977,8 +1977,8 @@ async function renderTrends(){
             tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0} min`}}
           },
           scales:{
-            x:{ticks:{color:'#9799A3', maxTicksLimit:5}, grid:{display:false}},
-            y:{beginAtZero:true, ticks:{color:'#9799A3', callback:(v)=>`${v} min`}, grid:{color:'#38383F'}}
+            x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
+            y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v} min`}, grid:{color:'#38383F'}}
           }
         }
       });
@@ -2034,7 +2034,7 @@ async function renderTrends(){
           {
             label:'Target',
             data:days.map(()=>calTarget||null),
-            borderColor:'#9799A3',
+            borderColor:'#C2C3CB',
             borderWidth:1.5,
             borderDash:[2,3],
             pointRadius:0,
@@ -2050,8 +2050,8 @@ async function renderTrends(){
           tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
         },
         scales:{
-          x:{ticks:{color:'#9799A3', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, ticks:{color:'#9799A3', callback:(v)=>`${v}`}, grid:{color:'#38383F'}},
+          x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
+          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}},
           y1:{
             beginAtZero:true,
             position:'right',
