@@ -191,7 +191,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .bio-card:last-child{border-right:none;}
 .bio-card .k{font-size:9.5px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-dim); line-height:1.35; height:24px;}
 .bio-card .v{font-family:var(--font-display); font-style:italic; font-weight:700; font-size:23px; margin-top:10px; line-height:1;}
-.bio-card .spark{display:flex; align-items:flex-end; gap:3px; height:26px; margin:12px 0;}
+.bio-card .spark{display:flex; align-items:flex-end; justify-content:center; gap:3px; height:26px; margin:12px 0;}
 .bio-card .spark div{width:2.5px; flex:0 0 2.5px; border-radius:2px; min-height:3px; box-shadow:0 0 6px -1px currentColor;}
 .bio-card .s{font-size:10.5px; color:var(--text-dim);}
 .bio-detail-summary{text-align:center; margin-bottom:2px;}
@@ -2635,13 +2635,14 @@ async function computeWeeklyBiologyMetrics(){
     : 0;
 
   // Per-day breakdown data for the tap-to-expand detail modal — every
-  // metric below is built from these same 7 aligned days so the modal can
-  // show exactly what fed the headline number.
-  const thisWeekDates = days14.slice(7);
-  const thisWeekHasFood = thisWeek.map(d=>(d.foods||[]).length>0);
-  const thisWeekCalories = thisWeek.map(d=>computeTotals(d).calories||0);
-  const thisWeekWater = thisWeek.map(d=>computeTotals(d).water||0);
-  const thisWeekProtein = thisWeek.map(d=>computeTotals(d).protein||0);
+  // metric below is built from these same 14 aligned days so the modal can
+  // show exactly what fed the headline number, and matches the 14-day
+  // sparklines on the cards themselves.
+  const thisWeekDates = days14;
+  const thisWeekHasFood = dayDatas.map(d=>(d.foods||[]).length>0);
+  const thisWeekCalories = dayDatas.map(d=>computeTotals(d).calories||0);
+  const thisWeekWater = dayDatas.map(d=>computeTotals(d).water||0);
+  const thisWeekProtein = dayDatas.map(d=>computeTotals(d).protein||0);
   function dayStatus(pct, hasData){
     if(!hasData) return 'none';
     if(pct>=80) return 'good';
@@ -2663,7 +2664,7 @@ async function computeWeeklyBiologyMetrics(){
       detail:{
         note:'How close each day came to hitting every nutrient target, averaged across all of them.',
         rows: buildRows(i=>{
-          const pct = thisWeekCompletion[i];
+          const pct = fullCompletion14[i];
           return {primary:`${Math.round(pct)}%`, secondary:'avg. of all targets', pct, status:dayStatus(pct, thisWeekHasFood[i])};
         })
       }
@@ -2678,7 +2679,7 @@ async function computeWeeklyBiologyMetrics(){
       detail:{
         note:`How many of your ${nutrientsWithTargets.length} tracked nutrients reached at least half their daily target.`,
         rows: buildRows(i=>{
-          const count = thisWeekDiversity[i];
+          const count = fullDiversity14[i];
           const pct = nutrientsWithTargets.length ? (count/nutrientsWithTargets.length)*100 : 0;
           return {primary:`${count}/${nutrientsWithTargets.length}`, secondary:'nutrients ≥50%', pct, status:dayStatus(pct, thisWeekHasFood[i])};
         })
@@ -2695,7 +2696,7 @@ async function computeWeeklyBiologyMetrics(){
         note:'Whether anything was logged that day. The streak counts back from today until the first gap.',
         rows: buildRows(i=>{
           const hasFood = thisWeekHasFood[i];
-          const items = (thisWeek[i].foods||[]).length;
+          const items = (dayDatas[i].foods||[]).length;
           return {
             primary: hasFood ? 'Logged' : 'No log',
             secondary: hasFood ? `${items} item${items===1?'':'s'} logged` : '—',
