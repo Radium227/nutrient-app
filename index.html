@@ -812,7 +812,9 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
     <div class="card">
       <h2>Data</h2>
-      <button class="btn ghost block" onclick="exportData()">Export all data (JSON)</button>
+      <button class="btn ghost block" onclick="exportDayNutrientProfile()">Export nutrient profile for <span id="exportDayLabel">today</span> (CSV)</button>
+      <div class="hint" style="margin-top:8px;">Every nutrient total plus each food logged for the day you're currently viewing (change the date from the Dashboard/Diary tab first if you want a different day) — a flat CSV you can drop into a spreadsheet or any other tool.</div>
+      <button class="btn ghost block" style="margin-top:10px;" onclick="exportData()">Export all data (JSON)</button>
     </div>
   </div>
 
@@ -1498,6 +1500,8 @@ async function shiftDate(delta){
 
 async function renderAll(){
   document.getElementById('dateLabel').textContent = fmtDateLabel(currentDate);
+  const exportDayLabelEl = document.getElementById('exportDayLabel');
+  if(exportDayLabelEl) exportDayLabelEl.textContent = fmtDateLabel(currentDate);
   const day = await loadDay(currentDate);
   renderDashboard(day);
   renderDiary(day);
@@ -4083,12 +4087,30 @@ async function saveWeight(){
   if(!w) return;
   const day = await loadDay(currentDate);
   day.weights = day.weights||[];
-  day.weights.push({id:'w'+Date.now(), value:w, ts:Date.now()});
+  const entry = {id:'w'+Date.now(), value:w, ts:Date.now()};
+  day.weights.push(entry);
   delete day.weight; // drop legacy single-value field now that weights[] is the source of truth
   closeModal('weightModal');
   renderAll();
   showToast('Weight logged');
   saveDay(currentDate);
+  await syncProfileWeightFromLog(w, entry.ts);
+}
+// Keeps the Weight field in Settings (used for BMR / protein-target math)
+// in step with whatever you actually log via "+ Log weight" -- so you don't
+// have to separately retype it in Settings every time. Guarded by
+// timestamp: if you ever backfill an OLDER weight for a past date after
+// already logging a more recent one, this won't overwrite the newer value.
+// Deliberately does NOT touch calorie/macro targets -- those only
+// recalculate when you tap "Save & recalculate targets", so any custom
+// nutrient overrides you've set elsewhere are left alone.
+async function syncProfileWeightFromLog(value, ts){
+  if(!value || value<=0) return;
+  if(profile.weightUpdatedAt && ts < profile.weightUpdatedAt) return;
+  profile = {...profile, weight:value, weightUpdatedAt:ts};
+  const pWeightEl = document.getElementById('pWeight');
+  if(pWeightEl) pWeightEl.value = value;
+  await storeSet('profile', profile);
 }
 async function deleteWeight(id){
   const day = await loadDay(currentDate);
@@ -4276,6 +4298,57 @@ async function exportData(){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'nutrient-export.json';
+  a.click();
+}
+
+// Wraps a value in quotes only if it actually needs it (contains a comma,
+// quote, or newline) -- keeps the common case readable in a plain editor.
+function csvEscape(value){
+  const s = String(value==null ? '' : value);
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+
+// Builds a flat, single-file CSV for one day: every nutrient total against
+// its target, followed by every food logged that day with its own macro
+// breakdown -- everything needed to analyze that day's diet elsewhere
+// (a spreadsheet, a notebook, another tool) without touching the app's JSON.
+function buildDayNutrientProfileCsv(day, dateLabel){
+  const totals = computeTotals(day);
+  const lines = [];
+  lines.push(csvEscape(`Nutrient profile — ${dateLabel}`));
+  lines.push('');
+  lines.push('Nutrient,Amount,Unit,Target,% of Target');
+  NUTRIENTS.forEach(n=>{
+    const v = Number(totals[n.id]||0);
+    const t = getTarget(n.id);
+    const pct = t>0 ? Math.round((v/t)*100) : '';
+    lines.push([csvEscape(n.name), round1(v), n.unit, t||'', pct].join(','));
+  });
+  lines.push('');
+  lines.push('Calories burned (exercise),'+computeBurned(day));
+  const latestW = latestWeight(day);
+  if(latestW!=null) lines.push('Weight logged (kg),'+latestW);
+  lines.push('');
+  lines.push('Foods logged,Grams,Time,Calories,Protein (g),Carbs (g),Fat (g),Fiber (g),Sugars (g),Saturated Fat (g),Sodium (mg)');
+  (day.foods||[]).forEach(f=>{
+    const n = f.nutrients||{};
+    lines.push([
+      csvEscape(f.name), round1(f.grams||0), csvEscape(f.time||''),
+      round1(n.calories||0), round1(n.protein||0), round1(n.carbs||0), round1(n.fat||0),
+      round1(n.fiber||0), round1(n.sugars||0), round1(n.saturatedFat||0), round1(n.sodium||0)
+    ].join(','));
+  });
+  return lines.join('\n');
+}
+
+async function exportDayNutrientProfile(){
+  const day = await loadDay(currentDate);
+  const label = fmtDateLabel(currentDate);
+  const csv = buildDayNutrientProfileCsv(day, label);
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nutrient-profile-${currentDate}.csv`;
   a.click();
 }
 
