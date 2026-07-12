@@ -11,14 +11,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  --bg:#13151A;
-  --surface:#1B1E26;
-  --surface-2:#252932;
-  --surface-3:#323744;
-  --line:#3E4451;
-  --text:#F1F2F5;
-  --text-dim:#A9AEBB;
-  --text-faint:#6E7381;
+  --bg:#0B1220;
+  --surface:#131E30;
+  --surface-2:#1A2A44;
+  --surface-3:#25355A;
+  --line:#31456B;
+  --text:#EDF2FA;
+  --text-dim:#9DB1CE;
+  --text-faint:#647694;
   --macro:#FF8F5E;
   --macro-dim:#5C3D2C;
   --vit:#FFD60A;
@@ -2368,15 +2368,15 @@ function getCachedDietAnalysis(day){
   return cached.signature === buildDietAnalysisSignature(day) ? cached : null;
 }
 
-function saveDietAnalysisToDay(day, result, apiUsed){
+function saveDietAnalysisToDay(day, result, apiUsed, forDate){
   day.dietAnalysis = {
     signature: buildDietAnalysisSignature(day),
     result,
     apiUsed,
     updatedAt: Date.now()
   };
-  dayCache[currentDate] = day;
-  saveDay(currentDate);
+  dayCache[forDate] = day;
+  saveDay(forDate);
 }
 
 /* =========================================================
@@ -2423,14 +2423,14 @@ function getCachedNutrientInsight(day){
   return cached.signature === buildDietAnalysisSignature(day) ? cached : null;
 }
 
-function saveNutrientInsightToDay(day, result){
+function saveNutrientInsightToDay(day, result, forDate){
   day.nutrientInsight = {
     signature: buildDietAnalysisSignature(day),
     result,
     updatedAt: Date.now()
   };
-  dayCache[currentDate] = day;
-  saveDay(currentDate);
+  dayCache[forDate] = day;
+  saveDay(forDate);
 }
 
 // Safely wraps a nutrient name with a colored <b> in the finding sentence,
@@ -2785,11 +2785,11 @@ async function refreshNutrientInsight(day){
     const prompt = buildNutrientInsightPrompt(day);
     const parsed = await callGemini([{type:'text', text:prompt}], 'text');
     if(!parsed || !parsed.finding){
-      saveNutrientInsightToDay(day, {finding:null});
+      saveNutrientInsightToDay(day, {finding:null}, fetchedForDate);
       if(currentDate === fetchedForDate) renderNutrientInsightCard(null);
       return;
     }
-    saveNutrientInsightToDay(day, parsed);
+    saveNutrientInsightToDay(day, parsed, fetchedForDate);
     // Only repaint if the person hasn't navigated to a different day while
     // this was in flight -- otherwise this result belongs on a day they're
     // no longer looking at.
