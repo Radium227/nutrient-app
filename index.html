@@ -2992,32 +2992,89 @@ function saveDietAnalysisToDay(day, result, apiUsed, forDate){
    same foods+exercises+profile signature, so it only re-calls the AI when
    what's actually logged has changed.
 ========================================================= */
-function buildNutrientInsightPrompt(day){
+// Looks back over the last several days' cached Today's Finding results
+// (already stored on each day object — no extra fetch needed) so the prompt
+// can actively steer away from repeating the same nutrient, pair, or TYPE of
+// finding unless it's genuinely still the most relevant thing to flag.
+async function getRecentInsightMentions(beforeDate, days){
+  const recent = await loadRecentDays(days||6, dateOffsetStr(beforeDate, -1));
+  const nutrients = [], types = [];
+  recent.forEach(x=>{
+    const r = normalizeInsightResult(x.day && x.day.nutrientInsight && x.day.nutrientInsight.result);
+    if(!r || !r.finding) return;
+    (r.nutrients||[]).forEach(name=>{ if(!nutrients.includes(name)) nutrients.push(name); });
+    if(r.type && !types.includes(r.type)) types.push(r.type);
+  });
+  return {nutrients, types};
+}
+
+// The card is no longer only about deficiencies or nutrient-vs-nutrient
+// combos — INSIGHT_TYPE_META covers the full range of things worth saying
+// about a day's diary (a plain fact, a caution, a genuine interaction, etc).
+const INSIGHT_TYPE_META = {
+  interaction: {label:'Interaction',   color:'var(--vit)'},
+  spotlight:   {label:'Did you know',  color:'var(--min)'},
+  density:     {label:'Nutrient-dense',color:'var(--other)'},
+  benefit:     {label:'Benefit',       color:'var(--good)'},
+  caution:     {label:'Caution',       color:'var(--danger)'},
+};
+
+function buildNutrientInsightPrompt(day, recentMentions){
   const totals = computeTotals(day);
   const gaps = NUTRIENTS.map(n=>{
     const target = getTarget(n.id);
     if(!target) return null;
     const value = Number(totals[n.id] || 0);
     const pct = Math.round((value / target) * 100);
-    return {name:n.name, pct};
+    return {name:n.name, cat:n.cat, pct};
   }).filter(Boolean).sort((a,b)=>a.pct-b.pct);
 
-  return `You are a nutrition scientist writing ONE short home-screen insight card. Look at the real foods logged today and the nutrient completion percentages below, and surface ONE specific, genuinely useful connection between nutrients — e.g. a nutrient that's low which limits absorption/use of another (like low vitamin C limiting iron uptake, or low zinc competing with magnesium), a synergy between two nutrients both present today, or a non-obvious nutrient worth paying attention to given what's already been eaten. Reference real, established nutrition science (absorption cofactors, competing pathways, known synergistic pairs) — never invent a fake mechanism, and never repeat generic advice like "eat more vegetables".
+  // Per-food standout nutrients — gives the model concrete material for
+  // "did you know this food is rich in X" / nutrient-density findings,
+  // not just gap-filling.
+  const foodStandouts = (day.foods||[]).map(f=>{
+    const highlights = pickHighlightNutrients(f.nutrients||{}, ['calories','protein','carbs','fat'], 2);
+    if(!highlights.length) return null;
+    return `- ${f.name}: ${highlights.map(h=>`${h.name} (${Math.round(h.pct)}% of daily target from this amount)`).join(', ')}`;
+  }).filter(Boolean).slice(0,8).join('\n');
+
+  const overTarget = gaps.filter(g=>g.pct>=130).sort((a,b)=>b.pct-a.pct).slice(0,6);
+
+  const recent = recentMentions || {nutrients:[], types:[]};
+  const recentNutrients = recent.nutrients.slice(0,8);
+  const recentTypes = recent.types;
+
+  return `You are a nutrition scientist writing ONE short home-screen insight card about today's real diary data. It does NOT have to be a deficiency, a combination, or an interaction — pick whichever single true, specific, genuinely interesting thing is most worth surfacing about today. Valid angles include, but are not limited to:
+- INTERACTION: one nutrient enabling, limiting, or competing with another (vitamin D × calcium, zinc × copper, tannins/phytates blocking iron, etc.)
+- SPOTLIGHT: a "did you know" fact about a specific food logged today (its standout nutrient, an unusual property, a fun/true detail)
+- DENSITY: which food logged today is the most nutrient-dense, or the best source of the nutrient it's known for
+- BENEFIT: a real general benefit of a nutrient present in today's data (e.g. "Omega-3 supports better sleep and lowers inflammation")
+- CAUTION: a nutrient being consumed in excess today, or a real risk of overconsuming something generally (e.g. too much vitamin A, sodium, added sugar)
+
+Vary the TYPE across days — do not default to only interactions or only deficiencies. Reference only real, established nutrition science; never invent a fake mechanism or fake statistic; never repeat generic advice like "eat more vegetables".
+
+${recentTypes.length ? `Finding types used on recent days: ${recentTypes.join(', ')}. Prefer a different type today unless nothing else genuinely fits.` : ''}
+${recentNutrients.length ? `Nutrients already featured in recent days — prefer a DIFFERENT nutrient today unless one of these is clearly still the single most relevant thing: ${recentNutrients.join(', ')}.` : ''}
 
 Foods logged today:
 ${summarizeDayFoods(day) || '- No foods logged yet today.'}
 
+Standout nutrients per food logged today (useful for SPOTLIGHT/DENSITY findings):
+${foodStandouts || '- Not enough detail yet.'}
+
 Nutrient completion (lowest first, as % of target):
-${gaps.slice(0,12).map(g=>`- ${g.name}: ${g.pct}%`).join('\n') || '- No targets configured.'}
+${gaps.slice(0,20).map(g=>`- ${g.name} (${g.cat}): ${g.pct}%`).join('\n') || '- No targets configured.'}
+
+Nutrients well above target today (useful for CAUTION findings):
+${overTarget.length ? overTarget.map(g=>`- ${g.name}: ${g.pct}%`).join('\n') : '- None notably over target.'}
 
 Return ONLY this JSON shape, nothing else:
 {
-  "finding": "1-2 short sentences, under 32 words total, specific and actionable, naming the nutrients involved by name",
-  "limiting": "the single most limiting nutrient's name, or null if nothing stands out",
-  "synergy": "short 'X × Y' label for two interacting nutrients, or null",
-  "hidden": "one non-obvious nutrient worth flagging, or null",
+  "finding": "1-2 short sentences, under 32 words total, specific and true, naming the nutrient(s) or food involved by name",
+  "type": "interaction" | "spotlight" | "density" | "benefit" | "caution",
+  "nutrients": ["1-2 nutrient names mentioned in the finding, exactly as listed above"],
   "confidence": 0.0-1.0,
-  "reasoning": "2-3 plain-language sentences on the underlying mechanism and why this was flagged today specifically"
+  "reasoning": "2-3 plain-language sentences on why this is true and why it was worth flagging today specifically"
 }
 If there isn't enough logged today to say anything specific and genuinely useful, return exactly {"finding": null} and nothing else.`;
 }
@@ -3038,6 +3095,18 @@ function saveNutrientInsightToDay(day, result, forDate){
   saveDay(forDate);
 }
 
+// Accepts either the current {finding, type, nutrients, ...} shape or an
+// older cached {finding, limiting, synergy, hidden, ...} result (saved
+// before this update) and normalizes both to the current shape, so nothing
+// breaks for findings that were already stored before this change shipped.
+function normalizeInsightResult(raw){
+  if(!raw || !raw.finding) return raw;
+  if(Array.isArray(raw.nutrients)) return raw;
+  const nutrients = [...new Set([raw.limiting, raw.hidden, ...String(raw.synergy||'').split('×').map(s=>s.trim())].filter(Boolean))];
+  const type = raw.synergy ? 'interaction' : (raw.limiting ? 'caution' : 'spotlight');
+  return {...raw, type, nutrients};
+}
+
 // Safely wraps a nutrient name with a colored <b> in the finding sentence,
 // without touching anything else in the string (escapes regex chars, only
 // replaces the first match so it can't run away on short/common words).
@@ -3050,31 +3119,23 @@ function highlightInsightTerm(text, term, color){
   return text.replace(re, inner);
 }
 // Wraps a nutrient-name tag value in a clickable span if it resolves to a
-// known nutrient id, so tapping "Limiting", "Hidden", or either half of a
-// "X × Y" synergy label opens that nutrient's detail panel.
+// known nutrient id, so tapping a tag opens that nutrient's detail panel.
 function clickableInsightTagValue(value){
   const escaped = escapeHtml(value);
-  if(/×/.test(value)){
-    return value.split('×').map(part=>{
-      const trimmed = part.trim();
-      const id = resolveNutrientIdByName(trimmed);
-      return id ? `<span class="insight-term" onclick="event.stopPropagation(); openNutrientDetail('${id}', true)">${escapeHtml(trimmed)}</span>` : escapeHtml(trimmed);
-    }).join(' × ');
-  }
   const id = resolveNutrientIdByName(value);
   return id ? `<span class="insight-term" onclick="event.stopPropagation(); openNutrientDetail('${id}', true)">${escaped}</span>` : escaped;
 }
 
 let nutrientInsightInFlight = false;
-function renderNutrientInsightCard(state){
+function renderNutrientInsightCard(rawState){
   const card = document.getElementById('insightCard');
-  if(!state){
+  if(!rawState){
     card.style.display = 'none';
     card.innerHTML = '';
     return;
   }
   card.style.display = 'block';
-  if(state === 'loading'){
+  if(rawState === 'loading'){
     card.innerHTML = `
       <div class="insight-eyebrow">Today's finding</div>
       <div class="insight-skel" style="width:96%;"></div>
@@ -3082,20 +3143,19 @@ function renderNutrientInsightCard(state){
     `;
     return;
   }
-  if(!state.finding){
+  const state = normalizeInsightResult(rawState);
+  if(!state || !state.finding){
     card.style.display = 'none';
     card.innerHTML = '';
     return;
   }
+  const meta = INSIGHT_TYPE_META[state.type] || INSIGHT_TYPE_META.spotlight;
   let finding = escapeHtml(state.finding);
-  if(state.limiting) finding = highlightInsightTerm(finding, escapeHtml(state.limiting), 'var(--vit)');
-  if(state.hidden) finding = highlightInsightTerm(finding, escapeHtml(state.hidden), 'var(--min)');
+  (state.nutrients||[]).forEach(name=>{
+    finding = highlightInsightTerm(finding, escapeHtml(name), meta.color);
+  });
 
-  const tags = [
-    state.limiting ? {k:'Limiting', v:state.limiting, color:'var(--danger)'} : null,
-    state.synergy ? {k:'Synergy', v:state.synergy, color:'var(--vit)'} : null,
-    state.hidden ? {k:'Hidden', v:state.hidden, color:'var(--min)'} : null,
-  ].filter(Boolean);
+  const tags = (state.nutrients||[]).slice(0,2).map((name,i)=>({k: i===0?meta.label:'Also', v:name, color:meta.color}));
 
   const confidencePct = state.confidence!=null ? Math.round(Math.min(1,Math.max(0,state.confidence))*100)/100 : null;
   const updatedAgo = (dayCache[currentDate] && dayCache[currentDate].nutrientInsight && dayCache[currentDate].nutrientInsight.updatedAt)
@@ -3407,7 +3467,8 @@ async function refreshNutrientInsight(day){
   nutrientInsightInFlight = true;
   const fetchedForDate = currentDate;
   try{
-    const prompt = buildNutrientInsightPrompt(day);
+    const recentMentions = await getRecentInsightMentions(fetchedForDate);
+    const prompt = buildNutrientInsightPrompt(day, recentMentions);
     const parsed = await callGemini([{type:'text', text:prompt}], 'text');
     if(!parsed || !parsed.finding){
       saveNutrientInsightToDay(day, {finding:null}, fetchedForDate);
@@ -4873,9 +4934,8 @@ async function openNutrientDetail(id, fromInsight){
   // (no extra AI call, always dynamic to today's actual diary).
   let whyHtml = '';
   const cachedInsight = getCachedNutrientInsight(day);
-  const insightResult = cachedInsight && cachedInsight.result;
-  const insightMentionsThis = insightResult && [insightResult.limiting, insightResult.hidden, ...(String(insightResult.synergy||'').split('×').map(s=>s.trim()))]
-    .filter(Boolean).some(name=>resolveNutrientIdByName(name)===id);
+  const insightResult = cachedInsight && normalizeInsightResult(cachedInsight.result);
+  const insightMentionsThis = insightResult && (insightResult.nutrients||[]).some(name=>resolveNutrientIdByName(name)===id);
   if(fromInsight && insightResult && insightMentionsThis){
     const statusBullet = t>0
       ? (pct>=100 ? `Your ${n.name.toLowerCase()} intake is adequate today (${Math.round(pct)}% of target).` : `Your ${n.name.toLowerCase()} intake is only ${Math.round(pct)}% of target today.`)
