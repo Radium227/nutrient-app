@@ -11,14 +11,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  --bg:#0E1815;
-  --surface:#152622;
-  --surface-2:#1C332D;
-  --surface-3:#25423A;
-  --line:#2C4941;
-  --text:#EAF3EF;
-  --text-dim:#9FBAB0;
-  --text-faint:#6D897E;
+  --bg:#0B1220;
+  --surface:#131E30;
+  --surface-2:#1A2A44;
+  --surface-3:#25355A;
+  --line:#31456B;
+  --text:#EDF2FA;
+  --text-dim:#9DB1CE;
+  --text-faint:#647694;
   --macro:#FF8F5E;
   --macro-dim:#5C3D2C;
   --vit:#FFD60A;
@@ -177,7 +177,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .insight-reasoning{font-size:13px; line-height:1.5; color:var(--text-dim); margin:-4px 0 14px; display:none;}
 .insight-reasoning.open{display:block;}
 .insight-skel{height:14px; border-radius:6px; background:var(--surface-3); margin:10px 0; overflow:hidden; position:relative;}
-.insight-skel::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(234,243,239,0.08), transparent); animation:insightShimmer 1.4s infinite;}
+.insight-skel::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(237,242,250,0.08), transparent); animation:insightShimmer 1.4s infinite;}
 @keyframes insightShimmer{0%{transform:translateX(-100%);} 100%{transform:translateX(100%);}}
 .bio-strip{margin-bottom:14px;}
 .bio-strip-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
@@ -230,7 +230,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 /* ---------- Bottom nav ---------- */
 .bottomnav{
   position:fixed; bottom:0; left:0; right:0; z-index:30;
-  background:rgba(21,38,34,0.92); backdrop-filter:blur(14px);
+  background:rgba(19,30,48,0.92); backdrop-filter:blur(14px);
   border-top:1px solid var(--line);
   display:flex; justify-content:center;
 }
@@ -531,7 +531,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 }
 
 /* ---------- Modal ---------- */
-.modal-backdrop{position:fixed; inset:0; background:rgba(5,10,8,0.72); z-index:50; display:none; align-items:flex-end; justify-content:center;}
+.modal-backdrop{position:fixed; inset:0; background:rgba(4,7,14,0.72); z-index:50; display:none; align-items:flex-end; justify-content:center;}
 .modal-backdrop.open{display:flex;}
 .modal{background:var(--surface); width:100%; max-width:560px; border-radius:24px 24px 0 0; padding:20px 20px calc(20px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto; overflow-x:hidden; border:1px solid var(--line); border-bottom:none;}
 .modal-handle{width:36px;height:4px;background:var(--line); border-radius:3px; margin:0 auto 16px;}
@@ -1867,7 +1867,7 @@ async function renderTrends(){
         pointRadius:4,
         pointHoverRadius:6,
         pointBackgroundColor:'#5FB2E8',
-        pointBorderColor:'#EAF3EF',
+        pointBorderColor:'#EDF2FA',
         pointBorderWidth:1.5
       }]},
       options:{
@@ -1882,10 +1882,10 @@ async function renderTrends(){
           x:{
             type:'linear',
             min:rangeStartTs, max:rangeEndTs,
-            ticks:{color:'#6D897E', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
-            grid:{color:'#2C4941'}
+            ticks:{color:'#647694', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})},
+            grid:{color:'#31456B'}
           },
-          y:{ticks:{color:'#6D897E'}, grid:{color:'#2C4941'}}
+          y:{ticks:{color:'#647694'}, grid:{color:'#31456B'}}
         }
       }
     });
@@ -1927,7 +1927,7 @@ async function renderTrends(){
               pointRadius:3.5,
               pointHoverRadius:5,
               pointBackgroundColor:'#FF8F5E',
-              pointBorderColor:'#152622',
+              pointBorderColor:'#131E30',
               pointBorderWidth:1.2
             },
             {
@@ -1945,12 +1945,12 @@ async function renderTrends(){
         options:{
           maintainAspectRatio:false,
           plugins:{
-            legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+            legend:{position:'bottom', labels:{color:'#9DB1CE', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
             tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${item.parsed.y ?? 0} min`}}
           },
           scales:{
-            x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
-            y:{beginAtZero:true, ticks:{color:'#6D897E', callback:(v)=>`${v} min`}, grid:{color:'#2C4941'}}
+            x:{ticks:{color:'#647694', maxTicksLimit:5}, grid:{display:false}},
+            y:{beginAtZero:true, ticks:{color:'#647694', callback:(v)=>`${v} min`}, grid:{color:'#31456B'}}
           }
         }
       });
@@ -1985,7 +1985,7 @@ async function renderTrends(){
             pointRadius:3,
             pointHoverRadius:5,
             pointBackgroundColor:'#FF8F5E',
-            pointBorderColor:'#152622',
+            pointBorderColor:'#131E30',
             pointBorderWidth:1.2
           },
           {
@@ -1999,13 +1999,13 @@ async function renderTrends(){
             pointRadius:3,
             pointHoverRadius:5,
             pointBackgroundColor:'#5FB2E8',
-            pointBorderColor:'#152622',
+            pointBorderColor:'#131E30',
             pointBorderWidth:1.2
           },
           {
             label:'Target',
             data:days.map(()=>calTarget||null),
-            borderColor:'#6D897E',
+            borderColor:'#647694',
             borderWidth:1.5,
             borderDash:[2,3],
             pointRadius:0,
@@ -2017,12 +2017,12 @@ async function renderTrends(){
       options:{
         maintainAspectRatio:false,
         plugins:{
-          legend:{position:'bottom', labels:{color:'#9FBAB0', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+          legend:{position:'bottom', labels:{color:'#9DB1CE', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
           tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
         },
         scales:{
-          x:{ticks:{color:'#6D897E', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, ticks:{color:'#6D897E', callback:(v)=>`${v}`}, grid:{color:'#2C4941'}}
+          x:{ticks:{color:'#647694', maxTicksLimit:5}, grid:{display:false}},
+          y:{beginAtZero:true, ticks:{color:'#647694', callback:(v)=>`${v}`}, grid:{color:'#31456B'}}
         }
       }
     });
@@ -2034,7 +2034,7 @@ async function renderTrends(){
     {key:'under', label:'Under target', color:'#2FEA63'},
     {key:'near', label:'Near target', color:'#FFD60A'},
     {key:'over', label:'Over target', color:'#FF453A'},
-    {key:'empty', label:'No log', color:'#2C4941'}
+    {key:'empty', label:'No log', color:'#31456B'}
   ];
   legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>`;
   heatmapHost.className = 'heatmap-grid';
