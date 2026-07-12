@@ -32,12 +32,12 @@
   --complete:#2FEA63;
   --good:#2FEA63;
   --danger:#FF453A;
-  --bio-momentum:#FF6B4D;
-  --bio-diversity:#5FDD6B;
-  --bio-streak:#FFC13B;
-  --bio-stability:#4CA3FF;
-  --bio-hydration:#22E4C9;
-  --bio-protein:#F057B0;
+  --bio-momentum:#FF5C7A;
+  --bio-diversity:#3DDC84;
+  --bio-streak:#FFB020;
+  --bio-stability:#3E8EF7;
+  --bio-hydration:#17D9C4;
+  --bio-protein:#B26BFF;
   --radius-lg:20px;
   --radius-md:14px;
   --radius-sm:9px;
@@ -186,14 +186,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .bio-scroll-wrap{position:relative;}
 .bio-scroll{display:flex; gap:0; overflow-x:visible; border:1px solid var(--line); border-radius:var(--radius-lg); background:var(--surface); position:relative;}
 .bio-scroll-fade{display:none;}
-.bio-card{flex:1 1 0; min-width:0; padding:16px 10px 14px; border-right:1px solid var(--line); border-top:3px solid var(--card-color, var(--line)); cursor:pointer; transition:background .15s ease; background:linear-gradient(180deg, color-mix(in srgb, var(--card-color, transparent) 10%, transparent), transparent 70%);}
-.bio-card:active{background:color-mix(in srgb, var(--card-color, var(--surface-2)) 16%, var(--surface-2));}
+.bio-card{flex:1 1 0; min-width:0; padding:16px 10px 14px; border-right:1px solid var(--line); cursor:pointer; transition:background .15s ease;}
+.bio-card:active{background:var(--surface-2);}
 .bio-card:last-child{border-right:none;}
-.bio-card .k{font-size:9.5px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-faint); line-height:1.35; height:24px;}
-.bio-card .v{font-family:var(--font-display); font-style:italic; font-weight:700; font-size:23px; margin-top:10px; line-height:1; text-shadow:0 0 18px color-mix(in srgb, var(--card-color, transparent) 55%, transparent);}
-.bio-card .s{font-size:10.5px; color:var(--text-faint); margin-top:4px;}
-.bio-card .spark{display:flex; align-items:flex-end; gap:3px; height:26px; margin-top:12px;}
-.bio-card .spark div{width:3px; flex:0 0 3px; border-radius:3px; min-height:3px; box-shadow:0 0 6px -1px currentColor;}
+.bio-card .k{font-size:9.5px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-dim); line-height:1.35; height:24px;}
+.bio-card .v{font-family:var(--font-display); font-style:italic; font-weight:700; font-size:23px; margin-top:10px; line-height:1;}
+.bio-card .spark{display:flex; align-items:flex-end; gap:3px; height:26px; margin:12px 0;}
+.bio-card .spark div{width:2.5px; flex:0 0 2.5px; border-radius:2px; min-height:3px; box-shadow:0 0 6px -1px currentColor;}
+.bio-card .s{font-size:10.5px; color:var(--text-dim);}
 .bio-detail-summary{text-align:center; margin-bottom:2px;}
 .bio-detail-summary .v{font-family:var(--font-display); font-style:italic; font-weight:600; font-size:32px;}
 .bio-detail-summary .s{color:var(--text-dim); font-size:12.5px; margin-top:2px;}
@@ -2595,11 +2595,13 @@ async function computeWeeklyBiologyMetrics(){
 
   const thisWeekCompletion = thisWeek.map(dailyCompletionPct);
   const lastWeekCompletion = lastWeek.map(dailyCompletionPct);
+  const fullCompletion14 = dayDatas.map(dailyCompletionPct);
   const avgThis = thisWeekCompletion.reduce((a,b)=>a+b,0)/7;
   const avgLast = lastWeekCompletion.reduce((a,b)=>a+b,0)/7;
   const momentumDelta = avgThis - avgLast;
 
   const thisWeekDiversity = thisWeek.map(dailyDiverseCount);
+  const fullDiversity14 = dayDatas.map(dailyDiverseCount);
   const avgDiversity = Math.round(thisWeekDiversity.reduce((a,b)=>a+b,0)/7);
   const diversityRatio = nutrientsWithTargets.length ? avgDiversity/nutrientsWithTargets.length : 0;
 
@@ -2657,7 +2659,7 @@ async function computeWeeklyBiologyMetrics(){
       value: `${momentumDelta>=0?'+':''}${momentumDelta.toFixed(1)}%`,
       sub:'vs prior 7 days',
       color: 'var(--bio-momentum)',
-      spark: sparkHeights(thisWeekCompletion, 100),
+      spark: sparkHeights(fullCompletion14, 100),
       detail:{
         note:'How close each day came to hitting every nutrient target, averaged across all of them.',
         rows: buildRows(i=>{
@@ -2672,7 +2674,7 @@ async function computeWeeklyBiologyMetrics(){
       value: `${avgDiversity}/${nutrientsWithTargets.length}`,
       sub:'avg ≥50% of target/day',
       color: 'var(--bio-diversity)',
-      spark: sparkHeights(thisWeekDiversity, nutrientsWithTargets.length||1),
+      spark: sparkHeights(fullDiversity14, nutrientsWithTargets.length||1),
       detail:{
         note:`How many of your ${nutrientsWithTargets.length} tracked nutrients reached at least half their daily target.`,
         rows: buildRows(i=>{
@@ -2688,7 +2690,7 @@ async function computeWeeklyBiologyMetrics(){
       value: `${streak} day${streak===1?'':'s'}`,
       sub:'consecutive days logged',
       color:'var(--bio-streak)',
-      spark: sparkHeights(thisWeek.map(d=>(d.foods||[]).length>0?100:6), 100),
+      spark: sparkHeights(dayDatas.map(d=>(d.foods||[]).length>0?100:6), 100),
       detail:{
         note:'Whether anything was logged that day. The streak counts back from today until the first gap.',
         rows: buildRows(i=>{
@@ -2709,7 +2711,7 @@ async function computeWeeklyBiologyMetrics(){
       value: stabilityScore==null ? '—' : `${stabilityScore}`,
       sub:'consistency index',
       color: stabilityScore==null ? 'var(--text-faint)' : 'var(--bio-stability)',
-      spark: sparkHeights(thisWeek.map(d=>calTarget ? Math.min(150,((computeTotals(d).calories||0)/calTarget)*100) : 0), 150),
+      spark: sparkHeights(dayDatas.map(d=>calTarget ? Math.min(150,((computeTotals(d).calories||0)/calTarget)*100) : 0), 150),
       detail:{
         note: calTarget ? `How close daily intake stayed to your ${Math.round(calTarget)} kcal target.` : 'Set a calorie target in Settings to track this.',
         rows: buildRows(i=>{
@@ -2728,7 +2730,7 @@ async function computeWeeklyBiologyMetrics(){
       value: `${waterPct}%`,
       sub:'avg daily target reached',
       color: waterLoggedDays.length ? 'var(--bio-hydration)' : 'var(--text-faint)',
-      spark: sparkHeights(thisWeek.map(d=>waterTarget ? Math.min(100,((computeTotals(d).water||0)/waterTarget)*100) : 0), 100),
+      spark: sparkHeights(dayDatas.map(d=>waterTarget ? Math.min(100,((computeTotals(d).water||0)/waterTarget)*100) : 0), 100),
       detail:{
         note: waterTarget ? `Water logged each day against your ${(waterTarget/1000)}L goal.` : 'Set a water target in Settings to track this.',
         rows: buildRows(i=>{
@@ -2746,7 +2748,7 @@ async function computeWeeklyBiologyMetrics(){
       value: `${proteinPct}%`,
       sub:'avg daily target reached',
       color: proteinLoggedDays.length ? 'var(--bio-protein)' : 'var(--text-faint)',
-      spark: sparkHeights(thisWeek.map(d=>proteinTarget ? Math.min(100,((computeTotals(d).protein||0)/proteinTarget)*100) : 0), 100),
+      spark: sparkHeights(dayDatas.map(d=>proteinTarget ? Math.min(100,((computeTotals(d).protein||0)/proteinTarget)*100) : 0), 100),
       detail:{
         note: proteinTarget ? `Protein logged each day against your ${Math.round(proteinTarget)}g goal.` : 'Set a protein target in Settings to track this.',
         rows: buildRows(i=>{
@@ -2774,11 +2776,11 @@ function renderBioStrip(metrics){
   if(!metrics || !metrics.length){ strip.style.display='none'; scroll.innerHTML=''; return; }
   strip.style.display='block';
   scroll.innerHTML = metrics.map(m=>`
-    <div class="bio-card" style="--card-color:${m.color};" onclick="openBioMetricDetail('${m.key}')">
+    <div class="bio-card" onclick="openBioMetricDetail('${m.key}')">
       <div class="k">${escapeHtml(m.label)}</div>
       <div class="v" style="color:${m.color}">${escapeHtml(m.value)}</div>
-      <div class="s">${escapeHtml(m.sub)}</div>
       <div class="spark">${m.spark.map(h=>`<div style="height:${h}px; background:${m.color}; color:${m.color}; opacity:.92;"></div>`).join('')}</div>
+      <div class="s">${escapeHtml(m.sub)}</div>
     </div>`).join('');
 }
 // Tap-to-expand: shows the exact 7 days behind whichever snapshot card was
