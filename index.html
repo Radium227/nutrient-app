@@ -308,6 +308,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
    that self-referential math entirely — the chart always fills this fixed
    box, so first render and every render after it are pixel-identical.*/
 .chart-canvas-wrap{position:relative; width:100%; height:220px;}
+.chart-canvas-wrap-sm{height:120px;}
 .chart-canvas-wrap canvas{width:100% !important; height:100% !important;}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
 .heatmap-grid{
@@ -749,6 +750,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
       <div class="chart-canvas-wrap" style="margin-top:14px;"><canvas id="calorieLineChart"></canvas></div>
+      <div class="chart-subtitle" style="margin-top:14px;">Calories burned (own scale, so day-to-day variation is actually visible)</div>
+      <div class="chart-canvas-wrap chart-canvas-wrap-sm"><canvas id="burnedLineChart"></canvas></div>
       <div class="stat-grid">
         <div class="stat-box"><div class="l">Avg intake</div><div class="v mono" id="avgIntake">?</div></div>
         <div class="stat-box"><div class="l">Avg burned</div><div class="v mono" id="avgBurn">?</div></div>
@@ -1824,7 +1827,7 @@ function ensureChartJs(){
 /* =========================================================
    TRENDS
 ========================================================= */
-let weightChartInst=null, exerciseChartInst=null, calorieLineChartInst=null;
+let weightChartInst=null, exerciseChartInst=null, calorieLineChartInst=null, burnedLineChartInst=null;
 async function renderTrends(){
   await ensureChartJs();
   // Root cause of the "compressed on first open, fine after navigating away
@@ -2017,21 +2020,6 @@ async function renderTrends(){
             pointBorderWidth:1.2
           },
           {
-            label:'Burned',
-            data:burns,
-            borderColor:'#5FB2E8',
-            borderDash:[6,4],
-            borderWidth:2,
-            fill:false,
-            tension:0.35,
-            pointRadius:3,
-            pointHoverRadius:5,
-            pointBackgroundColor:'#5FB2E8',
-            pointBorderColor:'#141416',
-            pointBorderWidth:1.2,
-            yAxisID:'y1'
-          },
-          {
             label:'Target',
             data:days.map(()=>calTarget||null),
             borderColor:'#C2C3CB',
@@ -2051,23 +2039,55 @@ async function renderTrends(){
         },
         scales:{
           x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}},
-          y1:{
-            beginAtZero:true,
-            position:'right',
-            ticks:{color:'#5FB2E8', callback:(v)=>`${v}`},
-            grid:{display:false},
-            // Give the burned-calorie axis its own headroom (roughly double
-            // the max burned value) instead of sharing the 0-3000+ intake
-            // scale, so a ~300-500 kcal burn isn't rendered as a flat line
-            // hugging the bottom of the chart.
-            suggestedMax: Math.max(500, Math.ceil((Math.max(...burns, 0) * 2.2) / 100) * 100)
-          }
+          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}}
         }
       }
     });
   }catch(err){
     console.error('Calorie line chart failed to render:', err);
+  }
+
+  // Burned calories gets its own small chart with its own naturally-fit
+  // scale (not a second axis crammed onto the intake chart, and not the
+  // intake data artificially stretched) -- so a real ~300 vs ~500 kcal
+  // burn day actually reads as a visible difference instead of both being
+  // a flat line near zero on a 0-3000+ scale.
+  try{
+    const burnCanvas = document.getElementById('burnedLineChart');
+    if(burnedLineChartInst){ burnedLineChartInst.destroy(); burnedLineChartInst=null; }
+    burnedLineChartInst = new Chart(burnCanvas, {
+      type:'line',
+      data:{
+        labels,
+        datasets:[{
+          label:'Burned',
+          data:burns,
+          borderColor:'#5FB2E8',
+          backgroundColor:'rgba(95,178,232,0.16)',
+          fill:true,
+          tension:0.35,
+          borderWidth:2.5,
+          pointRadius:3,
+          pointHoverRadius:5,
+          pointBackgroundColor:'#5FB2E8',
+          pointBorderColor:'#141416',
+          pointBorderWidth:1.2
+        }]
+      },
+      options:{
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:(item)=>`Burned: ${Math.round(item.parsed.y ?? 0)} kcal`}}
+        },
+        scales:{
+          x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
+          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}}
+        }
+      }
+    });
+  }catch(err){
+    console.error('Burned calories chart failed to render:', err);
   }
 
   const legendItems = [
