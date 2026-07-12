@@ -176,6 +176,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .insight-explain{background:none; border:none; color:var(--text-dim); font-size:11.5px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; cursor:pointer; padding:0;}
 .insight-reasoning{font-size:13px; line-height:1.5; color:var(--text-dim); margin:-4px 0 14px; display:none;}
 .insight-reasoning.open{display:block;}
+.insight-why-label{font-size:10px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-faint); margin-bottom:4px;}
+.insight-why-text{margin-bottom:12px;}
+.insight-chip-row{margin-bottom:12px;}
+.insight-chip-label{display:block; font-size:10px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-faint); margin-bottom:6px;}
+.insight-chips{display:flex; flex-wrap:wrap; gap:6px;}
+.insight-food-chip{background:var(--surface-3); border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-size:12px; color:var(--text);}
+.insight-line{margin-bottom:8px; font-size:12.5px;}
+.insight-line b{color:var(--text); font-weight:600;}
+.insight-score-badge{display:inline-block; background:rgba(47,234,99,0.14); color:var(--complete); font-weight:700; font-size:11.5px; padding:4px 10px; border-radius:999px; margin-top:2px;}
 .insight-skel{height:14px; border-radius:6px; background:var(--surface-3); margin:10px 0; overflow:hidden; position:relative;}
 .insight-skel::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(237,242,250,0.08), transparent); animation:insightShimmer 1.4s infinite;}
 @keyframes insightShimmer{0%{transform:translateX(-100%);} 100%{transform:translateX(100%);}}
@@ -556,6 +565,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .stat-box{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
 .stat-box .l{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
 .stat-box .v{font-family:var(--font-mono); font-size:18px; margin-top:4px;}
+.trend-summary{display:flex; align-items:center; gap:9px; margin:-6px 0 14px; font-size:12.5px; flex-wrap:wrap; animation:trendFadeIn .4s ease;}
+.trend-chip{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px; font-weight:600; font-size:11.5px; white-space:nowrap;}
+.trend-chip.improving{background:rgba(47,234,99,0.15); color:var(--complete);}
+.trend-chip.stable{background:rgba(95,178,232,0.15); color:var(--min);}
+.trend-chip.attention{background:rgba(255,214,10,0.15); color:var(--vit);}
+.trend-chip.declining{background:rgba(255,69,58,0.15); color:var(--danger);}
+.trend-delta{color:var(--text-dim); font-family:var(--font-mono); font-size:12px;}
+.trend-insight{font-size:12.5px; color:var(--text-dim); margin:10px 0 2px; line-height:1.4; font-style:italic; animation:trendFadeIn .5s ease;}
+@keyframes trendFadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
 
 /* ---------- Forms / Settings ---------- */
 .field{margin-bottom:14px;}
@@ -766,30 +784,39 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="section-title">Trends</div>
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:var(--min)"></span>Weight</h2>
+      <div class="trend-summary" id="weightSummary"></div>
       <div class="chart-canvas-wrap"><canvas id="weightChart"></canvas></div>
+      <div class="trend-insight" id="weightInsight"></div>
+      <div class="stat-grid" id="weightStatGrid"></div>
     </div>
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:#E8544B"></span>Exercise minutes</h2>
+      <div class="trend-summary" id="exerciseSummary"></div>
       <div class="chart-subtitle">Minutes per day over time, with a 7-day average to make progress easier to spot.</div>
       <div class="empty-state" id="exerciseEmptyState" style="display:none; padding:20px 0;">No exercise logged in the last 14 days.</div>
       <div class="chart-canvas-wrap"><canvas id="exerciseChart"></canvas></div>
+      <div class="trend-insight" id="exerciseInsight"></div>
       <div class="stat-grid">
         <div class="stat-box"><div class="l">Total time</div><div class="v mono" id="totalExerciseMinutes">?</div></div>
         <div class="stat-box"><div class="l">Sessions</div><div class="v mono" id="totalExerciseSessions">?</div></div>
       </div>
+      <div class="stat-grid" id="exerciseStatGrid2" style="margin-top:10px;"></div>
     </div>
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:var(--macro)"></span>Calories (last 14 days)</h2>
+      <div class="trend-summary" id="calorieSummary"></div>
       <div class="chart-subtitle">Each day is a tile ? under, near, or over target at a glance.</div>
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
       <div class="chart-canvas-wrap" style="margin-top:14px;"><canvas id="calorieLineChart"></canvas></div>
       <div class="chart-subtitle" style="margin-top:14px;">Calories burned (own scale, so day-to-day variation is actually visible)</div>
       <div class="chart-canvas-wrap chart-canvas-wrap-sm"><canvas id="burnedLineChart"></canvas></div>
+      <div class="trend-insight" id="calorieInsight"></div>
       <div class="stat-grid">
         <div class="stat-box"><div class="l">Avg intake</div><div class="v mono" id="avgIntake">?</div></div>
         <div class="stat-box"><div class="l">Avg burned</div><div class="v mono" id="avgBurn">?</div></div>
       </div>
+      <div class="stat-grid" id="calorieStatGrid2" style="margin-top:10px;"></div>
     </div>
   </div>
   <!-- SETTINGS -->
@@ -2343,6 +2370,14 @@ function buildPointStyles(length, isCurrent, baseColor, baseRadius, baseHoverRad
   }
   return {bg, radius, hoverRadius, border};
 }
+// Small shared builders for the Trends page's new status chip / stat-box
+// markup, so the three per-card blocks inside renderTrends stay short.
+function trendChipHTML(cls, emoji, label){
+  return `<span class="trend-chip ${cls}">${emoji} ${escapeHtml(label)}</span>`;
+}
+function statBoxHTML(label, value){
+  return `<div class="stat-box"><div class="l">${escapeHtml(label)}</div><div class="v mono">${escapeHtml(value)}</div></div>`;
+}
 async function renderTrends(){
   await ensureChartJs();
   // Root cause of the "compressed on first open, fine after navigating away
@@ -2444,6 +2479,63 @@ async function renderTrends(){
     console.error('Weight chart failed to render:', err);
   }
 
+  // ---- Weight: status chip, expanded stats, one-line insight ----
+  // Reuses weightPoints (already computed above for the chart) -- no new
+  // data loading, just arithmetic over what's already in memory.
+  {
+    const wSummaryEl = document.getElementById('weightSummary');
+    const wInsightEl = document.getElementById('weightInsight');
+    const wStatGrid = document.getElementById('weightStatGrid');
+    if(weightPoints.length < 2){
+      wSummaryEl.innerHTML = '';
+      wInsightEl.textContent = '';
+      wStatGrid.innerHTML = weightPoints.length===1 ? statBoxHTML('Current', `${weightPoints[0].y} kg`) : '';
+    } else {
+      const first = weightPoints[0], last = weightPoints[weightPoints.length-1];
+      const net = last.y - first.y;
+      const pct = first.y ? (net/first.y)*100 : 0;
+      const spanDays = Math.max(1, (last.x-first.x)/86400000);
+      const weeklyRate = net / (spanDays/7);
+      const values = weightPoints.map(p=>p.y);
+      const highest = Math.max(...values), lowest = Math.min(...values);
+      const average = values.reduce((a,b)=>a+b,0)/values.length;
+
+      const goal = profile.goal||0; // <0 = trying to lose, >0 = trying to gain, 0 = maintain
+      const rapid = Math.abs(weeklyRate) >= 1; // >=1kg/week is generally considered a rapid rate of change
+      let statusCls='stable', statusEmoji='🔵', statusLabel='Stable';
+      if(goal < 0){
+        if(net <= -0.2){ statusCls='improving'; statusEmoji='🟢'; statusLabel='Improving'; }
+        else if(net >= 0.3){ statusCls='declining'; statusEmoji='🔴'; statusLabel='Declining'; }
+      } else if(goal > 0){
+        if(net >= 0.2){ statusCls='improving'; statusEmoji='🟢'; statusLabel='Improving'; }
+        else if(net <= -0.3){ statusCls='declining'; statusEmoji='🔴'; statusLabel='Declining'; }
+      } else if(Math.abs(net) > 0.5){
+        statusCls='attention'; statusEmoji='🟠'; statusLabel='Needs Attention';
+      }
+      if(rapid){ statusCls='attention'; statusEmoji='🟠'; statusLabel='Needs Attention'; }
+
+      wSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel)}<span class="trend-delta">${net>=0?'+':''}${net.toFixed(1)} kg (${pct>=0?'+':''}${pct.toFixed(1)}%) · last ${Math.round(spanDays)}d</span>`;
+
+      wStatGrid.innerHTML = [
+        statBoxHTML('Current', `${last.y.toFixed(1)} kg`),
+        statBoxHTML('Net change', `${net>=0?'+':''}${net.toFixed(1)} kg`),
+        statBoxHTML('% change', `${pct>=0?'+':''}${pct.toFixed(1)}%`),
+        statBoxHTML('Weekly rate', `${weeklyRate>=0?'+':''}${weeklyRate.toFixed(2)} kg/wk`),
+        statBoxHTML('Highest', `${highest.toFixed(1)} kg`),
+        statBoxHTML('Lowest', `${lowest.toFixed(1)} kg`),
+        statBoxHTML('Average', `${average.toFixed(1)} kg`)
+      ].join('');
+
+      wInsightEl.textContent = rapid
+        ? `Weight is changing quickly (${weeklyRate>=0?'+':''}${weeklyRate.toFixed(2)} kg/week) -- worth double-checking this is intentional.`
+        : statusCls==='improving'
+          ? (goal<0 ? "You've maintained a slow, sustainable weight-loss trend." : "You've maintained a steady weight-gain trend toward your goal.")
+          : statusCls==='declining'
+            ? (goal<0 ? 'Weight has crept up over this window, working against your loss goal.' : 'Weight has dipped over this window, working against your gain goal.')
+            : `Weight has stayed within a ${Math.abs(highest-lowest).toFixed(1)} kg band over the last ${Math.round(spanDays)} days.`;
+    }
+  }
+
   const dailyExerciseMinutes = dayDatas.map(d=>(d.exercises||[]).reduce((sum,e)=>sum+(Number(e.minutes)||0),0));
   const totalExerciseMinutes = dailyExerciseMinutes.reduce((sum,val)=>sum+val,0);
   const totalExerciseSessions = dayDatas.reduce((sum,d)=>(sum + (d.exercises||[]).length),0);
@@ -2513,6 +2605,49 @@ async function renderTrends(){
     exCanvas.style.display='none';
     exCanvas.parentElement.style.display='none';
     exEmpty.style.display='block';
+  }
+
+  // ---- Exercise: status chip, expanded stats, one-line insight ----
+  {
+    const eSummaryEl = document.getElementById('exerciseSummary');
+    const eInsightEl = document.getElementById('exerciseInsight');
+    const eStatGrid2 = document.getElementById('exerciseStatGrid2');
+    if(!totalExerciseMinutes){
+      eSummaryEl.innerHTML=''; eInsightEl.textContent=''; eStatGrid2.innerHTML='';
+    } else {
+      const thisWeekMin = dailyExerciseMinutes.slice(7).reduce((a,b)=>a+b,0);
+      const lastWeekMin = dailyExerciseMinutes.slice(0,7).reduce((a,b)=>a+b,0);
+      const weekDelta = thisWeekMin - lastWeekMin;
+      const weekDeltaPct = lastWeekMin ? (weekDelta/lastWeekMin)*100 : (thisWeekMin>0?100:0);
+      const avgSession = totalExerciseSessions ? Math.round(totalExerciseMinutes/totalExerciseSessions) : 0;
+      let longest = 0;
+      dayDatas.forEach(d=>(d.exercises||[]).forEach(e=>{ longest = Math.max(longest, Number(e.minutes)||0); }));
+      const activeDays = dailyExerciseMinutes.filter(m=>m>0).length;
+      const consistency = Math.round((activeDays/14)*100);
+
+      let statusCls, statusEmoji, statusLabel;
+      if(weekDelta > 5){ statusCls='improving'; statusEmoji='🟢'; statusLabel='Improving'; }
+      else if(weekDelta < -15){ statusCls='declining'; statusEmoji='🔴'; statusLabel='Declining'; }
+      else if(consistency < 30){ statusCls='attention'; statusEmoji='🟠'; statusLabel='Needs Attention'; }
+      else { statusCls='stable'; statusEmoji='🔵'; statusLabel='Stable'; }
+
+      eSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel)}<span class="trend-delta">${weekDelta>=0?'+':''}${weekDelta} min vs prior 7d (${weekDeltaPct>=0?'+':''}${Math.round(weekDeltaPct)}%)</span>`;
+
+      eStatGrid2.innerHTML = [
+        statBoxHTML('Avg session', `${avgSession} min`),
+        statBoxHTML('Longest workout', `${longest} min`),
+        statBoxHTML('Consistency', `${consistency}%`),
+        statBoxHTML('vs prior week', `${weekDelta>=0?'+':''}${weekDelta} min`)
+      ].join('');
+
+      eInsightEl.textContent = statusCls==='improving'
+        ? 'Exercise consistency improved compared with last week.'
+        : statusCls==='declining'
+          ? 'Exercise minutes dropped off compared with last week.'
+          : consistency>=70
+            ? `Active on ${activeDays} of the last 14 days -- solid consistency.`
+            : `Active on ${activeDays} of the last 14 days -- there's room to build a steadier rhythm.`;
+    }
   }
 
   const heatmapHost = document.getElementById('calorieHeatmap');
@@ -2611,6 +2746,58 @@ async function renderTrends(){
     });
   }catch(err){
     console.error('Burned calories chart failed to render:', err);
+  }
+
+  // ---- Calories: status chip, expanded stats, one-line insight ----
+  {
+    const cSummaryEl = document.getElementById('calorieSummary');
+    const cInsightEl = document.getElementById('calorieInsight');
+    const cStatGrid2 = document.getElementById('calorieStatGrid2');
+    const validIdx = intakes.map((v,i)=>(v>=1000 || dayDatas[i].countLowCalorieDay) ? i : -1).filter(i=>i>=0);
+    if(!validIdx.length || !calTarget){
+      cSummaryEl.innerHTML=''; cInsightEl.textContent=''; cStatGrid2.innerHTML='';
+    } else {
+      const validVals = validIdx.map(i=>intakes[i]);
+      const avg = validVals.reduce((a,b)=>a+b,0)/validVals.length;
+      const deficitSurplus = avg - calTarget;
+      const deviations = validVals.map(v=>Math.abs(v-calTarget)/calTarget*100);
+      const avgDeviationPct = deviations.reduce((a,b)=>a+b,0)/deviations.length;
+      const consistencyScore = Math.max(0, Math.round(100-avgDeviationPct));
+      const variance = validVals.reduce((s,v)=>s+Math.pow(v-avg,2),0)/validVals.length;
+      const stdDev = Math.round(Math.sqrt(variance));
+
+      let statusCls, statusEmoji, statusLabel;
+      if(consistencyScore>=85){ statusCls='stable'; statusEmoji='🔵'; statusLabel='Stable'; }
+      else if(consistencyScore>=65){ statusCls='attention'; statusEmoji='🟠'; statusLabel='Needs Attention'; }
+      else { statusCls='declining'; statusEmoji='🔴'; statusLabel='Declining'; }
+      if(Math.abs(deficitSurplus) <= calTarget*0.03 && consistencyScore>=85){ statusCls='improving'; statusEmoji='🟢'; statusLabel='Improving'; }
+
+      cSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel)}<span class="trend-delta">${consistencyScore}% target accuracy</span>`;
+
+      cStatGrid2.innerHTML = [
+        statBoxHTML('Target', `${Math.round(calTarget)} kcal`),
+        statBoxHTML(deficitSurplus>=0?'Avg surplus':'Avg deficit', `${deficitSurplus>=0?'+':''}${Math.round(deficitSurplus)} kcal`),
+        statBoxHTML('Consistency', `${consistencyScore}/100`),
+        statBoxHTML('Daily variance', `±${stdDev} kcal`)
+      ].join('');
+
+      // Weekend-vs-weekday split on the days that ran meaningfully over
+      // target, purely to give the one-liner something concrete to say --
+      // not stored or used anywhere else.
+      const overDays = validIdx.filter(i=>intakes[i] > calTarget*1.05);
+      const weekendOverCount = overDays.filter(i=>{ const dow = new Date(days[i]+'T00:00:00').getDay(); return dow===0||dow===6; }).length;
+      const weekendShare = overDays.length ? weekendOverCount/overDays.length : 0;
+
+      if(stdDev > calTarget*0.25){
+        cInsightEl.textContent = `Calorie intake swung by about ±${stdDev} kcal day to day -- fairly inconsistent.`;
+      } else if(weekendShare >= 0.5 && overDays.length>=2){
+        cInsightEl.textContent = 'Weekend calorie spikes account for most of your surplus days.';
+      } else if(consistencyScore>=85){
+        cInsightEl.textContent = `Averaging within ${Math.round(avgDeviationPct)}% of target most days -- very consistent.`;
+      } else {
+        cInsightEl.textContent = `Averaging ${Math.round(Math.abs(deficitSurplus))} kcal ${deficitSurplus>=0?'over':'under'} target per day.`;
+      }
+    }
   }
 
   const legendItems = [
@@ -2997,7 +3184,7 @@ function saveDietAnalysisToDay(day, result, apiUsed, forDate){
 // can actively steer away from repeating the same nutrient, pair, or TYPE of
 // finding unless it's genuinely still the most relevant thing to flag.
 async function getRecentInsightMentions(beforeDate, days){
-  const recent = await loadRecentDays(days||6, dateOffsetStr(beforeDate, -1));
+  const recent = await loadRecentDays(days||7, dateOffsetStr(beforeDate, -1));
   const nutrients = [], types = [];
   recent.forEach(x=>{
     const r = normalizeInsightResult(x.day && x.day.nutrientInsight && x.day.nutrientInsight.result);
@@ -3017,6 +3204,15 @@ const INSIGHT_TYPE_META = {
   density:     {label:'Nutrient-dense',color:'var(--other)'},
   benefit:     {label:'Benefit',       color:'var(--good)'},
   caution:     {label:'Caution',       color:'var(--danger)'},
+  education:   {label:'Nutrition science', color:'var(--macro)'},
+  habit:       {label:'Nice work',     color:'var(--complete)'},
+};
+// A coach doesn't say everything in the same voice every day -- the model
+// also picks a TONE independent of the content type (a "benefit" finding
+// can be taught calmly or celebrated enthusiastically). Purely cosmetic:
+// just changes the little eyebrow icon.
+const INSIGHT_TONE_ICON = {
+  teach:'💡', celebrate:'🎉', warn:'⚠️', explain:'🔎', surprise:'✨'
 };
 
 function buildNutrientInsightPrompt(day, recentMentions){
@@ -3040,24 +3236,37 @@ function buildNutrientInsightPrompt(day, recentMentions){
 
   const overTarget = gaps.filter(g=>g.pct>=130).sort((a,b)=>b.pct-a.pct).slice(0,6);
 
+  const exercises = day.exercises||[];
+  const exerciseSummary = exercises.length
+    ? exercises.map(e=>`- ${e.name}: ${e.minutes||0} min${e.calories?`, ~${e.calories} kcal`:''}`).join('\n')
+    : '- No exercise logged today.';
+
   const recent = recentMentions || {nutrients:[], types:[]};
   const recentNutrients = recent.nutrients.slice(0,8);
   const recentTypes = recent.types;
 
-  return `You are a nutrition scientist writing ONE short home-screen insight card about today's real diary data. It does NOT have to be a deficiency, a combination, or an interaction — pick whichever single true, specific, genuinely interesting thing is most worth surfacing about today. Valid angles include, but are not limited to:
-- INTERACTION: one nutrient enabling, limiting, or competing with another (vitamin D × calcium, zinc × copper, tannins/phytates blocking iron, etc.)
-- SPOTLIGHT: a "did you know" fact about a specific food logged today (its standout nutrient, an unusual property, a fun/true detail)
-- DENSITY: which food logged today is the most nutrient-dense, or the best source of the nutrient it's known for
-- BENEFIT: a real general benefit of a nutrient present in today's data (e.g. "Omega-3 supports better sleep and lowers inflammation")
-- CAUTION: a nutrient being consumed in excess today, or a real risk of overconsuming something generally (e.g. too much vitamin A, sodium, added sugar)
+  return `You are an experienced AI nutrition coach writing ONE short home-screen card. Your job is for the user to learn or notice something genuinely worth knowing every single time they open the app -- not to recite the same "you're low on X" message. Ground everything in their real diary data below; never invent facts or statistics.
 
-Vary the TYPE across days — do not default to only interactions or only deficiencies. Reference only real, established nutrition science; never invent a fake mechanism or fake statistic; never repeat generic advice like "eat more vegetables".
+=== STEP 1: think of at least 5 candidate insights, each from a DIFFERENT category if possible ===
+Categories to draw from (not exhaustive, pick whatever's most true and interesting today): nutrient interactions (absorption, competition, synergy) · food facts / "did you know" about something logged · nutrient density of a food eaten · protein quality / amino acid completeness · exercise & recovery nutrition · hydration & electrolytes · heart, brain, gut, bone, hormone, or immune health · blood sugar & meal timing · cooking effects on nutrients · food variety · weight management · a caution about something over target · general nutrition science education · positive reinforcement for something done well today.
+
+=== STEP 2: silently score each candidate ===
+Score each candidate on: relevance to today's actual data, educational value, personalization (does it reference specific foods/amounts eaten today, not generic advice), usefulness, and novelty vs. what's already been said recently (see below). Pick the single highest-scoring candidate.
+
+=== STEP 3: only output the winner ===
+Never mention the other candidates or the scoring process in the output -- just the final chosen insight, in the JSON shape below.
+
+=== TONE ===
+Vary your voice across days like a real coach would: some days TEACH (a fact), some CELEBRATE (positive reinforcement for something done well), some WARN (a real caution, gently), some EXPLAIN (an interaction or mechanism), some SURPRISE (a genuinely unexpected fact). Pick whichever tone actually fits what you found today -- don't force celebration onto a caution.
 
 ${recentTypes.length ? `Finding types used on recent days: ${recentTypes.join(', ')}. Prefer a different type today unless nothing else genuinely fits.` : ''}
 ${recentNutrients.length ? `Nutrients already featured in recent days — prefer a DIFFERENT nutrient today unless one of these is clearly still the single most relevant thing: ${recentNutrients.join(', ')}.` : ''}
 
 Foods logged today:
 ${summarizeDayFoods(day) || '- No foods logged yet today.'}
+
+Exercise logged today:
+${exerciseSummary}
 
 Standout nutrients per food logged today (useful for SPOTLIGHT/DENSITY findings):
 ${foodStandouts || '- Not enough detail yet.'}
@@ -3071,10 +3280,16 @@ ${overTarget.length ? overTarget.map(g=>`- ${g.name}: ${g.pct}%`).join('\n') : '
 Return ONLY this JSON shape, nothing else:
 {
   "finding": "1-2 short sentences, under 32 words total, specific and true, naming the nutrient(s) or food involved by name",
-  "type": "interaction" | "spotlight" | "density" | "benefit" | "caution",
+  "type": "interaction" | "spotlight" | "density" | "benefit" | "caution" | "education" | "habit",
+  "tone": "teach" | "celebrate" | "warn" | "explain" | "surprise",
   "nutrients": ["1-2 nutrient names mentioned in the finding, exactly as listed above"],
   "confidence": 0.0-1.0,
-  "reasoning": "2-3 plain-language sentences on why this is true and why it was worth flagging today specifically"
+  "reasoning": "2-3 plain-language sentences on why this is true and why it was worth flagging today specifically",
+  "foodsResponsible": ["food name(s) from today's diary that this finding is actually based on -- empty array if none apply"],
+  "healthImpact": "1 short sentence on the expected real-world benefit or risk, in plain language -- empty string if not applicable",
+  "nextAction": "1 short, concrete, specific next step the user could take -- empty string if not applicable",
+  "suggestedFoods": [{"emoji":"single emoji", "name":"food name"}],
+  "scoreImprovement": integer 0-8, a rough estimate of how many points this could add to their nutrition completeness if acted on, 0 if not applicable
 }
 If there isn't enough logged today to say anything specific and genuinely useful, return exactly {"finding": null} and nothing else.`;
 }
@@ -3150,6 +3365,7 @@ function renderNutrientInsightCard(rawState){
     return;
   }
   const meta = INSIGHT_TYPE_META[state.type] || INSIGHT_TYPE_META.spotlight;
+  const toneIcon = INSIGHT_TONE_ICON[state.tone] || '';
   let finding = escapeHtml(state.finding);
   (state.nutrients||[]).forEach(name=>{
     finding = highlightInsightTerm(finding, escapeHtml(name), meta.color);
@@ -3161,14 +3377,28 @@ function renderNutrientInsightCard(rawState){
   const updatedAgo = (dayCache[currentDate] && dayCache[currentDate].nutrientInsight && dayCache[currentDate].nutrientInsight.updatedAt)
     ? timeAgoShort(dayCache[currentDate].nutrientInsight.updatedAt) : 'just now';
 
+  const foodsResponsible = (state.foodsResponsible||[]).filter(Boolean).slice(0,4);
+  const suggestedFoods = (state.suggestedFoods||[]).filter(f=>f && f.name).slice(0,4);
+  const hasExplainContent = state.reasoning || foodsResponsible.length || suggestedFoods.length || state.healthImpact || state.nextAction;
+
+  const reasoningPanel = hasExplainContent ? `
+    <div class="insight-reasoning" id="insightReasoning">
+      ${state.reasoning ? `<div class="insight-why-label">Why this was mentioned today</div><div class="insight-why-text">${escapeHtml(state.reasoning)}</div>` : ''}
+      ${foodsResponsible.length ? `<div class="insight-chip-row"><span class="insight-chip-label">Foods responsible</span><div class="insight-chips">${foodsResponsible.map(f=>`<span class="insight-food-chip">${escapeHtml(f)}</span>`).join('')}</div></div>` : ''}
+      ${suggestedFoods.length ? `<div class="insight-chip-row"><span class="insight-chip-label">Suggested foods</span><div class="insight-chips">${suggestedFoods.map(f=>`<span class="insight-food-chip">${escapeHtml(f.emoji||'')} ${escapeHtml(f.name)}</span>`).join('')}</div></div>` : ''}
+      ${state.healthImpact ? `<div class="insight-line"><b>Expected impact:</b> ${escapeHtml(state.healthImpact)}</div>` : ''}
+      ${state.nextAction ? `<div class="insight-line"><b>Next step:</b> ${escapeHtml(state.nextAction)}</div>` : ''}
+      ${state.scoreImprovement ? `<div class="insight-score-badge">+${Math.round(state.scoreImprovement)} potential score</div>` : ''}
+    </div>` : '';
+
   card.innerHTML = `
-    <div class="insight-eyebrow">Today's finding</div>
+    <div class="insight-eyebrow">${toneIcon} Today's finding</div>
     <div class="insight-finding">${finding}</div>
     ${tags.length ? `<div class="insight-tags">${tags.map(t=>`<div class="insight-tag clickable"><span class="k">${escapeHtml(t.k)}</span><span class="dot" style="background:${t.color}"></span><span class="v">${clickableInsightTagValue(t.v)}</span></div>`).join('')}</div>` : ''}
-    <div class="insight-reasoning" id="insightReasoning">${escapeHtml(state.reasoning||'')}</div>
+    ${reasoningPanel}
     <div class="insight-foot">
       <span>${confidencePct!=null ? `Confidence ${confidencePct} · ` : ''}updated ${updatedAgo}</span>
-      ${state.reasoning ? `<button class="insight-explain" onclick="toggleInsightReasoning()" id="insightExplainBtn">Explain reasoning →</button>` : ''}
+      ${hasExplainContent ? `<button class="insight-explain" onclick="toggleInsightReasoning()" id="insightExplainBtn">Explain reasoning →</button>` : ''}
     </div>
   `;
 }
