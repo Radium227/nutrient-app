@@ -202,12 +202,17 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .weekly-toggle-summary{white-space:nowrap;}
 .weekly-obs-list{display:none; flex-direction:column; gap:0; margin-top:12px; max-height:340px; overflow-y:auto;}
 .weekly-obs-list.open{display:flex;}
-.weekly-obs{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:12.5px; line-height:1.3;}
+.weekly-obs{display:flex; align-items:center; gap:9px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px;}
 .weekly-obs:last-child{border-bottom:none;}
-.weekly-obs .icon{flex:none; width:14px; text-align:center;}
+.weekly-obs .icon{flex:none; width:14px; text-align:center; font-size:11px;}
 .weekly-obs.positive .icon{color:var(--good);}
 .weekly-obs.negative .icon{color:var(--danger);}
 .weekly-obs.neutral .icon{color:var(--text-faint);}
+.weekly-obs .wlabel{color:var(--text-dim); flex:1;}
+.weekly-obs .wvalue{font-family:var(--font-mono); font-weight:800; font-size:14.5px; letter-spacing:.2px; flex:none;}
+.weekly-obs.positive .wvalue{color:var(--good); text-shadow:0 0 14px rgba(47,234,99,0.35);}
+.weekly-obs.negative .wvalue{color:var(--danger); text-shadow:0 0 14px rgba(255,69,58,0.3);}
+.weekly-obs.neutral .wvalue{color:var(--text);}
 .weekly-empty{color:var(--text-faint); font-size:13px; padding:6px 0;}
 
 /* ---------- Nutrient detail — extended sections ---------- */
@@ -1922,7 +1927,7 @@ async function computeWeeklyTrends(){
         const arrow = pctChange>0 ? '↑' : '↓';
         (improved ? positives : negatives).push({
           full: `${n.name} intake ${pctChange>0?'increased':'decreased'} ${Math.abs(pctChange)}% compared to the previous week.`,
-          short: `${n.name} ${arrow}${Math.abs(pctChange)}%`
+          label: n.name, value: `${arrow} ${Math.abs(pctChange)}%`
         });
       }
     }
@@ -1930,9 +1935,9 @@ async function computeWeeklyTrends(){
     if(!isLimitNutrient){
       const daysHit = loggedThis.filter(x=>(computeTotals(x.day)[id]||0) >= target).length;
       if(daysHit >= loggedThis.length - 1 && loggedThis.length>=4){
-        positives.push({full:`${n.name} intake has been consistently excellent this week.`, short:`${n.name} — excellent all week`});
+        positives.push({full:`${n.name} intake has been consistently excellent this week.`, label:n.name, value:'Excellent all week'});
       } else if(daysHit <= 1 && curAvg/target < 0.6){
-        negatives.push({full:`${n.name} has averaged below target this week.`, short:`${n.name} — below target`});
+        negatives.push({full:`${n.name} has averaged below target this week.`, label:n.name, value:'Below target'});
       }
     }
   });
@@ -1944,7 +1949,7 @@ async function computeWeeklyTrends(){
     if(Math.abs(last-first) >= 4){
       (last>first ? positives : negatives).push({
         full: `Nutrition Score ${last>first?'increased':'decreased'} from ${first} → ${last}.`,
-        short: `Score ${first}→${last}`
+        label: 'Nutrition Score', value: `${first} → ${last}`
       });
     }
   }
@@ -1953,9 +1958,9 @@ async function computeWeeklyTrends(){
   const varietyThis = new Set(loggedThis.flatMap(x=>(x.day.foods||[]).map(f=>normalizeFoodName(f.name)))).size;
   const varietyPrev = new Set(loggedPrev.flatMap(x=>(x.day.foods||[]).map(f=>normalizeFoodName(f.name)))).size;
   if(varietyPrev>0 && varietyThis > varietyPrev){
-    positives.push({full:`Food variety improved this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`, short:`Variety ↑ ${varietyThis} vs ${varietyPrev} foods`});
+    positives.push({full:`Food variety improved this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`, label:'Variety', value:`↑ ${varietyThis} vs ${varietyPrev}`});
   } else if(varietyPrev>0 && varietyThis < varietyPrev){
-    neutrals.push({full:`Food variety was narrower this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`, short:`Variety ↓ ${varietyThis} vs ${varietyPrev} foods`});
+    neutrals.push({full:`Food variety was narrower this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`, label:'Variety', value:`↓ ${varietyThis} vs ${varietyPrev}`});
   }
 
   // Saturated fat: weekday vs weekend
@@ -1966,13 +1971,13 @@ async function computeWeeklyTrends(){
     const weekendAvg = avgFor(weekendDays, 'saturatedFat');
     const weekdayAvg = avgFor(weekdayDays, 'saturatedFat');
     if(satTarget && weekendAvg > satTarget && weekendAvg > weekdayAvg*1.25){
-      negatives.push({full:`Saturated fat exceeds recommendations mainly on weekends.`, short:`Sat fat spikes on weekends`});
+      negatives.push({full:`Saturated fat exceeds recommendations mainly on weekends.`, label:'Sat fat', value:'Spikes on weekends'});
     }
     const sodTarget = getTarget('sodium');
     const weekendSod = avgFor(weekendDays, 'sodium');
     const weekdaySod = avgFor(weekdayDays, 'sodium');
     if(sodTarget && weekendSod > sodTarget && weekendSod > weekdaySod*1.25){
-      negatives.push({full:`Sodium intake is notably higher on weekends than weekdays.`, short:`Sodium spikes on weekends`});
+      negatives.push({full:`Sodium intake is notably higher on weekends than weekdays.`, label:'Sodium', value:'Spikes on weekends'});
     }
   }
 
@@ -1987,7 +1992,7 @@ async function computeWeeklyTrends(){
   const topBucket = Object.entries(sodiumByBucket).sort((a,b)=>b[1]-a[1])[0];
   const sodiumSum = Object.values(sodiumByBucket).reduce((a,b)=>a+b,0);
   if(topBucket && sodiumSum>0 && topBucket[1]/sodiumSum > 0.45){
-    negatives.push({full:`Sodium spikes usually occur during ${topBucket[0]}.`, short:`Sodium peaks at ${topBucket[0]}`});
+    negatives.push({full:`Sodium spikes usually occur during ${topBucket[0]}.`, label:'Sodium', value:`Peaks at ${topBucket[0]}`});
   }
 
   // Order: positives first, then neutrals, then negatives (spec: "always
@@ -2013,7 +2018,7 @@ async function renderWeeklyAnalyzer(){
       `${obs.length} finding${obs.length===1?'':'s'}${posCount?` · ${posCount} up`:''}${negCount?` · ${negCount} to watch`:''}`;
     list.innerHTML = obs.map(o=>{
       const icon = o.kind==='positive' ? '▲' : o.kind==='negative' ? '▼' : '•';
-      return `<div class="weekly-obs ${o.kind}" title="${escapeHtml(o.full)}"><span class="icon">${icon}</span><span>${escapeHtml(o.short)}</span></div>`;
+      return `<div class="weekly-obs ${o.kind}" title="${escapeHtml(o.full)}"><span class="icon">${icon}</span><span class="wlabel">${escapeHtml(o.label)}</span><span class="wvalue">${escapeHtml(o.value)}</span></div>`;
     }).join('');
     list.classList.toggle('open', weeklyObsOpen);
     document.getElementById('weeklyToggleArrow').textContent = weeklyObsOpen ? '▲' : '▼';
