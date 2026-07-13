@@ -202,17 +202,18 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .weekly-toggle-summary{white-space:nowrap;}
 .weekly-obs-list{display:none; flex-direction:column; gap:0; margin-top:12px;}
 .weekly-obs-list.open{display:flex;}
-.weekly-obs{display:flex; align-items:center; gap:9px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:13px;}
+.weekly-obs{display:flex; align-items:baseline; gap:7px; padding:8px 2px; border-bottom:1px solid var(--line); font-size:13px;}
 .weekly-obs:last-child{border-bottom:none;}
-.weekly-obs .icon{flex:none; width:14px; text-align:center; font-size:11px;}
+.weekly-obs .icon{flex:none; width:14px; text-align:center; font-size:11px; align-self:center;}
 .weekly-obs.positive .icon{color:var(--good);}
 .weekly-obs.negative .icon{color:var(--danger);}
 .weekly-obs.neutral .icon{color:var(--text-faint);}
-.weekly-obs .wlabel{color:var(--text-dim); flex:1;}
-.weekly-obs .wvalue{font-family:var(--font-mono); font-weight:800; font-size:14.5px; letter-spacing:.2px; flex:none;}
-.weekly-obs.positive .wvalue{color:var(--good); text-shadow:0 0 14px rgba(47,234,99,0.35);}
-.weekly-obs.negative .wvalue{color:var(--danger); text-shadow:0 0 14px rgba(255,69,58,0.3);}
-.weekly-obs.neutral .wvalue{color:var(--text);}
+.weekly-obs .wlabel{color:var(--text);}
+.weekly-obs .wvalue{font-family:var(--font-mono); font-weight:600; font-size:12.5px;}
+.weekly-obs.positive .wvalue{color:var(--good);}
+.weekly-obs.negative .wvalue{color:var(--danger);}
+.weekly-obs.neutral .wvalue{color:var(--text-dim);}
+.weekly-obs .wvalue::before{content:'— ';}
 .weekly-empty{color:var(--text-faint); font-size:13px; padding:6px 0;}
 
 /* ---------- Nutrient detail — extended sections ---------- */
