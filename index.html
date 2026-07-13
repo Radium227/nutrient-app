@@ -197,10 +197,14 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 /* ---------- Weekly Nutrition Analyzer ---------- */
 .weekly-card{background:linear-gradient(160deg, var(--surface-2), var(--surface)); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-bottom:14px;}
-.weekly-obs-list{display:flex; flex-direction:column; gap:0;}
-.weekly-obs{display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px; line-height:1.45;}
+.weekly-toggle{display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; padding:0; cursor:pointer; text-align:left;}
+.weekly-toggle-right{display:flex; align-items:center; gap:10px; color:var(--text-faint); font-size:11.5px;}
+.weekly-toggle-summary{white-space:nowrap;}
+.weekly-obs-list{display:none; flex-direction:column; gap:0; margin-top:12px; max-height:340px; overflow-y:auto;}
+.weekly-obs-list.open{display:flex;}
+.weekly-obs{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:12.5px; line-height:1.3;}
 .weekly-obs:last-child{border-bottom:none;}
-.weekly-obs .icon{flex:none; width:18px; text-align:center; margin-top:1px;}
+.weekly-obs .icon{flex:none; width:14px; text-align:center;}
 .weekly-obs.positive .icon{color:var(--good);}
 .weekly-obs.negative .icon{color:var(--danger);}
 .weekly-obs.neutral .icon{color:var(--text-faint);}
@@ -688,7 +692,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="card insight-card" id="insightCard" style="display:none;"></div>
 
     <div class="card weekly-card" id="weeklyAnalyzerCard" style="display:none;">
-      <h2><span class="h2-dot" style="background:var(--other)"></span>Weekly Nutrition Analyzer</h2>
+      <button class="weekly-toggle" onclick="toggleWeeklyObs()">
+        <h2 style="margin:0;"><span class="h2-dot" style="background:var(--other)"></span>Weekly Nutrition Analyzer</h2>
+        <span class="weekly-toggle-right"><span id="weeklyToggleSummary" class="weekly-toggle-summary"></span><span id="weeklyToggleArrow">▼</span></span>
+      </button>
       <div class="weekly-obs-list" id="weeklyObsList"></div>
     </div>
 
@@ -1912,17 +1919,20 @@ async function computeWeeklyTrends(){
       const pctChange = Math.round(((curAvg-prevAvg)/prevAvg)*100);
       if(Math.abs(pctChange) >= 12){
         const improved = isLimitNutrient ? pctChange < 0 : pctChange > 0;
-        const text = `${n.name} intake ${pctChange>0?'increased':'decreased'} ${Math.abs(pctChange)}% compared to the previous week.`;
-        (improved ? positives : negatives).push(text);
+        const arrow = pctChange>0 ? '↑' : '↓';
+        (improved ? positives : negatives).push({
+          full: `${n.name} intake ${pctChange>0?'increased':'decreased'} ${Math.abs(pctChange)}% compared to the previous week.`,
+          short: `${n.name} ${arrow}${Math.abs(pctChange)}%`
+        });
       }
     }
     // Consistency: how many of the logged days this week hit target (non-limit nutrients only)
     if(!isLimitNutrient){
       const daysHit = loggedThis.filter(x=>(computeTotals(x.day)[id]||0) >= target).length;
       if(daysHit >= loggedThis.length - 1 && loggedThis.length>=4){
-        positives.push(`${n.name} intake has been consistently excellent this week.`);
+        positives.push({full:`${n.name} intake has been consistently excellent this week.`, short:`${n.name} — excellent all week`});
       } else if(daysHit <= 1 && curAvg/target < 0.6){
-        negatives.push(`${n.name} has averaged below target this week.`);
+        negatives.push({full:`${n.name} has averaged below target this week.`, short:`${n.name} — below target`});
       }
     }
   });
@@ -1932,8 +1942,10 @@ async function computeWeeklyTrends(){
   if(scored.length>=2){
     const first = scored[0].score, last = scored[scored.length-1].score;
     if(Math.abs(last-first) >= 4){
-      const text = `Nutrition Score ${last>first?'increased':'decreased'} from ${first} → ${last}.`;
-      (last>first ? positives : negatives).push(text);
+      (last>first ? positives : negatives).push({
+        full: `Nutrition Score ${last>first?'increased':'decreased'} from ${first} → ${last}.`,
+        short: `Score ${first}→${last}`
+      });
     }
   }
 
@@ -1941,9 +1953,9 @@ async function computeWeeklyTrends(){
   const varietyThis = new Set(loggedThis.flatMap(x=>(x.day.foods||[]).map(f=>normalizeFoodName(f.name)))).size;
   const varietyPrev = new Set(loggedPrev.flatMap(x=>(x.day.foods||[]).map(f=>normalizeFoodName(f.name)))).size;
   if(varietyPrev>0 && varietyThis > varietyPrev){
-    positives.push(`Food variety improved this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`);
+    positives.push({full:`Food variety improved this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`, short:`Variety ↑ ${varietyThis} vs ${varietyPrev} foods`});
   } else if(varietyPrev>0 && varietyThis < varietyPrev){
-    neutrals.push(`Food variety was narrower this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`);
+    neutrals.push({full:`Food variety was narrower this week — ${varietyThis} distinct foods vs ${varietyPrev} the week before.`, short:`Variety ↓ ${varietyThis} vs ${varietyPrev} foods`});
   }
 
   // Saturated fat: weekday vs weekend
@@ -1954,13 +1966,13 @@ async function computeWeeklyTrends(){
     const weekendAvg = avgFor(weekendDays, 'saturatedFat');
     const weekdayAvg = avgFor(weekdayDays, 'saturatedFat');
     if(satTarget && weekendAvg > satTarget && weekendAvg > weekdayAvg*1.25){
-      negatives.push(`Saturated fat exceeds recommendations mainly on weekends.`);
+      negatives.push({full:`Saturated fat exceeds recommendations mainly on weekends.`, short:`Sat fat spikes on weekends`});
     }
     const sodTarget = getTarget('sodium');
     const weekendSod = avgFor(weekendDays, 'sodium');
     const weekdaySod = avgFor(weekdayDays, 'sodium');
     if(sodTarget && weekendSod > sodTarget && weekendSod > weekdaySod*1.25){
-      negatives.push(`Sodium intake is notably higher on weekends than weekdays.`);
+      negatives.push({full:`Sodium intake is notably higher on weekends than weekdays.`, short:`Sodium spikes on weekends`});
     }
   }
 
@@ -1975,14 +1987,15 @@ async function computeWeeklyTrends(){
   const topBucket = Object.entries(sodiumByBucket).sort((a,b)=>b[1]-a[1])[0];
   const sodiumSum = Object.values(sodiumByBucket).reduce((a,b)=>a+b,0);
   if(topBucket && sodiumSum>0 && topBucket[1]/sodiumSum > 0.45){
-    negatives.push(`Sodium spikes usually occur during ${topBucket[0]}.`);
+    negatives.push({full:`Sodium spikes usually occur during ${topBucket[0]}.`, short:`Sodium peaks at ${topBucket[0]}`});
   }
 
   // Order: positives first, then neutrals, then negatives (spec: "always
   // prioritize positive improvements before highlighting deficiencies")
-  const combined = [...positives.map(t=>({t,kind:'positive'})), ...neutrals.map(t=>({t,kind:'neutral'})), ...negatives.map(t=>({t,kind:'negative'}))];
+  const combined = [...positives.map(o=>({...o,kind:'positive'})), ...neutrals.map(o=>({...o,kind:'neutral'})), ...negatives.map(o=>({...o,kind:'negative'}))];
   return combined.slice(0, 10);
 }
+let weeklyObsOpen = false;
 async function renderWeeklyAnalyzer(){
   const card = document.getElementById('weeklyAnalyzerCard');
   const list = document.getElementById('weeklyObsList');
@@ -1994,14 +2007,25 @@ async function renderWeeklyAnalyzer(){
       return;
     }
     card.style.display = 'block';
+    const posCount = obs.filter(o=>o.kind==='positive').length;
+    const negCount = obs.filter(o=>o.kind==='negative').length;
+    document.getElementById('weeklyToggleSummary').textContent =
+      `${obs.length} finding${obs.length===1?'':'s'}${posCount?` · ${posCount} up`:''}${negCount?` · ${negCount} to watch`:''}`;
     list.innerHTML = obs.map(o=>{
       const icon = o.kind==='positive' ? '▲' : o.kind==='negative' ? '▼' : '•';
-      return `<div class="weekly-obs ${o.kind}"><span class="icon">${icon}</span><span>${escapeHtml(o.t)}</span></div>`;
+      return `<div class="weekly-obs ${o.kind}" title="${escapeHtml(o.full)}"><span class="icon">${icon}</span><span>${escapeHtml(o.short)}</span></div>`;
     }).join('');
+    list.classList.toggle('open', weeklyObsOpen);
+    document.getElementById('weeklyToggleArrow').textContent = weeklyObsOpen ? '▲' : '▼';
   }catch(e){
     card.style.display = 'none';
     console.error('Weekly analyzer failed:', e);
   }
+}
+function toggleWeeklyObs(){
+  weeklyObsOpen = !weeklyObsOpen;
+  document.getElementById('weeklyObsList').classList.toggle('open', weeklyObsOpen);
+  document.getElementById('weeklyToggleArrow').textContent = weeklyObsOpen ? '▲' : '▼';
 }
 
 /* =========================================================
