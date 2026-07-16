@@ -625,6 +625,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .photo-drop.dragover{border-color:var(--min); background:var(--surface-3);}
 .photo-drop input{position:absolute; inset:0; opacity:0; cursor:pointer; forced-color-adjust:none; -webkit-appearance:none; appearance:none;}
 .photo-drop img{max-width:100%; max-height:180px; border-radius:10px; margin-bottom:10px; pointer-events:none; display:block; margin-left:auto; margin-right:auto;}
+.photo-thumbs{display:flex; gap:8px; flex-wrap:wrap; position:relative; z-index:2; margin-bottom:2px;}
+.photo-thumb{position:relative; width:56px; height:56px;}
+.photo-thumb img{width:100%; height:100%; object-fit:cover; border-radius:8px; display:block; margin:0;}
+.photo-thumb .rm{position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--danger); color:#fff; border:none; font-size:11px; line-height:18px; padding:0; cursor:pointer;}
+.photo-add-tile{width:56px; height:56px; border:1px dashed var(--line); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:22px; cursor:pointer; background:var(--surface);}
 .drop-icon-circle{width:50px; height:50px; border-radius:50%; background:var(--surface-3); display:flex; align-items:center; justify-content:center; margin:0 auto 14px;}
 .drop-icon-circle svg{width:22px; height:22px; stroke:var(--text-dim);}
 .drop-main{font-size:14px; color:var(--text); font-weight:500; display:block;}
@@ -938,15 +943,17 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
     <div id="addPhotoPane">
       <label class="photo-drop" id="photoDropLabel">
-        <span id="photoDropText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span></span>
-        <input type="file" accept="image/*" capture="environment" id="photoInput" onchange="handlePhotoChosen(event)">
+        <span id="photoDropText"><span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste image(s)</span><span class="drop-sub">JPG or PNG · multiple allowed · Ctrl/⌘+V to paste</span></span>
+        <div id="photoThumbs" class="photo-thumbs" style="display:none;"></div>
+        <input type="file" accept="image/*" capture="environment" id="photoInput" multiple onchange="handlePhotoChosen(event)">
       </label>
+      <div class="hint" id="photoMultiHint" style="display:none; margin-top:-6px;">Tip: add a close-up of a measuring spoon/cup alongside the meal photo to help size portions more accurately.</div>
       <div class="field">
         <label>Anything the photo won't show? (optional)</label>
         <textarea id="photoNotesInput" placeholder="e.g. homemade with 1 tbsp olive oil, double portion, no cheese, brand-name protein bar..."></textarea>
         <div class="hint">Add cooking oil, brand, portion size, hidden ingredients — anything that helps estimate nutrients more accurately.</div>
       </div>
-      <button class="btn block" id="analyzePhotoBtn" style="display:none;" onclick="analyzePhoto(pendingPhotoMime)">Analyze photo</button>
+      <button class="btn block" id="analyzePhotoBtn" style="display:none;" onclick="analyzePhoto()">Analyze photo</button>
     </div>
 
     <div id="addTextPane" style="display:none;">
@@ -1283,8 +1290,7 @@ let targetOverrides = {};
 let savedMeals = []; // starred meals, reusable as one-tap templates
 let foodLibrary = {}; // learned per-gram nutrient profiles, keyed by normalized food name
 let addMode = 'photo';
-let pendingPhotoBase64 = null;
-let pendingPhotoMime = null;
+let pendingPhotos = []; // [{base64, mime, dataUrl}] — supports multiple images per analysis
 let pendingResults = []; // parsed food items awaiting confirm
 let editingTargetId = null;
 
@@ -2887,16 +2893,15 @@ function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 const PHOTO_DROP_PLACEHOLDER = '<span class="drop-icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="drop-main">Tap, drag, or paste an image</span><span class="drop-sub">JPG or PNG · Ctrl/⌘+V to paste</span>';
 function openAddModal(){
-  pendingPhotoBase64=null; pendingPhotoMime=null; pendingResults=[];
+  pendingPhotos=[]; pendingResults=[];
   document.getElementById('analysisArea').innerHTML='';
   document.getElementById('textDescInput').value='';
   document.getElementById('photoNotesInput').value='';
   document.getElementById('analyzePhotoBtn').style.display='none';
-  document.getElementById('photoDropText').style.display='';
-  document.getElementById('photoDropText').innerHTML = PHOTO_DROP_PLACEHOLDER;
+  document.getElementById('photoMultiHint').style.display='none';
+  renderPhotoThumbs();
   const label = document.getElementById('photoDropLabel');
   label.classList.remove('dragover');
-  label.querySelectorAll('img').forEach(i=>i.remove());
   setAddMode('photo');
   openModal('addModal');
 }
@@ -2914,25 +2919,54 @@ function setAddMode(mode){
   if(mode==='saved') renderSavedMealsPane();
 }
 
-function loadPhotoFile(file){
-  if(!file || !file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingPhotoBase64 = reader.result.split(',')[1];
-    pendingPhotoMime = file.type || 'image/jpeg';
-    const label = document.getElementById('photoDropLabel');
-    document.getElementById('photoDropText').style.display = 'none';
-    label.querySelectorAll('img').forEach(i=>i.remove());
-    const img = document.createElement('img');
-    img.src = reader.result;
-    label.insertBefore(img, label.firstChild);
-    document.getElementById('analyzePhotoBtn').style.display = 'block';
-    document.getElementById('analysisArea').innerHTML = '';
-  };
-  reader.readAsDataURL(file);
+// Renders the current set of pending photos as a removable thumbnail strip,
+// with a small "+" tile to add more. Thumbnails sit above the invisible
+// file input (z-index) so taps hit the remove button instead of reopening
+// the file picker; the add-tile triggers the picker itself explicitly.
+function renderPhotoThumbs(){
+  const wrap = document.getElementById('photoThumbs');
+  const dropText = document.getElementById('photoDropText');
+  const analyzeBtn = document.getElementById('analyzePhotoBtn');
+  const multiHint = document.getElementById('photoMultiHint');
+  if(!pendingPhotos.length){
+    wrap.style.display='none'; wrap.innerHTML='';
+    dropText.style.display='';
+    analyzeBtn.style.display='none';
+    multiHint.style.display='none';
+    return;
+  }
+  dropText.style.display='none';
+  wrap.style.display='flex';
+  wrap.innerHTML = pendingPhotos.map((p,i)=>`
+    <div class="photo-thumb">
+      <img src="${p.dataUrl}">
+      <button type="button" class="rm" onclick="event.preventDefault(); event.stopPropagation(); removePendingPhoto(${i});">✕</button>
+    </div>
+  `).join('') + `<div class="photo-add-tile" onclick="event.preventDefault(); event.stopPropagation(); document.getElementById('photoInput').click();">+</div>`;
+  analyzeBtn.style.display = 'block';
+  multiHint.style.display = pendingPhotos.length===1 ? '' : 'none';
+}
+function removePendingPhoto(i){
+  pendingPhotos.splice(i,1);
+  renderPhotoThumbs();
+  document.getElementById('analysisArea').innerHTML = '';
+}
+function loadPhotoFiles(files){
+  const list = Array.from(files||[]).filter(f=>f && f.type && f.type.startsWith('image/'));
+  if(!list.length) return;
+  list.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingPhotos.push({base64: reader.result.split(',')[1], mime: file.type||'image/jpeg', dataUrl: reader.result});
+      renderPhotoThumbs();
+      document.getElementById('analysisArea').innerHTML = '';
+    };
+    reader.readAsDataURL(file);
+  });
 }
 function handlePhotoChosen(evt){
-  loadPhotoFile(evt.target.files[0]);
+  loadPhotoFiles(evt.target.files);
+  evt.target.value = ''; // allow choosing the same file again / adding more later
 }
 (function wireDragDrop(){
   const label = document.getElementById('photoDropLabel');
@@ -2943,8 +2977,7 @@ function handlePhotoChosen(evt){
     e.preventDefault(); e.stopPropagation(); label.classList.remove('dragover');
   }));
   label.addEventListener('drop', e=>{
-    const file = e.dataTransfer?.files?.[0];
-    if(file) loadPhotoFile(file);
+    if(e.dataTransfer?.files?.length) loadPhotoFiles(e.dataTransfer.files);
   });
 })();
 document.addEventListener('paste', (e)=>{
@@ -2952,13 +2985,14 @@ document.addEventListener('paste', (e)=>{
   if(!modal.classList.contains('open') || addMode!=='photo') return;
   const items = e.clipboardData && e.clipboardData.items;
   if(!items) return;
+  const files = [];
   for(const item of items){
     if(item.type && item.type.startsWith('image/')){
       const file = item.getAsFile();
-      if(file){ e.preventDefault(); loadPhotoFile(file); showToast('Image pasted'); }
-      break;
+      if(file) files.push(file);
     }
   }
+  if(files.length){ e.preventDefault(); loadPhotoFiles(files); showToast(files.length>1?'Images pasted':'Image pasted'); }
 });
 
 const NUTRIENT_KEY_LIST = NUTRIENTS.map(n=>`${n.id} (${n.unit})`).join(', ');
@@ -2997,7 +3031,14 @@ RECOGNITION RULES:
 - If the plate contains a rice base plus gravy plus fried pieces, keep rice, gravy, and the fried pieces separate when that is visually clear.
 - Do not call something "curry" unless the photo truly shows a curry/saucy stew as the dominant food.
 - If the image and notes disagree, prefer the notes for quantity and the image for item identity, but never turn a condiment into a main dish.
-- When you are unsure whether a portion is cooked or raw, default to cooked prepared food for plated meals.`;
+- When you are unsure whether a portion is cooked or raw, default to cooked prepared food for plated meals.
+- If more than one photo is provided, they may be the same dish from different angles, separate components of one meal, or a close-up of a utensil/ingredient given purely to calibrate scale — synthesize all of them into one consistent set of items; do not duplicate an item that simply appears in more than one photo.
+
+HOUSEHOLD-UNIT CALIBRATION (spoons/cups/scoops/glasses) — this is the single biggest source of large estimation errors, so treat it with extra care:
+- The word "spoon" alone is ambiguous between a teaspoon (~5ml) and a tablespoon (~15ml) — nearly a 3x swing in weight, which is a huge swing in calories/protein for a dense ingredient. Never silently assume teaspoon. If a photo shows the actual spoon/scoop being used, measure ITS real size directly from the photo (compare it to the fingers holding it — a finger is roughly 15-18mm wide — and note whether the contents are heaped or level) and trust that measurement over the word choice. Only if no such calibrating photo is given and "spoon" is used without "tea-"/"table-" qualifying it, default to a heaped tablespoon (the common home-cooking meaning for dry powders like flour, sattu, or protein powder) and record that as an explicit assumption.
+- A photo that shows only a utensil, raw ingredient, or scale reference — not the finished plated/poured dish — is a CALIBRATION photo. Use it only to pin down the true size/weight of that one unit, then multiply by however many units the notes mention (e.g. "5 spoons" × the photo-calibrated per-spoon weight); do not try to estimate an entire dish's volume from a close-up of one spoon or ingredient.
+- Rough dry-powder density references if you need them: a level teaspoon of a fine powder such as roasted gram flour (sattu), besan, or protein powder is about 4-6g; a level tablespoon is about 12-18g; heaped versions run 30-50% higher than level. For liquids: 1 tsp ≈ 5ml, 1 tbsp ≈ 15ml, 1 cup ≈ 240ml, a standard glass ≈ 250-300ml.
+- A vague household-measure word ("spoon", "cup", "glass", "bowl", "scoop", "handful") with no size qualifier and no calibrating photo is a genuine portion ambiguity, not routine estimation noise — reflect that honestly in confidenceScore rather than guessing confidently.`;
   p += `\n\nIDENTIFICATION PIPELINE — work through these steps in order for every item: (1) food detection — what is it, (2) preparation detection — how was it cooked/prepared, (3) weight estimation — reason using every visual reference available (plate size, bowl size, spoon/fork/knife, hand/fingers, cup/glass/bottle/can, banana/egg for scale, roti/bread-slice size, visible packaging, known object dimensions, perspective, food volume/thickness/density, container dimensions) rather than a rough guess, (4) confidence — your genuine combined certainty in the food identity, preparation, AND weight together. Before finalizing, sanity-check the weight: does it match the visible volume, is it a realistic serving size, does the cooking method change the weight (moisture loss for grilled/roasted/dry foods, oil absorption for fried foods), and does that affect calories? Revise the estimate if the sanity check fails.
 CONFIDENCE & CLARIFICATION — set confidenceScore (0.0-1.0) to your true certainty from that pipeline. Only when confidenceScore is genuinely below 0.9 (a real ambiguity in food identity, preparation, or portion — not routine estimation uncertainty), set clarificationNeeded true and list 1-3 short, specific questions that would resolve the biggest uncertainty (e.g. "Is this whole milk or toned milk?", "Approximately how many milliliters?", "Was this chicken weighed before or after cooking?"). Do not ask questions for foods you can identify and size confidently — most everyday plated meals should NOT need clarification.
 ASSUMPTIONS — separately, list any assumption you made in order to produce the estimate, as short phrases (e.g. "Whole milk", "Homemade", "Boiled", "No added oil"), so the person can immediately spot and correct anything you guessed wrong. This applies even when confidence is high — a confident guess is still a guess and should be disclosed. Omit only when the food was fully unambiguous (e.g. a labeled packaged product with exact values visible).`;
@@ -3784,22 +3825,27 @@ function regenerateNutrientInsight(){
 // Calls our own /api/analyze serverless function, which holds the Gemini
 // key server-side and forwards to the Gemini API. `content` keeps the same
 // shape the old direct-to-Claude call used: an array with a {type:'text'}
-// block and optionally a {type:'image', source:{data, media_type}} block.
+// block and zero or more {type:'image', source:{data, media_type}} blocks.
 async function callGemini(content, analysisMode){
   const textPart = content.find(c=>c.type==='text');
-  const imagePart = content.find(c=>c.type==='image');
+  const imageParts = content.filter(c=>c.type==='image');
   if(!currentUser) throw new Error('You need to be signed in to analyze a meal.');
   const idToken = await currentUser.getIdToken();
   const usage = await loadAnalysisUsage();
   const body = JSON.stringify({
     prompt: textPart ? textPart.text : '',
-    imageBase64: imagePart ? imagePart.source.data : null,
-    imageMime: imagePart ? imagePart.source.media_type : null,
-    analysisMode: analysisMode || (imagePart ? 'image' : 'text'),
+    // Legacy single-image fields, kept for backward compatibility with the
+    // current analyze.js (which only reads one image) — always the first
+    // photo. `images` is the new array field; once analyze.js forwards it
+    // as multiple inlineData parts, every photo reaches the model.
+    imageBase64: imageParts[0] ? imageParts[0].source.data : null,
+    imageMime: imageParts[0] ? imageParts[0].source.media_type : null,
+    images: imageParts.map(p => ({data: p.source.data, mime: p.source.media_type})),
+    analysisMode: analysisMode || (imageParts.length ? 'image' : 'text'),
     preferredFallbackOrder: fallbackOrderByUsage(usage)
   });
   const controller = new AbortController();
-  const timeoutMs = analysisRequestTimeoutMs(analysisMode || (imagePart ? 'image' : 'text'));
+  const timeoutMs = analysisRequestTimeoutMs(analysisMode || (imageParts.length ? 'image' : 'text'));
   const timer = setTimeout(()=>controller.abort(), timeoutMs);
 
   try{
@@ -3823,7 +3869,7 @@ async function callGemini(content, analysisMode){
     throw new Error(msg);
   }catch(err){
     if(err && err.name === 'AbortError'){
-      if((analysisMode || (imagePart ? 'image' : 'text')) === 'diet'){
+      if((analysisMode || (imageParts.length ? 'image' : 'text')) === 'diet'){
         throw new Error('Daily diet check timed out. Try again after adding a few more foods or re-open the page.');
       }
       throw new Error('Analysis took too long. Try a simpler meal or try again.');
@@ -4383,18 +4429,18 @@ async function persistFoodLibrary(){
   await storeSet('foodLibrary', foodLibrary);
 }
 
-async function analyzePhoto(mimeType){
-  if(!pendingPhotoBase64){ return; }
+async function analyzePhoto(){
+  if(!pendingPhotos.length){ return; }
   const notes = document.getElementById('photoNotesInput').value;
   const area = document.getElementById('analysisArea');
-  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your photo… multi-item meals can take up to a minute.</div>`;
+  area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your photo${pendingPhotos.length>1?'s':''}… multi-item meals can take up to a minute.</div>`;
   try{
-    const prompt = buildPrompt('photo', notes);
+    const prompt = buildPrompt(pendingPhotos.length>1 ? 'set of photos (of the same meal, and/or a close-up used to calibrate portion size)' : 'photo', notes);
     const parsed = await callGemini([
       {type:'text', text: prompt},
-      {type:'image', source:{type:'base64', media_type: mimeType || pendingPhotoMime, data: pendingPhotoBase64}}
+      ...pendingPhotos.map(p=>({type:'image', source:{type:'base64', media_type:p.mime, data:p.base64}}))
     ], 'image');
-    showResults(enrichItemsWithLibrary(applyDeterministicNutrition(parsed.items||[])), pendingPhotoBase64, mimeType || pendingPhotoMime, parsed._apiUsed);
+    showResults(enrichItemsWithLibrary(applyDeterministicNutrition(parsed.items||[])), pendingPhotos[0].base64, pendingPhotos[0].mime, parsed._apiUsed);
   }catch(err){
     area.innerHTML = `<div class="error-box">Couldn't analyze the photo: ${escapeHtml(err.message)}</div>`;
   }
