@@ -2951,18 +2951,45 @@ function removePendingPhoto(i){
   renderPhotoThumbs();
   document.getElementById('analysisArea').innerHTML = '';
 }
-function loadPhotoFiles(files){
+// Phone camera photos are routinely 3-8MB, which alone can approach a
+// server payload limit (this is what caused the 413 error) and slows every
+// upload/analysis down. Downscaling to a sane max dimension and
+// re-encoding as JPEG cuts that to a few hundred KB with no meaningful
+// loss for portion/food identification, which is all this needs.
+function downscaleImageDataUrl(dataUrl, maxDim=1600, quality=0.82){
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.onload = () => {
+      let {width, height} = img;
+      if(width>maxDim || height>maxDim){
+        if(width>=height){ height = Math.round(height*maxDim/width); width = maxDim; }
+        else { width = Math.round(width*maxDim/height); height = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // fall back to the original if decoding fails
+    img.src = dataUrl;
+  });
+}
+async function loadPhotoFiles(files){
   const list = Array.from(files||[]).filter(f=>f && f.type && f.type.startsWith('image/'));
   if(!list.length) return;
-  list.forEach(file=>{
-    const reader = new FileReader();
-    reader.onload = () => {
-      pendingPhotos.push({base64: reader.result.split(',')[1], mime: file.type||'image/jpeg', dataUrl: reader.result});
-      renderPhotoThumbs();
-      document.getElementById('analysisArea').innerHTML = '';
-    };
-    reader.readAsDataURL(file);
-  });
+  for(const file of list){
+    const rawDataUrl = await new Promise((resolve,reject)=>{
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }).catch(()=>null);
+    if(!rawDataUrl) continue;
+    const dataUrl = await downscaleImageDataUrl(rawDataUrl);
+    pendingPhotos.push({base64: dataUrl.split(',')[1], mime: 'image/jpeg', dataUrl});
+    renderPhotoThumbs();
+    document.getElementById('analysisArea').innerHTML = '';
+  }
 }
 function handlePhotoChosen(evt){
   loadPhotoFiles(evt.target.files);
@@ -3834,13 +3861,16 @@ async function callGemini(content, analysisMode){
   const usage = await loadAnalysisUsage();
   const body = JSON.stringify({
     prompt: textPart ? textPart.text : '',
-    // Legacy single-image fields, kept for backward compatibility with the
-    // current analyze.js (which only reads one image) — always the first
-    // photo. `images` is the new array field; once analyze.js forwards it
-    // as multiple inlineData parts, every photo reaches the model.
+    // For the common single-photo case, send only the legacy fields (as
+    // before) so the payload size is unchanged. Only include the `images`
+    // array — needed for real multi-photo support once analyze.js reads it
+    // — when there's genuinely more than one photo, since duplicating the
+    // same base64 data in both places was nearly doubling the request size
+    // and could push a normal single photo over the server's payload limit
+    // (413 Payload Too Large).
     imageBase64: imageParts[0] ? imageParts[0].source.data : null,
     imageMime: imageParts[0] ? imageParts[0].source.media_type : null,
-    images: imageParts.map(p => ({data: p.source.data, mime: p.source.media_type})),
+    ...(imageParts.length > 1 ? {images: imageParts.map(p => ({data: p.source.data, mime: p.source.media_type}))} : {}),
     analysisMode: analysisMode || (imageParts.length ? 'image' : 'text'),
     preferredFallbackOrder: fallbackOrderByUsage(usage)
   });
