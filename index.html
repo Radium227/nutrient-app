@@ -259,6 +259,26 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .day-primary{font-family:var(--font-mono); font-size:13.5px; font-weight:600;}
 .day-secondary{font-size:10.5px; color:var(--text-faint); margin-top:1px;}
 .spectrum-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 16px; margin-bottom:14px;}
+.habits-head{display:flex; align-items:center; justify-content:space-between;}
+.habits-count{font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono);}
+.habits-list{display:flex; flex-direction:column; margin-top:6px;}
+.habit-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);}
+.habit-row:last-child{border-bottom:none;}
+.habit-check{width:22px; height:22px; border-radius:7px; border:1.5px solid var(--line); background:none; flex:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; font-weight:700; color:transparent; transition:background .12s ease, border-color .12s ease;}
+.habit-check.done{background:var(--complete); border-color:var(--complete); color:#08130d;}
+.habit-name{flex:1; font-size:13.5px; color:var(--text); word-break:break-word;}
+.habit-row.done .habit-name{color:var(--text-faint); text-decoration:line-through;}
+.habit-del{flex:none; background:none; border:none; color:var(--text-faint); font-size:16px; line-height:1; cursor:pointer; padding:4px 6px;}
+.habit-del:active{color:var(--danger);}
+.habits-empty{color:var(--text-faint); font-size:12.5px; padding:8px 0 4px; line-height:1.4;}
+.habits-add-row{display:flex; gap:8px; margin-top:12px;}
+.habits-add-row input{flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); padding:9px 12px; color:var(--text); font-size:13px;}
+.habits-add-row input::placeholder{color:var(--text-faint);}
+.habits-add-row button{flex:none; background:var(--surface-3); border:1px solid var(--line); border-radius:var(--radius-md); padding:0 16px; color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer;}
+.habits-week{display:flex; gap:4px; margin-top:14px;}
+.habits-week .d{flex:1; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; background:var(--surface-2); color:var(--text-faint);}
+.habits-week .d.full{background:var(--complete); color:#08130d;}
+.habits-week .d.partial{background:var(--vit); color:#241d02;}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
 .spectrum-head .count{font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
@@ -727,6 +747,19 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <button onclick="quickAddWater(1000)">+1 L</button>
         <button class="ghost" onclick="promptCustomWater()">+ Custom</button>
       </div>
+    </div>
+
+    <div class="card habits-card">
+      <div class="habits-head">
+        <h2><span class="h2-dot" style="background:var(--complete)"></span>Daily Habits</h2>
+        <span class="habits-count" id="habitsCount"></span>
+      </div>
+      <div class="habits-list" id="habitsList"></div>
+      <div class="habits-add-row">
+        <input type="text" id="newHabitInput" placeholder="Add a daily habit, e.g. 10 push-ups" maxlength="60" onkeydown="if(event.key==='Enter'){addHabit();}">
+        <button onclick="addHabit()">+ Add</button>
+      </div>
+      <div class="habits-week" id="habitsWeek"></div>
     </div>
 
     <div class="spectrum-wrap" onclick="openRemainingModal()" style="cursor:pointer;">
@@ -1292,6 +1325,7 @@ let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0
 let targetOverrides = {};
 let savedMeals = []; // starred meals, reusable as one-tap templates
 let foodLibrary = {}; // learned per-gram nutrient profiles, keyed by normalized food name
+let habits = []; // {id, name, createdAt} -- recurring daily habits (checked per-day in day.habitLog)
 let addMode = 'photo';
 let pendingPhotos = []; // [{base64, mime, dataUrl}] — supports multiple images per analysis
 let pendingResults = []; // parsed food items awaiting confirm
@@ -1455,6 +1489,7 @@ async function loadSettings(){
     baseNutrients: m.baseNutrients || m.nutrients || {}
   }));
   foodLibrary = await storeGet('foodLibrary') || {};
+  habits = await storeGet('habits') || [];
   // One-time migration: earlier versions auto-saved calories/protein/fat/carbs
   // overrides from a generic formula. Those stale numbers would otherwise sit
   // in storage and silently mask the new personalized plan defaults below.
@@ -2070,6 +2105,82 @@ async function renderAll(){
   renderWeeklyAnalyzer();
 }
 
+/* =========================================================
+   DAILY HABITS
+   A small, global, recurring checklist ("10 push-ups", "meditate") --
+   defined once, then shown (and checked off) on every single day. Adding
+   a habit doesn't create a one-off task, it adds a row to every day's
+   checklist going forward. Completion is stored per-day on
+   day.habitLog[habitId] = true/false. Removing a habit just drops it from
+   the list -- past completions stay in old day objects untouched, they
+   just stop being displayed since the habit no longer exists.
+========================================================= */
+function getHabitCompletion(day, habitId){
+  return !!(day && day.habitLog && day.habitLog[habitId]);
+}
+function toggleHabit(habitId){
+  const day = dayCache[currentDate];
+  if(!day) return;
+  if(!day.habitLog) day.habitLog = {};
+  day.habitLog[habitId] = !day.habitLog[habitId];
+  renderHabitsCard(day);
+  saveDay(currentDate);
+  refreshBioStrip();
+}
+function addHabit(){
+  const input = document.getElementById('newHabitInput');
+  const name = (input.value||'').trim();
+  if(!name) return;
+  habits.push({id:'h'+Date.now()+Math.random().toString(36).slice(2,6), name, createdAt:Date.now()});
+  input.value = '';
+  renderHabitsCard(dayCache[currentDate]);
+  storeSet('habits', habits);
+  refreshBioStrip();
+}
+function removeHabit(habitId){
+  habits = habits.filter(h=>h.id!==habitId);
+  renderHabitsCard(dayCache[currentDate]);
+  storeSet('habits', habits);
+  refreshBioStrip();
+}
+function renderHabitsCard(day){
+  const list = document.getElementById('habitsList');
+  const countEl = document.getElementById('habitsCount');
+  if(!list || !day) return;
+  if(!habits.length){
+    list.innerHTML = `<div class="habits-empty">No habits yet — add one below (e.g. "10 push-ups" or "Meditate 10 min"). Once added, it shows up every day, not just today.</div>`;
+    countEl.textContent = '';
+  } else {
+    const doneCount = habits.filter(h=>getHabitCompletion(day, h.id)).length;
+    countEl.textContent = `${doneCount}/${habits.length} today`;
+    list.innerHTML = habits.map(h=>{
+      const done = getHabitCompletion(day, h.id);
+      return `<div class="habit-row ${done?'done':''}">
+        <button class="habit-check ${done?'done':''}" onclick="toggleHabit('${h.id}')">${done?'✓':''}</button>
+        <div class="habit-name">${escapeHtml(h.name)}</div>
+        <button class="habit-del" onclick="removeHabit('${h.id}')" title="Remove this habit">✕</button>
+      </div>`;
+    }).join('');
+  }
+  renderHabitsWeek();
+}
+// A lightweight 7-day strip instead of a full chart -- just enough to see
+// the pattern at a glance without the overhead of another graph.
+async function renderHabitsWeek(){
+  const el = document.getElementById('habitsWeek');
+  if(!el) return;
+  if(!habits.length){ el.innerHTML = ''; return; }
+  const days7 = [];
+  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days7.push(todayStr(d)); }
+  const dayDatas = await Promise.all(days7.map(loadDay));
+  el.innerHTML = dayDatas.map((d,i)=>{
+    const doneCount = habits.filter(h=>getHabitCompletion(d, h.id)).length;
+    const cls = doneCount===0 ? '' : doneCount===habits.length ? 'full' : 'partial';
+    const label = new Date(days7[i]+'T00:00:00').toLocaleDateString(undefined,{weekday:'narrow'});
+    return `<div class="d ${cls}" title="${days7[i]}: ${doneCount}/${habits.length} done">${label}</div>`;
+  }).join('');
+}
+
 function renderDashboard(day){
   const totals = computeTotals(day);
   const burned = computeBurned(day);
@@ -2179,6 +2290,7 @@ function renderDashboard(day){
   }
 
   refreshBioStrip();
+  renderHabitsCard(day);
 }
 
 function foodEntryHTML(f){
@@ -3636,6 +3748,8 @@ async function computeWeeklyBiologyMetrics(){
   const thisWeekCalories = dayDatas.map(d=>computeTotals(d).calories||0);
   const thisWeekWater = dayDatas.map(d=>computeTotals(d).water||0);
   const thisWeekProtein = dayDatas.map(d=>computeTotals(d).protein||0);
+  const habitDaysAllDone = habits.length ? dayDatas.slice(7).filter(d=>habits.every(h=>getHabitCompletion(d,h.id))).length : 0;
+  const habitConsistencyPct = habits.length ? Math.round((habitDaysAllDone/7)*100) : 0;
   function dayStatus(pct, hasData){
     if(!hasData) return 'none';
     if(pct>=80) return 'good';
@@ -3700,21 +3814,21 @@ async function computeWeeklyBiologyMetrics(){
       }
     },
     {
-      key:'stability',
-      label:'Calorie Stability',
-      value: stabilityScore==null ? '—' : `${stabilityScore}`,
-      sub:'consistency index',
-      color: stabilityScore==null ? 'var(--text-faint)' : 'var(--bio-stability)',
-      spark: sparkHeights(dayDatas.map(d=>calTarget ? Math.min(150,((computeTotals(d).calories||0)/calTarget)*100) : 0), 150),
+      key:'habits',
+      label:'Habit Consistency',
+      value: !habits.length ? '—' : `${habitConsistencyPct}%`,
+      sub: !habits.length ? 'no habits set yet' : 'days all habits done',
+      color: !habits.length ? 'var(--text-faint)' : 'var(--bio-stability)',
+      spark: sparkHeights(dayDatas.map(d=>habits.length ? (habits.filter(h=>getHabitCompletion(d,h.id)).length/habits.length)*100 : 0), 100),
       detail:{
-        note: calTarget ? `How close daily intake stayed to your ${Math.round(calTarget)} kcal target.` : 'Set a calorie target in Settings to track this.',
+        note: habits.length ? `How many of your ${habits.length} daily habit${habits.length===1?'':'s'} got checked off each day.` : 'Add a daily habit on the dashboard to start tracking this.',
         rows: buildRows(i=>{
           const hasFood = thisWeekHasFood[i];
-          const cals = thisWeekCalories[i];
-          if(!hasFood) return {primary:'No log', secondary:'—', pct:0, status:'none'};
-          if(!calTarget) return {primary:`${Math.round(cals)} kcal`, secondary:'no target set', pct:0, status:'none'};
-          const dayScore = Math.max(0, 100 - Math.abs((cals-calTarget)/calTarget*100));
-          return {primary:`${Math.round(cals)} kcal`, secondary:`${Math.round((cals/calTarget)*100)}% of target`, pct:dayScore, status:dayStatus(dayScore, true)};
+          if(!habits.length) return {primary:'No habits', secondary:'—', pct:0, status:'none'};
+          const day = dayDatas[i];
+          const doneCount = habits.filter(h=>getHabitCompletion(day, h.id)).length;
+          const pct = (doneCount/habits.length)*100;
+          return {primary:`${doneCount}/${habits.length} done`, secondary: pct===100?'All habits done':(hasFood?'Partial':'None checked'), pct, status:dayStatus(pct, true)};
         })
       }
     },
