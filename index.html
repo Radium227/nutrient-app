@@ -264,8 +264,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .habits-list{display:flex; flex-direction:column; margin-top:6px;}
 .habit-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);}
 .habit-row:last-child{border-bottom:none;}
-.habit-check{width:22px; height:22px; border-radius:7px; border:1.5px solid var(--line); background:none; flex:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; font-weight:700; color:transparent; transition:background .12s ease, border-color .12s ease;}
+.habit-check{width:22px; height:22px; border-radius:7px; border:1.5px solid var(--line); background:none; flex:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; font-weight:700; color:transparent; transition:background .12s ease, border-color .12s ease;}
 .habit-check.done{background:var(--complete); border-color:var(--complete); color:#08130d;}
+.habit-minus{width:20px; height:20px; border-radius:6px; border:1px solid var(--line); background:none; flex:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; font-weight:700; color:var(--text-faint); line-height:1;}
+.habit-minus:active{color:var(--danger); border-color:var(--danger);}
+.habit-count-tag{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); margin-left:7px; font-weight:600;}
 .habit-name{flex:1; font-size:13.5px; color:var(--text); word-break:break-word;}
 .habit-row.done .habit-name{color:var(--text-faint); text-decoration:line-through;}
 .habit-del{flex:none; background:none; border:none; color:var(--text-faint); font-size:16px; line-height:1; cursor:pointer; padding:4px 6px;}
@@ -924,6 +927,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="card">
       <h2><span class="h2-dot" style="background:var(--vit)"></span>Last 7 days</h2>
       <div class="habits-week" id="habitsWeek"></div>
+    </div>
+    <div class="card">
+      <h2><span class="h2-dot" style="background:#C08CF0"></span>Frequency</h2>
+      <div class="hint" style="margin:2px 0 10px;">How many times you logged each habit per day — for things you do more than once, like neck exercises.</div>
+      <div id="habitFrequencyList"></div>
     </div>
   </div>
   <!-- SETTINGS -->
@@ -2227,11 +2235,29 @@ async function renderAll(){
 function getHabitCompletion(day, habitId){
   return !!(day && day.habitLog && day.habitLog[habitId]);
 }
-function toggleHabit(habitId){
+// Numeric count for a habit on a given day. Older data stored plain
+// true/false (one completion max) -- that's coerced to 1/0 here so
+// existing habit logs keep working once counts are introduced.
+function getHabitCount(day, habitId){
+  const v = day && day.habitLog ? day.habitLog[habitId] : undefined;
+  if(v===true) return 1;
+  return Number(v)||0;
+}
+function incrementHabit(habitId){
   const day = dayCache[currentDate];
   if(!day) return;
   if(!day.habitLog) day.habitLog = {};
-  day.habitLog[habitId] = !day.habitLog[habitId];
+  day.habitLog[habitId] = getHabitCount(day, habitId) + 1;
+  renderHabitsCard(day);
+  saveDay(currentDate);
+  refreshBioStrip();
+}
+function decrementHabit(habitId, evt){
+  if(evt) evt.stopPropagation();
+  const day = dayCache[currentDate];
+  if(!day) return;
+  if(!day.habitLog) day.habitLog = {};
+  day.habitLog[habitId] = Math.max(0, getHabitCount(day, habitId) - 1);
   renderHabitsCard(day);
   saveDay(currentDate);
   refreshBioStrip();
@@ -2263,15 +2289,18 @@ function renderHabitsCard(day){
     const doneCount = habits.filter(h=>getHabitCompletion(day, h.id)).length;
     countEl.textContent = `${doneCount}/${habits.length} today`;
     list.innerHTML = habits.map(h=>{
-      const done = getHabitCompletion(day, h.id);
+      const count = getHabitCount(day, h.id);
+      const done = count>0;
       return `<div class="habit-row ${done?'done':''}">
-        <button class="habit-check ${done?'done':''}" onclick="toggleHabit('${h.id}')">${done?'✓':''}</button>
-        <div class="habit-name">${escapeHtml(h.name)}</div>
+        <button class="habit-check ${done?'done':''}" onclick="incrementHabit('${h.id}')" title="${done?'Tap to log it again':'Mark done'}">${count>1?count:(done?'✓':'')}</button>
+        ${done?`<button class="habit-minus" onclick="decrementHabit('${h.id}', event)" title="Undo one">−</button>`:''}
+        <div class="habit-name">${escapeHtml(h.name)}${count>1?`<span class="habit-count-tag">×${count} today</span>`:''}</div>
         <button class="habit-del" onclick="removeHabit('${h.id}')" title="Remove this habit">✕</button>
       </div>`;
     }).join('');
   }
   renderHabitsWeek();
+  renderHabitFrequency();
 }
 // A lightweight 7-day strip instead of a full chart -- just enough to see
 // the pattern at a glance without the overhead of another graph.
@@ -2287,6 +2316,38 @@ async function renderHabitsWeek(){
     const cls = doneCount===0 ? '' : doneCount===habits.length ? 'full' : 'partial';
     const label = new Date(days7[i]+'T00:00:00').toLocaleDateString(undefined,{weekday:'narrow'});
     return `<div class="d ${cls}" title="${days7[i]}: ${doneCount}/${habits.length} done">${label}</div>`;
+  }).join('');
+}
+
+// Per-habit breakdown: how many times each habit was logged on each of the
+// last 7 days -- this is what actually answers "did I do neck exercises
+// 3-4 times that day", which the plain done/not-done week strip above can't
+// show. Reuses the same .exfreq-* dot-strip styling as the Trends tab's
+// Exercise Frequency card, since that pattern already fits this exact job.
+async function renderHabitFrequency(){
+  const host = document.getElementById('habitFrequencyList');
+  if(!host) return;
+  if(!habits.length){ host.innerHTML = ''; return; }
+  const days7 = [];
+  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days7.push(todayStr(d)); }
+  const today = todayStr();
+  const dayDatas = await Promise.all(days7.map(loadDay));
+  host.innerHTML = habits.map(h=>{
+    const perDay = dayDatas.map(d=>getHabitCount(d, h.id));
+    const total = perDay.reduce((a,b)=>a+b,0);
+    const activeDays = perDay.filter(v=>v>0).length;
+    const dots = perDay.map((v,i)=>{
+      const isToday = days7[i]===today;
+      const label = new Date(days7[i]+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'});
+      return `<div class="exfreq-dot${v>0?' done':''}${isToday?' today':''}" title="${label}${v>0?': '+v+'×':': not logged'}">${v>1?v:''}</div>`;
+    }).join('');
+    return `<div class="exfreq-row">
+      <div class="exfreq-headline">
+        <span class="exfreq-name">${escapeHtml(h.name)}</span>
+        <span class="exfreq-count">${total} time${total!==1?'s':''} · ${activeDays} of 7 days</span>
+      </div>
+      <div class="exfreq-dots">${dots}</div>
+    </div>`;
   }).join('');
 }
 
