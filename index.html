@@ -601,7 +601,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .stat-box .l{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
 .stat-box .v{font-family:var(--font-mono); font-size:18px; margin-top:4px;}
 .trend-summary{display:flex; align-items:center; gap:9px; margin:-6px 0 14px; font-size:12.5px; flex-wrap:wrap; animation:trendFadeIn .4s ease;}
-.trend-chip{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px; font-weight:600; font-size:11.5px; white-space:nowrap;}
+.trend-chip{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px; font-weight:600; font-size:11.5px; white-space:nowrap; border:none; cursor:pointer; font-family:var(--font-body);}
+.trend-chip:active{filter:brightness(1.15);}
+.trend-chip-q{opacity:.55; font-weight:700; font-size:10px;}
+.trend-explain-line{display:flex; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; color:var(--text-dim); line-height:1.4;}
+.trend-explain-line:last-child{border-bottom:none;}
+.trend-explain-line .bullet{flex:none; color:var(--text-faint);}
+.trend-explain-summary{font-size:14px; color:var(--text); line-height:1.5; margin-bottom:6px;}
 .trend-chip.improving{background:rgba(47,234,99,0.15); color:var(--complete);}
 .trend-chip.stable{background:rgba(95,178,232,0.15); color:var(--min);}
 .trend-chip.attention{background:rgba(255,214,10,0.15); color:var(--vit);}
@@ -1139,6 +1145,15 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="modal-handle"></div>
     <div class="modal-head"><h3 id="detailModalName">Nutrient</h3><button onclick="closeModal('detailModal')">✕</button></div>
     <div id="detailModalBody"></div>
+  </div>
+</div>
+
+<!-- TREND STATUS EXPLAIN MODAL (why a card's chip is green/blue/orange/red) -->
+<div class="modal-backdrop" id="trendExplainModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="trendExplainTitle">Status</h3><button onclick="closeModal('trendExplainModal')">✕</button></div>
+    <div id="trendExplainBody"></div>
   </div>
 </div>
 
@@ -2542,11 +2557,59 @@ function buildPointStyles(length, isCurrent, baseColor, baseRadius, baseHoverRad
 }
 // Small shared builders for the Trends page's new status chip / stat-box
 // markup, so the three per-card blocks inside renderTrends stay short.
-function trendChipHTML(cls, emoji, label){
-  return `<span class="trend-chip ${cls}">${emoji} ${escapeHtml(label)}</span>`;
+// The chip is clickable: tapping it opens a small modal explaining exactly
+// why that status/color was picked, in plain language with the real
+// numbers behind it -- not just a colored word with no context.
+let trendStatusExplain = {};
+function trendChipHTML(cls, emoji, label, key, whyHtml){
+  if(key) trendStatusExplain[key] = {label, whyHtml};
+  return `<button type="button" class="trend-chip ${cls}" onclick="openTrendStatusExplain('${key}')">${emoji} ${escapeHtml(label)} <span class="trend-chip-q">?</span></button>`;
+}
+function openTrendStatusExplain(key){
+  const entry = trendStatusExplain[key];
+  if(!entry) return;
+  document.getElementById('trendExplainTitle').textContent = entry.label;
+  document.getElementById('trendExplainBody').innerHTML = entry.whyHtml;
+  openModal('trendExplainModal');
 }
 function statBoxHTML(label, value){
   return `<div class="stat-box"><div class="l">${escapeHtml(label)}</div><div class="v mono">${escapeHtml(value)}</div></div>`;
+}
+function buildWeightExplain({goal, net, weeklyRate, rapid, statusLabel, spanDays}){
+  const goalText = goal<0 ? 'lose weight' : goal>0 ? 'gain weight' : 'maintain your weight';
+  const lines = [];
+  lines.push(`<div class="trend-explain-summary">Your goal is set to <b>${escapeHtml(goalText)}</b>. Over the last ${Math.round(spanDays)} logged days, weight changed by <b>${net>=0?'+':''}${net.toFixed(1)} kg</b>, a rate of <b>${weeklyRate>=0?'+':''}${weeklyRate.toFixed(2)} kg/week</b>.</div>`);
+  if(rapid){
+    lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>That rate is at or above 1 kg/week either direction, which is generally considered fast enough to double-check it's intentional (and not just water weight/a noisy reading) -- so it's flagged <b>Needs Attention</b> regardless of which direction you're aiming for.</span></div>`);
+  } else if(statusLabel==='Improving'){
+    lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>The change is moving in the direction of your goal at a reasonable pace, so it's marked <b>Improving</b>.</span></div>`);
+  } else if(statusLabel==='Declining'){
+    lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>The change is moving against your goal, so it's marked <b>Declining</b>.</span></div>`);
+  } else if(statusLabel==='Needs Attention'){
+    lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>Your goal is to maintain, but weight moved by more than 0.5 kg over this window -- more than the "hold steady" band, so it's flagged <b>Needs Attention</b>.</span></div>`);
+  } else {
+    lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>The change is small and within a normal day-to-day range for your goal, so it's marked <b>Stable</b>.</span></div>`);
+  }
+  lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>This is based on your first and last logged weight in the last 14 days -- a single unusual reading (dehydration, post-workout, etc.) can shift it, so treat it as a rough signal, not a diagnosis.</span></div>`);
+  return lines.join('');
+}
+function buildExerciseExplain({weekDelta, thisWeekMin, lastWeekMin, consistency, activeDays, statusLabel}){
+  const lines = [];
+  lines.push(`<div class="trend-explain-summary">This week: <b>${thisWeekMin} min</b>. Prior week: <b>${lastWeekMin} min</b> (${weekDelta>=0?'+':''}${weekDelta} min change). Active on <b>${activeDays} of the last 14 days</b> (${consistency}%).</div>`);
+  if(statusLabel==='Improving') lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>This week's total is more than 5 minutes above last week's, so it's marked <b>Improving</b>.</span></div>`);
+  else if(statusLabel==='Declining') lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>This week's total dropped by more than 15 minutes compared to last week, so it's marked <b>Declining</b>.</span></div>`);
+  else if(statusLabel==='Needs Attention') lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>You were active on fewer than 30% of the last 14 days, so it's flagged <b>Needs Attention</b> even though week-over-week totals didn't swing much.</span></div>`);
+  else lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>Week-over-week minutes are roughly flat and consistency is reasonable, so it's marked <b>Stable</b>.</span></div>`);
+  return lines.join('');
+}
+function buildCalorieExplain({consistencyScore, deficitSurplus, calTarget, stdDev, statusLabel}){
+  const lines = [];
+  lines.push(`<div class="trend-explain-summary">Averaging <b>${deficitSurplus>=0?'+':''}${Math.round(deficitSurplus)} kcal</b> vs your ${Math.round(calTarget)} kcal target (net of exercise burned), with day-to-day swings of about <b>±${stdDev} kcal</b>. That works out to a target-accuracy score of <b>${consistencyScore}/100</b>.</div>`);
+  if(statusLabel==='Improving') lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>You're averaging within 3% of target with a high consistency score, so it's marked <b>Improving</b>.</span></div>`);
+  else if(statusLabel==='Stable') lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>Consistency score is 85 or higher -- most days land close to target -- so it's marked <b>Stable</b>.</span></div>`);
+  else if(statusLabel==='Needs Attention') lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>Consistency score is between 65 and 85 -- there's a meaningful amount of day-to-day drift from target -- so it's flagged <b>Needs Attention</b>.</span></div>`);
+  else lines.push(`<div class="trend-explain-line"><span class="bullet">•</span><span>Consistency score is below 65 -- intake is swinging well away from target on a lot of days -- so it's marked <b>Declining</b>.</span></div>`);
+  return lines.join('');
 }
 async function renderTrends(){
   await ensureChartJs();
@@ -2575,7 +2638,8 @@ async function renderTrends(){
   const weightPoints = [];
   dayDatas.forEach(d=>{
     (d.weights||[]).forEach(w=>{
-      if(w && typeof w.value==='number') weightPoints.push({x:w.ts, y:w.value});
+      const ts = Number(w && w.ts);
+      if(w && typeof w.value==='number' && Number.isFinite(ts)) weightPoints.push({x:ts, y:w.value});
     });
   });
   weightPoints.sort((a,b)=>a.x-b.x);
@@ -2691,7 +2755,7 @@ async function renderTrends(){
       }
       if(rapid){ statusCls='attention'; statusEmoji='🟠'; statusLabel='Needs Attention'; }
 
-      wSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel)}<span class="trend-delta">${net>=0?'+':''}${net.toFixed(1)} kg (${pct>=0?'+':''}${pct.toFixed(1)}%) · last ${Math.round(spanDays)}d</span>`;
+      wSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel, 'weight', buildWeightExplain({goal, net, pct, weeklyRate, rapid, statusCls, statusLabel, spanDays}))}<span class="trend-delta">${net>=0?'+':''}${net.toFixed(1)} kg (${pct>=0?'+':''}${pct.toFixed(1)}%) · last ${Math.round(spanDays)}d</span>`;
 
       wStatGrid.innerHTML = [
         statBoxHTML('Current', `${last.y.toFixed(1)} kg`),
@@ -2808,7 +2872,7 @@ async function renderTrends(){
       else if(consistency < 30){ statusCls='attention'; statusEmoji='🟠'; statusLabel='Needs Attention'; }
       else { statusCls='stable'; statusEmoji='🔵'; statusLabel='Stable'; }
 
-      eSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel)}<span class="trend-delta">${weekDelta>=0?'+':''}${weekDelta} min vs prior 7d (${weekDeltaPct>=0?'+':''}${Math.round(weekDeltaPct)}%)</span>`;
+      eSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel, 'exercise', buildExerciseExplain({weekDelta, thisWeekMin, lastWeekMin, consistency, activeDays, statusLabel}))}<span class="trend-delta">${weekDelta>=0?'+':''}${weekDelta} min vs prior 7d (${weekDeltaPct>=0?'+':''}${Math.round(weekDeltaPct)}%)</span>`;
 
       eStatGrid2.innerHTML = [
         statBoxHTML('Avg session', `${avgSession} min`),
@@ -2949,7 +3013,7 @@ async function renderTrends(){
       else { statusCls='declining'; statusEmoji='🔴'; statusLabel='Declining'; }
       if(Math.abs(deficitSurplus) <= calTarget*0.03 && consistencyScore>=85){ statusCls='improving'; statusEmoji='🟢'; statusLabel='Improving'; }
 
-      cSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel)}<span class="trend-delta">${consistencyScore}% target accuracy</span>`;
+      cSummaryEl.innerHTML = `${trendChipHTML(statusCls, statusEmoji, statusLabel, 'calories', buildCalorieExplain({consistencyScore, deficitSurplus, calTarget, stdDev, statusLabel}))}<span class="trend-delta">${consistencyScore}% target accuracy</span>`;
 
       cStatGrid2.innerHTML = [
         statBoxHTML('Target', `${Math.round(calTarget)} kcal`),
