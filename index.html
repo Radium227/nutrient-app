@@ -3234,6 +3234,8 @@ const NUTRIENT_KEY_LIST = NUTRIENTS.map(n=>`${n.id} (${n.unit})`).join(', ');
 function buildPrompt(context, notes){
   let p = `You are a professional nutrition analyst with USDA FoodData Central-level knowledge of food composition. Identify each distinct food/drink item in the ${context}, and estimate a realistic portion size in grams for what was actually consumed.
 
+USER-PROVIDED VALUES ALWAYS WIN — HIGHEST PRIORITY RULE, overrides everything else in this prompt: if the person's own text (in the ${context} itself, or in any notes/context appended below) states an explicit numeric value for a field — a weight ("135g"), a calorie count ("330 kcal"), a macro ("Protein: 10.5g", "Carbs: 69g"), a micronutrient ("Iron: 2.3mg"), or any other nutrient — you MUST use that exact number verbatim for that item and field. Do not recalculate it, "correct" it, round it differently, sanity-check it against your own estimate, or blend it with your own number. The person is telling you a real, already-known value (often from a food label, a kitchen scale, or a source they trust more than a visual/text estimate) — treat it as ground truth, not as one input among several. Only estimate the fields they did NOT give an explicit number for. If they gave a full nutrient breakdown for an item, your job for that item shrinks to: keep their numbers exactly as given, and fill in only whichever fields (e.g. specific vitamins/minerals/amino acids) they left unstated.
+
 For each item, estimate a COMPLETE nutrient profile. Your response has a generous length budget, so there is no reason to skip categories to save space — completeness and accuracy matter far more than brevity.
 
 Nutrient fields to estimate: ${NUTRIENT_KEY_LIST}
@@ -3243,6 +3245,7 @@ You should still estimate all 18 amino acids listed (histidine, isoleucine, leuc
 CALORIES/MACROS FOR KNOWN WHOLE FOODS — for a curated set of foods with essentially fixed composition (milk by species/fat %, eggs, chicken by prep, paneer, tofu, curd, common dals/rajma/chole, rice, roti/chapati, idli, dosa, poha, upma, khichdi, nuts), you decide which exact reference food it is and say so directly with a "refKey" field on that item — you are the one identifying it, not a text-matching script guessing from your free-text name afterward. When you're confident, set refKey to exactly one of the values below (in addition to your own full nutrient estimate as usual); the app then overrides that item's calories/protein/carbs/fat with a fixed per-100g reference scaled to your gramsEstimate. Because of this, for these foods your effort matters most on (a) correctly identifying which refKey applies regardless of how the food is phrased or what other words surround it (e.g. "whole cow milk", "a glass of full-fat buffalo milk", "bhains ka doodh" should all still resolve confidently to the right refKey), and (b) getting gramsEstimate right, since that weight is what actually drives the final numbers.
 Species and fat% genuinely change the numbers — cow milk and buffalo milk are NOT interchangeable (buffalo milk runs roughly 6-7% fat and ~97 kcal/100g vs. cow whole milk's ~3.3% fat and ~61 kcal/100g); never pick a cow-milk refKey when buffalo/bhains is mentioned or visible, or vice versa.
 If you're genuinely unsure which refKey applies (plain "milk" with no fat% or species stated, "chicken" with no prep stated, "nuts" with no raw/roasted stated), omit refKey entirely and just describe it plainly in the name (e.g. just "milk") rather than guessing — the app will flag it for the person to confirm rather than silently picking one. If the item doesn't match any of these foods at all (mixed dishes, packaged/branded products, sauces, multi-ingredient recipes), omit refKey and give your own best full nutrient estimate as normal — that stays entirely your call.
+If the person already gave explicit numeric values for this item (see USER-PROVIDED VALUES ALWAYS WIN above), do NOT set refKey for it even though it may otherwise be a recognizable reference food — refKey tells the app to substitute its own fixed per-100g numbers, which would silently throw away the exact values the person just gave you. Set userProvidedValues:true on that item instead, and refKey only when you are the one supplying the numbers.
 Available refKey values (use EXACTLY one of these strings, or omit the field — never invent a new one): milk_skim, milk_double_toned, milk_toned, milk_buffalo, milk_whole, egg_fried, egg_scrambled, egg_boiled, chicken_fried, chicken_tandoori, chicken_roasted_skinless, chicken_boiled_skinless, almonds, cashews, peanuts, walnuts, mixed_nuts_raw, mixed_nuts_roasted, paneer, tofu, greek_yogurt, curd, lassi, cheddar_cheese, salmon_cooked, tuna_cooked, beef_cooked_lean, pork_cooked_lean, rajma_cooked, chole_cooked, dal_cooked, roti_chapati, idli, dosa_plain, poha, upma, khichdi, rice_cooked_white.
 BIOLOGICAL CONSISTENCY — for every item, keep protein, fat, and carbohydrate grams roughly consistent with the calories you report: calories should be within about 15% of (protein_g × 4) + (carbs_g × 4) + (fat_g × 9). Essential amino acids (histidine, isoleucine, leucine, lysine, methionine, phenylalanine, threonine, tryptophan, valine) should never individually exceed the item's total protein mass, and their combined mass plus the non-essential amino acids should land in the 80-100% range of total protein mass, not far below or above it.
 
@@ -3280,7 +3283,7 @@ ASSUMPTIONS — separately, list any assumption you made in order to produce the
     p += `\n\nAdditional context from the person logging this meal (treat as reliable and factor it into your estimate): """${notes.trim()}"""`;
   }
   p += `\n\nRespond with ONLY valid, complete JSON — no markdown fences, no commentary — matching exactly this schema:
-{"items":[{"name":"string, short food name","gramsEstimate":number,"expectedErrorGrams":"number, your +/- margin of error in grams","confidence":"high|medium|low","confidenceScore":"number 0.0-1.0 per CONFIDENCE & CLARIFICATION above","clarificationNeeded":"boolean, true only when confidenceScore < 0.9","questions":["short strings, only when clarificationNeeded is true, else omit or empty"],"assumptions":["short strings per ASSUMPTIONS above, else omit or empty"],"refKey":"string, optional — one of the enumerated reference keys above, only when genuinely confident","nutrients":{"<nutrientId>":number, ...}}]}
+{"items":[{"name":"string, short food name","gramsEstimate":number,"expectedErrorGrams":"number, your +/- margin of error in grams","confidence":"high|medium|low","confidenceScore":"number 0.0-1.0 per CONFIDENCE & CLARIFICATION above","clarificationNeeded":"boolean, true only when confidenceScore < 0.9","questions":["short strings, only when clarificationNeeded is true, else omit or empty"],"assumptions":["short strings per ASSUMPTIONS above, else omit or empty"],"refKey":"string, optional — one of the enumerated reference keys above, only when genuinely confident AND userProvidedValues is not true","userProvidedValues":"boolean — true only when the person's own text gave explicit numeric value(s) for this item, per USER-PROVIDED VALUES ALWAYS WIN above","nutrients":{"<nutrientId>":number, ...}}]}
 Keep item names short. Fully complete every item's nutrient object — including its amino acids, vitamins, and minerals — before starting the next item; never truncate mid-object.`;
   return p;
 }
@@ -4539,6 +4542,13 @@ function deriveMacrosFromReference(refKey, grams){
 }
 
 function applyDeterministicMacros(item){
+  // The person's own explicit numbers always win -- never let the reference
+  // table stomp them, even if the model set refKey anyway despite being
+  // told not to for user-provided items. This is the actual enforcement;
+  // the prompt instruction alone isn't reliable enough on its own.
+  if(item.userProvidedValues){
+    return {...item, _macroSource:'user', _clarifyGroup:null};
+  }
   const grams = Number(item.gramsEstimate)||0;
   const {refKey, clarifyGroup} = matchReferenceFood(item.name, item.refKey);
   if(!refKey || !grams){
@@ -4566,7 +4576,11 @@ function validateAndRepairGeneral(item){
   const reportedCal = Number(n.calories||0);
   const expectedCal = protein*4 + carbs*4 + fat*9;
   const isDeterministic = !!(item._macroSource && item._macroSource.startsWith('deterministic'));
-  if(!isDeterministic && expectedCal>0){
+  // Same rule here -- if these are the person's own stated numbers, don't
+  // "correct" them just because they don't perfectly satisfy the Atwater
+  // formula (real food labels/whole-diet AIs often round in ways that
+  // don't land exactly on 4/4/9 either).
+  if(!isDeterministic && !item.userProvidedValues && expectedCal>0){
     const diffRatio = Math.abs(reportedCal-expectedCal)/expectedCal;
     if(diffRatio > 0.25){
       n.calories = Math.round(expectedCal);
@@ -4691,7 +4705,7 @@ async function analyzeText(){
   const area = document.getElementById('analysisArea');
   area.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Analyzing your meal…</div>`;
   try{
-    const prompt = buildPrompt('meal description') + `\n\nMeal description: """${desc}"""`;
+    const prompt = buildPrompt('meal description') + `\n\nMeal description: """${desc}"""\n\nReminder: if any exact nutrient numbers are stated above, use them verbatim per the USER-PROVIDED VALUES rule — do not substitute your own estimate for a field they already gave you.`;
     const parsed = await callGemini([{type:'text', text: prompt}], 'text');
     showResults(enrichItemsWithLibrary(applyDeterministicNutrition(parsed.items||[])), null, null, parsed._apiUsed);
   }catch(err){
