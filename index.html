@@ -338,6 +338,28 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .entry .refresh:active{color:var(--text);}
 .entry .refresh.spinning{animation:spin 0.9s linear infinite;}
 @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+
+/* ---------- Stacks (grouped saved meals logged together) ---------- */
+.stacks-section{margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid var(--line);}
+.stacks-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+.stacks-head > span{font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px; font-weight:600;}
+.hint-inline{font-size:11px; color:var(--text-faint); text-transform:none; letter-spacing:normal; font-weight:400;}
+.stack-card{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line);}
+.stack-card:last-child{border-bottom:none;}
+.stack-card .thumb{width:42px;height:42px;border-radius:10px;background:var(--macro-dim); color:var(--macro); display:flex;align-items:center;justify-content:center; font-size:18px; flex-shrink:0;}
+.stack-card .info{flex:1; min-width:0;}
+.stack-card .info .name{font-size:14.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.stack-card .info .meta{font-size:12px; color:var(--text-faint); margin-top:2px;}
+.stack-card .edit{background:none;border:none;color:var(--text-faint);font-size:15px;padding:4px 8px 4px 2px; flex-shrink:0;}
+.pick-row, .check-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer;}
+.pick-row:last-child, .check-row:last-child{border-bottom:none;}
+.pick-row input[type="checkbox"], .check-row input[type="checkbox"]{width:20px; height:20px; accent-color:var(--macro); flex-shrink:0; cursor:pointer;}
+.pick-row .thumb, .check-row .thumb{width:36px;height:36px;border-radius:9px;background:var(--surface-2); display:flex;align-items:center;justify-content:center; font-size:15px; flex-shrink:0; overflow:hidden;}
+.pick-row .thumb img, .check-row .thumb img{width:100%;height:100%;object-fit:cover;}
+.pick-row .info, .check-row .info{flex:1; min-width:0;}
+.pick-row .name, .check-row .name{font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.pick-row .meta, .check-row .meta{font-size:11.5px; color:var(--text-faint); margin-top:1px;}
+.check-row.unchecked{opacity:.45;}
 .empty-state{text-align:center; padding:40px 16px; color:var(--text-faint);}
 .empty-state .icon{font-size:32px; margin-bottom:10px;}
 .empty-state .cta{margin-top:14px;}
@@ -1053,6 +1075,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     </div>
 
     <div id="addSavedPane" style="display:none;">
+      <div class="stacks-section">
+        <div class="stacks-head">
+          <span>Stacks <span class="hint-inline">— log a group of items together, uncheck any you skip</span></span>
+          <button class="btn ghost small" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="openCreateStackModal()">+ New stack</button>
+        </div>
+        <div id="mealStacksList"></div>
+      </div>
       <input type="text" id="savedMealSearch" placeholder="Search saved meals…" oninput="renderSavedMealsPane()" style="width:100%; box-sizing:border-box; margin-bottom:12px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;">
       <div id="savedMealsList"></div>
     </div>
@@ -1102,6 +1131,36 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div class="hint">This scales the saved nutrients locally. No AI call is needed.</div>
     </div>
     <button class="btn block" onclick="confirmLogSavedMeal()">Add to diary</button>
+  </div>
+</div>
+
+<!-- CREATE / EDIT STACK MODAL -->
+<div class="modal-backdrop" id="stackEditModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="stackEditTitle">New stack</h3><button onclick="closeModal('stackEditModal')">✕</button></div>
+    <div class="field">
+      <label>Stack name</label>
+      <input type="text" id="stackNameInput" placeholder="e.g. Morning vitamins">
+    </div>
+    <div class="field">
+      <label>Items in this stack</label>
+      <div class="hint" style="margin-top:-2px; margin-bottom:8px;">Pick from your saved meals. Save a meal first (☆ on any logged item, or from Photo/Describe/Manual) if what you want isn't listed yet.</div>
+      <div id="stackMemberPicker"></div>
+    </div>
+    <button class="btn block" onclick="confirmSaveStack()">Save stack</button>
+    <button class="detail-edit-link" id="stackDeleteBtn" style="display:none; color:var(--danger);" onclick="deleteStackFromEditor()">Delete this stack</button>
+  </div>
+</div>
+
+<!-- LOG STACK (CHECKLIST) MODAL -->
+<div class="modal-backdrop" id="logStackModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="logStackTitle">Log stack</h3><button onclick="closeModal('logStackModal')">✕</button></div>
+    <div class="hint" style="margin-top:-4px; margin-bottom:10px;">All checked by default — uncheck anything you're skipping today.</div>
+    <div id="logStackChecklist"></div>
+    <button class="btn block" style="margin-top:6px;" onclick="confirmLogStack()">Log checked items</button>
   </div>
 </div>
 
@@ -1350,6 +1409,11 @@ let lastBioMetrics = []; // most recent 7-day snapshot metrics, for the tap-to-e
 let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0, useNetCalories:true};
 let targetOverrides = {};
 let savedMeals = []; // starred meals, reusable as one-tap templates
+let mealStacks = []; // groups of saved meals logged together (e.g. "Morning vitamins"), checked off per-use
+let pendingStackMemberIds = new Set(); // working selection while creating/editing a stack
+let editingStackId = null;
+let pendingLogStackId = null;
+let pendingLogStackChecked = new Set(); // working checked-off set while logging a stack
 let foodLibrary = {}; // learned per-gram nutrient profiles, keyed by normalized food name
 let habits = []; // {id, name, createdAt} -- recurring daily habits (checked per-day in day.habitLog)
 let addMode = 'photo';
@@ -1514,6 +1578,7 @@ async function loadSettings(){
     baseGrams: m.baseGrams || m.grams || 1,
     baseNutrients: m.baseNutrients || m.nutrients || {}
   }));
+  mealStacks = await storeGet('mealStacks') || [];
   foodLibrary = await storeGet('foodLibrary') || {};
   habits = await storeGet('habits') || [];
   // One-time migration: earlier versions auto-saved calories/protein/fat/carbs
@@ -3123,7 +3188,7 @@ function setAddMode(mode){
   document.getElementById('addManualPane').style.display = mode==='manual' ? 'block':'none';
   document.getElementById('addSavedPane').style.display = mode==='saved' ? 'block':'none';
   document.getElementById('analysisArea').innerHTML = '';
-  if(mode==='saved') renderSavedMealsPane();
+  if(mode==='saved'){ renderSavedMealsPane(); renderMealStacksList(); }
 }
 
 // Renders the current set of pending photos as a removable thumbnail strip,
@@ -5282,9 +5347,163 @@ async function confirmLogSavedMeal(){
 }
 async function deleteSavedMealById(id){
   savedMeals = savedMeals.filter(m=>m.id!==id);
+  // Drop the deleted meal out of any stacks that referenced it, so stacks
+  // never end up pointing at a saved meal that no longer exists.
+  let stacksChanged = false;
+  mealStacks.forEach(s=>{
+    if(s.memberIds.includes(id)){
+      s.memberIds = s.memberIds.filter(mid=>mid!==id);
+      stacksChanged = true;
+    }
+  });
   renderSavedMealsPane();
   showToast('Removed from saved meals');
   storeSet('savedMeals', savedMeals);
+  if(stacksChanged) storeSet('mealStacks', mealStacks);
+}
+
+/* ---------- Stacks ----------
+   A stack is a named group of saved meals you tend to log together (a
+   supplement routine, a go-to breakfast, etc). Logging a stack shows a
+   checklist of its members, all checked by default — uncheck whatever you
+   skipped that day, then log the rest in one action instead of tapping
+   "+ Log" on each item individually. */
+function renderMealStacksList(){
+  const el = document.getElementById('mealStacksList');
+  if(!el) return;
+  if(!mealStacks.length){
+    el.innerHTML = `<div class="empty-state" style="padding:12px 0;">No stacks yet — group saved meals you log together, like a daily vitamin routine.</div>`;
+    return;
+  }
+  el.innerHTML = mealStacks.map(s=>{
+    const members = s.memberIds.map(id=>savedMeals.find(m=>m.id===id)).filter(Boolean);
+    return `<div class="stack-card">
+      <div class="thumb">📦</div>
+      <div class="info">
+        <div class="name">${escapeHtml(s.name)}</div>
+        <div class="meta">${members.length} item${members.length===1?'':'s'}</div>
+      </div>
+      <button class="btn" style="padding:8px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="openLogStackModal('${s.id}')">Log stack</button>
+      <button class="edit" title="Edit stack" onclick="openCreateStackModal('${s.id}')">✎</button>
+    </div>`;
+  }).join('');
+}
+
+function openCreateStackModal(stackId){
+  editingStackId = stackId || null;
+  const stack = editingStackId ? mealStacks.find(s=>s.id===editingStackId) : null;
+  document.getElementById('stackEditTitle').textContent = stack ? 'Edit stack' : 'New stack';
+  document.getElementById('stackNameInput').value = stack ? stack.name : '';
+  pendingStackMemberIds = new Set(stack ? stack.memberIds : []);
+  document.getElementById('stackDeleteBtn').style.display = stack ? 'block' : 'none';
+  renderStackMemberPicker();
+  openModal('stackEditModal');
+}
+function renderStackMemberPicker(){
+  const el = document.getElementById('stackMemberPicker');
+  if(!savedMeals.length){
+    el.innerHTML = `<div class="empty-state" style="padding:12px 0;">No saved meals yet — save one first, then come back to build a stack.</div>`;
+    return;
+  }
+  el.innerHTML = savedMeals.slice().reverse().map(m=>{
+    const checked = pendingStackMemberIds.has(m.id);
+    return `<label class="pick-row">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleStackMemberPick('${m.id}')">
+      <div class="thumb">${m.photo?`<img src="${m.photo}">`:'🍴'}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="meta">${Math.round((m.baseNutrients||m.nutrients||{}).calories||0)} kcal</div>
+      </div>
+    </label>`;
+  }).join('');
+}
+function toggleStackMemberPick(id){
+  if(pendingStackMemberIds.has(id)) pendingStackMemberIds.delete(id);
+  else pendingStackMemberIds.add(id);
+}
+async function confirmSaveStack(){
+  const name = document.getElementById('stackNameInput').value.trim();
+  if(!name){ showToast('Give the stack a name'); return; }
+  if(!pendingStackMemberIds.size){ showToast('Pick at least one saved meal'); return; }
+  const memberIds = Array.from(pendingStackMemberIds);
+  if(editingStackId){
+    const stack = mealStacks.find(s=>s.id===editingStackId);
+    if(stack){ stack.name = name; stack.memberIds = memberIds; }
+  } else {
+    mealStacks.push({id:'st'+Date.now(), name, memberIds, createdAt:Date.now()});
+  }
+  closeModal('stackEditModal');
+  renderMealStacksList();
+  showToast(editingStackId ? 'Stack updated' : 'Stack created');
+  storeSet('mealStacks', mealStacks);
+  editingStackId = null;
+}
+async function deleteStackFromEditor(){
+  if(!editingStackId) return;
+  mealStacks = mealStacks.filter(s=>s.id!==editingStackId);
+  closeModal('stackEditModal');
+  renderMealStacksList();
+  showToast('Stack deleted');
+  storeSet('mealStacks', mealStacks);
+  editingStackId = null;
+}
+function openLogStackModal(stackId){
+  const stack = mealStacks.find(s=>s.id===stackId);
+  if(!stack) return;
+  pendingLogStackId = stackId;
+  pendingLogStackChecked = new Set(stack.memberIds);
+  document.getElementById('logStackTitle').textContent = stack.name;
+  renderLogStackChecklist();
+  openModal('logStackModal');
+}
+function renderLogStackChecklist(){
+  const stack = mealStacks.find(s=>s.id===pendingLogStackId);
+  const el = document.getElementById('logStackChecklist');
+  if(!stack){ el.innerHTML=''; return; }
+  const members = stack.memberIds.map(id=>savedMeals.find(m=>m.id===id)).filter(Boolean);
+  el.innerHTML = members.map(m=>{
+    const checked = pendingLogStackChecked.has(m.id);
+    return `<label class="check-row ${checked?'':'unchecked'}">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleLogStackItem('${m.id}')">
+      <div class="thumb">${m.photo?`<img src="${m.photo}">`:'🍴'}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="meta">${Math.round((m.baseNutrients||m.nutrients||{}).calories||0)} kcal</div>
+      </div>
+    </label>`;
+  }).join('');
+}
+function toggleLogStackItem(id){
+  if(pendingLogStackChecked.has(id)) pendingLogStackChecked.delete(id);
+  else pendingLogStackChecked.add(id);
+  renderLogStackChecklist();
+}
+async function confirmLogStack(){
+  const stack = mealStacks.find(s=>s.id===pendingLogStackId);
+  if(!stack) return;
+  const checkedIds = stack.memberIds.filter(id=>pendingLogStackChecked.has(id));
+  if(!checkedIds.length){ showToast('Nothing checked to log'); return; }
+  const day = await loadDay(currentDate);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  checkedIds.forEach(id=>{
+    const meal = savedMeals.find(m=>m.id===id);
+    if(!meal) return;
+    const baseGrams = Number(meal.baseGrams || meal.grams || 1) || 1;
+    const baseNutrients = meal.baseNutrients || meal.nutrients || {};
+    day.foods.push({
+      id:'f'+Date.now()+Math.random().toString(36).slice(2,6),
+      name:meal.name,
+      grams: baseGrams,
+      time,
+      photo:meal.photo||null,
+      nutrients: {...baseNutrients}
+    });
+  });
+  closeModal('logStackModal');
+  pendingLogStackId = null;
+  renderAll();
+  showToast(`Logged ${checkedIds.length} item${checkedIds.length===1?'':'s'} from ${stack.name}`);
+  saveDay(currentDate);
 }
 
 /* ---------- Re-check nutrients for already-logged food ----------
