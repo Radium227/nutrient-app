@@ -3084,6 +3084,28 @@ async function renderTrends(){
   const heatmapHost = document.getElementById('calorieHeatmap');
   const legendHost = document.getElementById('calorieLegend');
 
+  // 7-day moving averages for intake and burn — same approach as the
+  // weight chart's 10-day average (reuses the lookback days already
+  // fetched for that, so no extra network calls), just a shorter window
+  // since daily calorie swings are noisier day-to-day than body weight.
+  const CAL_MOVING_AVG_WINDOW = 7;
+  const dailyEffectiveIntakeByDate = new Map();
+  const dailyBurnByDate = new Map();
+  lookbackDayDatas.forEach((d,i)=>{
+    const cal = Math.round(computeTotals(d).calories||0);
+    const burn = computeBurned(d)||0;
+    dailyEffectiveIntakeByDate.set(lookbackDays[i], profile.useNetCalories ? Math.max(0, cal-burn) : cal);
+    dailyBurnByDate.set(lookbackDays[i], burn);
+  });
+  function trailingDailyAvg(dateStr, byDateMap, windowSize){
+    const idx = lookbackDays.indexOf(dateStr);
+    const windowDates = lookbackDays.slice(Math.max(0, idx-windowSize+1), idx+1);
+    const vals = windowDates.map(d=>byDateMap.get(d)).filter(v=>v!=null);
+    return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null;
+  }
+  const rolling7Intake = days.map(d=>trailingDailyAvg(d, dailyEffectiveIntakeByDate, CAL_MOVING_AVG_WINDOW));
+  const rolling7Burn = days.map(d=>trailingDailyAvg(d, dailyBurnByDate, CAL_MOVING_AVG_WINDOW));
+
   try{
     const clCanvas = document.getElementById('calorieLineChart');
     if(calorieLineChartInst){ calorieLineChartInst.destroy(); calorieLineChartInst=null; }
@@ -3116,6 +3138,16 @@ async function renderTrends(){
             pointRadius:0,
             fill:false,
             tension:0
+          },
+          {
+            label:'7-day average',
+            data:rolling7Intake,
+            borderColor:'#B8791A',
+            borderDash:[6,4],
+            borderWidth:2,
+            pointRadius:0,
+            tension:0.35,
+            fill:false
           }
         ]
       },
@@ -3161,13 +3193,22 @@ async function renderTrends(){
           pointBackgroundColor:burnPointStyles.bg,
           pointBorderColor:burnPointStyles.border,
           pointBorderWidth:1.2
+        },{
+          label:'7-day average',
+          data:rolling7Burn,
+          borderColor:'#2E7DAF',
+          borderDash:[6,4],
+          borderWidth:2,
+          pointRadius:0,
+          tension:0.35,
+          fill:false
         }]
       },
       options:{
         maintainAspectRatio:false,
         plugins:{
-          legend:{display:false},
-          tooltip:{callbacks:{label:(item)=>`Burned: ${Math.round(item.parsed.y ?? 0)} kcal`}}
+          legend:{position:'bottom', labels:{color:'#D3D4DA', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
+          tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
         },
         scales:{
           x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
