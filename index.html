@@ -362,6 +362,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .chart-canvas-wrap-sm{height:120px;}
 .chart-canvas-wrap canvas{width:100% !important; height:100% !important;}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
+.net-cal-toggle{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); margin:-2px 0 12px; cursor:pointer; line-height:1.35;}
+.net-cal-toggle input{accent-color:var(--macro); width:15px; height:15px; flex-shrink:0;}
 .heatmap-grid{
   display:grid;
   grid-template-columns:repeat(7, minmax(0, 1fr));
@@ -826,7 +828,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:var(--macro)"></span>Calories (last 14 days)</h2>
       <div class="trend-summary" id="calorieSummary"></div>
-      <div class="chart-subtitle">Each day is a tile ? under, near, or over target at a glance.</div>
+      <div class="chart-subtitle">Each day is a tile — under, near, or over target at a glance.</div>
+      <label class="net-cal-toggle"><input type="checkbox" id="useNetCaloriesToggle" onchange="toggleUseNetCalories(this.checked)"> Count exercise against target (use net calories = intake − burned)</label>
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
       <div class="chart-canvas-wrap" style="margin-top:14px;"><canvas id="calorieLineChart"></canvas></div>
@@ -1285,7 +1288,7 @@ const CAT_META = {
 let currentDate = todayStr();
 let dayCache = {};      // dateStr -> {foods:[], exercises:[], weight:null}
 let lastBioMetrics = []; // most recent 7-day snapshot metrics, for the tap-to-expand detail modal
-let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0};
+let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0, useNetCalories:true};
 let targetOverrides = {};
 let savedMeals = []; // starred meals, reusable as one-tap templates
 let foodLibrary = {}; // learned per-gram nutrient profiles, keyed by normalized food name
@@ -2453,12 +2456,19 @@ async function renderTrends(){
 
   const intakes = dayDatas.map(d=>Math.round(computeTotals(d).calories));
   const burns = dayDatas.map(d=>computeBurned(d));
+  // When "use net calories" is on, exercise calories offset intake before
+  // comparing against target — so a 700kcal burn day isn't marked "over"
+  // just because raw food intake alone crossed the line. Floored at 0
+  // since a day can't have negative effective intake.
+  const effectiveIntakes = profile.useNetCalories ? intakes.map((v,i)=>Math.max(0, v - burns[i])) : intakes;
+  const netToggleEl = document.getElementById('useNetCaloriesToggle');
+  if(netToggleEl) netToggleEl.checked = !!profile.useNetCalories;
   const calTarget = getTarget('calories');
   // Split each day's intake at the target: the portion under/equal to target
   // stays the normal "Intake" color, anything beyond it is drawn stacked on
   // top in red so days you went over your calorie budget stand out.
-  const withinTarget = intakes.map(v=>Math.min(v, calTarget));
-  const overTarget = intakes.map(v=>Math.max(0, v-calTarget));
+  const withinTarget = effectiveIntakes.map(v=>Math.min(v, calTarget));
+  const overTarget = effectiveIntakes.map(v=>Math.max(0, v-calTarget));
 
   const labels = days.map(d=>new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}));
 
@@ -2702,8 +2712,8 @@ async function renderTrends(){
         labels,
         datasets:[
           {
-            label:'Intake',
-            data:intakes,
+            label: profile.useNetCalories ? 'Net intake' : 'Intake',
+            data:effectiveIntakes,
             borderColor:'#FF8F5E',
             backgroundColor:'rgba(255,143,94,0.14)',
             fill:true,
@@ -2796,7 +2806,7 @@ async function renderTrends(){
     if(!validIdx.length || !calTarget){
       cSummaryEl.innerHTML=''; cInsightEl.textContent=''; cStatGrid2.innerHTML='';
     } else {
-      const validVals = validIdx.map(i=>intakes[i]);
+      const validVals = validIdx.map(i=>effectiveIntakes[i]);
       const avg = validVals.reduce((a,b)=>a+b,0)/validVals.length;
       const deficitSurplus = avg - calTarget;
       const deviations = validVals.map(v=>Math.abs(v-calTarget)/calTarget*100);
@@ -2823,7 +2833,7 @@ async function renderTrends(){
       // Weekend-vs-weekday split on the days that ran meaningfully over
       // target, purely to give the one-liner something concrete to say --
       // not stored or used anywhere else.
-      const overDays = validIdx.filter(i=>intakes[i] > calTarget*1.05);
+      const overDays = validIdx.filter(i=>effectiveIntakes[i] > calTarget*1.05);
       const weekendOverCount = overDays.filter(i=>{ const dow = new Date(days[i]+'T00:00:00').getDay(); return dow===0||dow===6; }).length;
       const weekendShare = overDays.length ? weekendOverCount/overDays.length : 0;
 
@@ -2850,12 +2860,15 @@ async function renderTrends(){
   heatmapHost.innerHTML = days.map((iso, idx)=>{
     const day = dayDatas[idx] || {};
     const intake = intakes[idx] || 0;
+    const burned = burns[idx] || 0;
+    const effective = effectiveIntakes[idx] || 0;
     const d = new Date(iso+'T00:00:00');
     const dow = d.toLocaleDateString(undefined, {weekday:'short'});
     const dateNum = d.getDate();
     const hasFood = (day.foods||[]).length > 0;
-    const state = !hasFood ? 'empty' : (intake > calTarget*1.1 ? 'over' : intake < calTarget*0.9 ? 'under' : 'near');
-    const statusText = !hasFood ? 'No food logged' : (state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target');
+    const state = !hasFood ? 'empty' : (effective > calTarget*1.1 ? 'over' : effective < calTarget*0.9 ? 'under' : 'near');
+    const baseStatusText = state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target';
+    const statusText = !hasFood ? 'No food logged' : (profile.useNetCalories && burned>0 ? `${baseStatusText} · -${Math.round(burned)} burned` : baseStatusText);
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
     return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
@@ -2866,8 +2879,10 @@ async function renderTrends(){
   // average unless the person explicitly marked that day as an intentional
   // fast (day.countLowCalorieDay), via the toggle shown on the Dashboard.
   const LOW_CAL_FLOOR = 1000;
-  const validIntakes = intakes.filter((v,i) => v >= LOW_CAL_FLOOR || dayDatas[i].countLowCalorieDay);
+  const validIntakes = effectiveIntakes.filter((v,i) => intakes[i] >= LOW_CAL_FLOOR || dayDatas[i].countLowCalorieDay);
   const validBurns = burns.filter(v=>v>0);
+  const avgIntakeLabelEl = document.querySelector('#avgIntake')?.previousElementSibling;
+  if(avgIntakeLabelEl) avgIntakeLabelEl.textContent = profile.useNetCalories ? 'Avg net intake' : 'Avg intake';
   document.getElementById('avgIntake').textContent = validIntakes.length ? Math.round(validIntakes.reduce((a,b)=>a+b,0)/validIntakes.length)+' kcal' : '?';
   document.getElementById('avgBurn').textContent = validBurns.length ? Math.round(validBurns.reduce((a,b)=>a+b,0)/validBurns.length)+' kcal' : '?';
 }
@@ -5473,12 +5488,18 @@ function openTargetModal(id){
   document.getElementById('targetInput').value = getTarget(id);
   openModal('targetModal');
 }
+async function toggleUseNetCalories(checked){
+  profile.useNetCalories = !!checked;
+  await storeSet('profile', profile);
+  renderTrends();
+}
 async function saveTargetOverride(){
   const v = Number(document.getElementById('targetInput').value);
   targetOverrides[editingTargetId] = v;
   await storeSet('targetOverrides', targetOverrides);
   closeModal('targetModal');
   await renderAll();
+  if(document.getElementById('view-trends')?.classList.contains('active')) renderTrends();
 }
 
 /* =========================================================
@@ -5486,6 +5507,7 @@ async function saveTargetOverride(){
 ========================================================= */
 async function saveProfile(){
   profile = {
+    ...profile,
     age: Number(document.getElementById('pAge').value)||30,
     sex: document.getElementById('pSex').value,
     height: Number(document.getElementById('pHeight').value)||170,
@@ -5504,6 +5526,7 @@ async function saveProfile(){
   const ok = await storeSet('profile', profile);
   showToast(ok ? 'Targets recalculated' : 'Recalculated for this session (cloud sync pending)');
   await renderAll();
+  if(document.getElementById('view-trends')?.classList.contains('active')) renderTrends();
 }
 function fillSettingsForm(){
   document.getElementById('pAge').value = profile.age;
