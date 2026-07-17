@@ -2796,6 +2796,32 @@ async function renderTrends(){
   const rangeStartTs = new Date(days[0]+'T00:00:00').getTime();
   const rangeEndTs = new Date(days[days.length-1]+'T23:59:59').getTime();
 
+  // 10-day moving average of weight. Pulls in 9 extra days of history
+  // before the visible 14-day window purely for this calculation, so the
+  // very first visible day still gets averaged over a real trailing 10
+  // days instead of starting from a half-empty window. Doesn't touch
+  // `days`/`dayDatas` (used everywhere else in this view).
+  const MOVING_AVG_WINDOW = 10;
+  const lookbackDays = [];
+  for(let i=13+MOVING_AVG_WINDOW-1; i>=0; i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    lookbackDays.push(todayStr(d));
+  }
+  const lookbackDayDatas = await Promise.all(lookbackDays.map(loadDay));
+  const dailyWeightByDate = new Map();
+  lookbackDayDatas.forEach((d,i)=>{
+    const vals = (d.weights||[]).map(w=>w && typeof w.value==='number' ? w.value : null).filter(v=>v!=null);
+    if(vals.length) dailyWeightByDate.set(lookbackDays[i], vals.reduce((a,b)=>a+b,0)/vals.length);
+  });
+  const movingAvgPoints = days.map(dstr=>{
+    const idx = lookbackDays.indexOf(dstr);
+    const windowDates = lookbackDays.slice(Math.max(0, idx-MOVING_AVG_WINDOW+1), idx+1);
+    const windowVals = windowDates.map(d=>dailyWeightByDate.get(d)).filter(v=>v!=null);
+    if(!windowVals.length) return null;
+    const avg = windowVals.reduce((a,b)=>a+b,0)/windowVals.length;
+    return {x:new Date(dstr+'T12:00:00').getTime(), y:Math.round(avg*10)/10};
+  }).filter(Boolean);
+
   const intakes = dayDatas.map(d=>Math.round(computeTotals(d).calories));
   const burns = dayDatas.map(d=>computeBurned(d));
   // When "use net calories" is on, exercise calories offset intake before
@@ -2846,13 +2872,27 @@ async function renderTrends(){
         pointBackgroundColor:weightPointStyles.bg,
         pointBorderColor:weightPointStyles.border,
         pointBorderWidth:1.5
+      },{
+        label:'10-day average',
+        data:movingAvgPoints,
+        borderColor:'#FFB454',
+        borderDash:[6,4],
+        borderWidth:2,
+        fill:false,
+        tension:0.25,
+        spanGaps:true,
+        pointRadius:0,
+        pointHoverRadius:3,
+        pointBackgroundColor:'#FFB454',
+        order:0
       }]},
       options:{
         maintainAspectRatio:false,
         plugins:{
+          legend:{position:'bottom', labels:{color:'#D3D4DA', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
           tooltip:{callbacks:{
             title:(items)=> new Date(items[0].parsed.x).toLocaleString(undefined,{month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}),
-            label:(item)=> `${item.parsed.y} kg`
+            label:(item)=> `${item.dataset.label}: ${item.parsed.y} kg`
           }}
         },
         scales:{
