@@ -406,6 +406,16 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
 .net-cal-toggle{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); margin:-2px 0 12px; cursor:pointer; line-height:1.35;}
 .net-cal-toggle input{accent-color:var(--macro); width:15px; height:15px; flex-shrink:0;}
+.exfreq-row{padding:12px 0; border-bottom:1px solid var(--line);}
+.exfreq-row:last-child{border-bottom:none;}
+.exfreq-headline{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap;}
+.exfreq-name{font-size:14px; font-weight:600;}
+.exfreq-count{font-size:12px; color:var(--text-dim); font-family:var(--font-mono); white-space:nowrap;}
+.exfreq-dots{display:flex; gap:3px;}
+.exfreq-dot{flex:1; height:22px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:var(--text-faint); position:relative;}
+.exfreq-dot.done{background:#C08CF0; color:#2a1240;}
+.exfreq-dot.today{box-shadow:0 0 0 1.5px var(--text) inset;}
+.exfreq-week{font-size:11.5px; color:var(--text-dim); margin-top:7px;}
 .heatmap-grid{
   display:grid;
   grid-template-columns:repeat(7, minmax(0, 1fr));
@@ -873,6 +883,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <div class="stat-grid" id="exerciseStatGrid2" style="margin-top:10px;"></div>
     </div>
+    <div class="card chart-card" id="exerciseFrequencyCard">
+      <h2><span class="h2-dot" style="background:#C08CF0"></span>Exercise Frequency</h2>
+      <div class="chart-subtitle">How many times you did each activity, and which of the last 14 days it showed up on — handy for rep-based things like neck tugs or stretches, not just timed workouts.</div>
+      <div id="exerciseFrequencyList"></div>
+    </div>
     <div class="card chart-card">
       <h2><span class="h2-dot" style="background:var(--macro)"></span>Calories (last 14 days)</h2>
       <div class="trend-summary" id="calorieSummary"></div>
@@ -1169,11 +1184,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3>Log exercise</h3><button onclick="closeModal('exerciseModal')">✕</button></div>
-    <div class="field"><label>Activity</label><input type="text" id="exName" placeholder="e.g. Running"></div>
+    <div class="field"><label>Activity</label><input type="text" id="exName" placeholder="e.g. Running, or Neck tugs"></div>
     <div class="row2">
-      <div class="field"><label>Minutes</label><input type="number" id="exMinutes" placeholder="30"></div>
-      <div class="field"><label>Calories burned</label><input type="number" id="exCalories" placeholder="Estimate ok"></div>
+      <div class="field"><label>Minutes</label><input type="number" id="exMinutes" placeholder="Optional"></div>
+      <div class="field"><label>Times</label><input type="number" id="exTimes" placeholder="e.g. 3"></div>
+      <div class="field"><label>Calories burned</label><input type="number" id="exCalories" placeholder="Optional"></div>
     </div>
+    <div class="hint" style="margin:-8px 0 12px;">For duration exercises (running, cycling) fill in minutes. For rep-based ones (neck tugs, stretches) just set how many times you did it today — minutes and calories are optional.</div>
     <button class="btn block" onclick="saveExercise()">Add</button>
   </div>
 </div>
@@ -2419,12 +2436,18 @@ function renderDiary(day){
 
   const exercises = day.exercises||[];
   document.getElementById('exerciseList').innerHTML = exercises.length
-    ? exercises.map(e=>`<div class="entry">
+    ? exercises.map(e=>{
+        const times = Number(e.times)||0;
+        const metaParts = [];
+        if(e.minutes) metaParts.push(`${e.minutes} min`);
+        if(times>1) metaParts.push(`×${times}`);
+        return `<div class="entry">
         <div class="thumb" style="background:linear-gradient(135deg, #FF8F5E, #E8544B);">🏃</div>
-        <div class="info"><div class="name">${escapeHtml(e.name)}</div><div class="meta">${e.minutes||'—'} min</div></div>
-        <div class="kcal" style="color:var(--complete); font-weight:600;">-${e.calories} kcal</div>
+        <div class="info"><div class="name">${escapeHtml(e.name)}</div><div class="meta">${metaParts.length?metaParts.join(' · '):'logged'}</div></div>
+        <div class="kcal" style="color:var(--complete); font-weight:600;">${e.calories?'-'+e.calories+' kcal':''}</div>
         <button class="del" onclick="deleteExercise('${e.id}')">✕</button>
-      </div>`).join('')
+      </div>`;
+      }).join('')
     : `<div class="empty-state" style="padding:16px 0;">No exercise logged.</div>`;
 
   const weightList = (day.weights||[]).slice().sort((a,b)=>b.ts-a.ts);
@@ -2953,6 +2976,48 @@ async function renderTrends(){
           : consistency>=70
             ? `Active on ${activeDays} of the last 14 days -- solid consistency.`
             : `Active on ${activeDays} of the last 14 days -- there's room to build a steadier rhythm.`;
+    }
+  }
+
+  // ---- Exercise Frequency: per-activity times/streak, so rep-based
+  // things (neck tugs x3) show up just as well as timed workouts ----
+  {
+    const freqHost = document.getElementById('exerciseFrequencyList');
+    if(freqHost){
+      const byName = new Map();
+      dayDatas.forEach((d,dayIdx)=>{
+        (d.exercises||[]).forEach(e=>{
+          const key = String(e.name||'').trim().toLowerCase();
+          if(!key) return;
+          const times = Math.max(1, Number(e.times)||1);
+          let entry = byName.get(key);
+          if(!entry){
+            entry = {name:e.name.trim(), totalTimes:0, sessionDays:new Set(), perDay:Array(days.length).fill(0)};
+            byName.set(key, entry);
+          }
+          entry.totalTimes += times;
+          entry.sessionDays.add(dayIdx);
+          entry.perDay[dayIdx] += times;
+        });
+      });
+      const freqList = Array.from(byName.values()).sort((a,b)=>b.totalTimes-a.totalTimes);
+      freqHost.innerHTML = !freqList.length
+        ? `<div class="empty-state" style="padding:16px 0;">No exercise logged in the last 14 days.</div>`
+        : freqList.map(ex=>{
+            const last7 = ex.perDay.slice(7).filter(v=>v>0).length;
+            const dots = ex.perDay.map((v,i)=>{
+              const isToday = days[i]===currentDate;
+              return `<div class="exfreq-dot${v>0?' done':''}${isToday?' today':''}" title="${labels[i]}${v>0?': '+v+'×':': not logged'}">${v>1?v:''}</div>`;
+            }).join('');
+            return `<div class="exfreq-row">
+              <div class="exfreq-headline">
+                <span class="exfreq-name">${escapeHtml(ex.name)}</span>
+                <span class="exfreq-count">${ex.totalTimes} time${ex.totalTimes!==1?'s':''} · ${ex.sessionDays.size} day${ex.sessionDays.size!==1?'s':''}</span>
+              </div>
+              <div class="exfreq-dots">${dots}</div>
+              <div class="exfreq-week">${last7} of the last 7 days${last7===7?' — every day!':''}</div>
+            </div>`;
+          }).join('');
     }
   }
 
@@ -3516,6 +3581,7 @@ function buildDietAnalysisSignature(day){
   const exercises = (day.exercises || []).map(ex=>({
     name: String(ex.name || '').toLowerCase(),
     minutes: Math.round(Number(ex.minutes || 0)),
+    times: Math.round(Number(ex.times || 0)),
     calories: Math.round(Number(ex.calories || 0))
   }));
   return JSON.stringify({
@@ -3620,7 +3686,13 @@ function buildNutrientInsightPrompt(day, recentMentions){
 
   const exercises = day.exercises||[];
   const exerciseSummary = exercises.length
-    ? exercises.map(e=>`- ${e.name}: ${e.minutes||0} min${e.calories?`, ~${e.calories} kcal`:''}`).join('\n')
+    ? exercises.map(e=>{
+        const parts = [];
+        if(e.minutes) parts.push(`${e.minutes} min`);
+        if(Number(e.times)>1) parts.push(`×${e.times}`);
+        if(e.calories) parts.push(`~${e.calories} kcal`);
+        return `- ${e.name}${parts.length ? ': '+parts.join(', ') : ''}`;
+      }).join('\n')
     : '- No exercise logged today.';
 
   const recent = recentMentions || {nutrients:[], types:[]};
@@ -5621,17 +5693,19 @@ function promptCustomWater(){
 function openExerciseModal(){
   document.getElementById('exName').value='';
   document.getElementById('exMinutes').value='';
+  document.getElementById('exTimes').value='';
   document.getElementById('exCalories').value='';
   openModal('exerciseModal');
 }
 async function saveExercise(){
   const name = document.getElementById('exName').value.trim();
   const minutes = document.getElementById('exMinutes').value;
+  const times = document.getElementById('exTimes').value;
   const calories = document.getElementById('exCalories').value;
-  if(!name || !calories) return;
+  if(!name) return;
   const day = await loadDay(currentDate);
   day.exercises = day.exercises||[];
-  day.exercises.push({id:'e'+Date.now(), name, minutes, calories});
+  day.exercises.push({id:'e'+Date.now(), name, minutes, times, calories});
   closeModal('exerciseModal');
   renderAll();
   saveDay(currentDate);
