@@ -2645,7 +2645,7 @@ function barColor(pct, baseColor){ return progressColor(pct); }
 // helpers below instead of re-implementing this check locally, so the
 // "over limit" status can never show green/complete in one place and
 // red/warning in another.
-const UPPER_LIMIT_NUTRIENT_IDS = new Set(['saturatedFat','sodium','cholesterol','addedSugars','transFat']);
+const UPPER_LIMIT_NUTRIENT_IDS = new Set(['saturatedFat','sodium','cholesterol','addedSugars','transFat','carbs','fat','calories']);
 function isUpperLimitNutrient(id){
   return UPPER_LIMIT_NUTRIENT_IDS.has(id);
 }
@@ -4247,8 +4247,10 @@ async function computeWeeklyBiologyMetrics(){
         rows: buildRows(i=>{
           const carbs = thisWeekCarbs[i];
           if(!carbsTarget) return {primary:`${Math.round(carbs)}g`, secondary:'no target set', pct:0, status:'none'};
-          const pct = Math.min(100, (carbs/carbsTarget)*100);
-          return {primary:`${Math.round(carbs)}g`, secondary:`${Math.round(pct)}% of ${Math.round(carbsTarget)}g`, pct, status:dayStatus(pct, true)};
+          const truePct = (carbs/carbsTarget)*100;
+          const barPct = Math.min(100, truePct);
+          const status = isOverLimit('carbs', truePct) ? 'bad' : dayStatus(barPct, true);
+          return {primary:`${Math.round(carbs)}g`, secondary:`${Math.round(truePct)}% of ${Math.round(carbsTarget)}g`, pct:barPct, status};
         })
       }
     },
@@ -4264,8 +4266,10 @@ async function computeWeeklyBiologyMetrics(){
         rows: buildRows(i=>{
           const fat = thisWeekFat[i];
           if(!fatTarget) return {primary:`${Math.round(fat)}g`, secondary:'no target set', pct:0, status:'none'};
-          const pct = Math.min(100, (fat/fatTarget)*100);
-          return {primary:`${Math.round(fat)}g`, secondary:`${Math.round(pct)}% of ${Math.round(fatTarget)}g`, pct, status:dayStatus(pct, true)};
+          const truePct = (fat/fatTarget)*100;
+          const barPct = Math.min(100, truePct);
+          const status = isOverLimit('fat', truePct) ? 'bad' : dayStatus(barPct, true);
+          return {primary:`${Math.round(fat)}g`, secondary:`${Math.round(truePct)}% of ${Math.round(fatTarget)}g`, pct:barPct, status};
         })
       }
     },
@@ -4286,10 +4290,11 @@ async function computeWeeklyBiologyMetrics(){
         rows: buildRows(i=>{
           const cals = thisWeekCalories[i];
           if(!caloriesTarget) return {primary:`${Math.round(cals)} kcal`, secondary:'no target set', pct:0, status:'none'};
-          const dev = Math.abs(cals-caloriesTarget)/caloriesTarget*100;
-          const pct = Math.max(0, 100-dev);
-          const overUnder = cals>caloriesTarget ? 'over' : cals<caloriesTarget ? 'under' : 'on';
-          return {primary:`${Math.round(cals)} kcal`, secondary: overUnder==='on' ? 'right on target' : `${Math.round(Math.abs(cals-caloriesTarget))} kcal ${overUnder} target`, pct, status:dayStatus(pct, thisWeekHasFood[i])};
+          const truePct = (cals/caloriesTarget)*100;
+          const barPct = Math.min(100, truePct);
+          const diff = Math.round(Math.abs(cals-caloriesTarget));
+          const status = isOverLimit('calories', truePct) ? 'bad' : dayStatus(barPct, thisWeekHasFood[i]);
+          return {primary:`${Math.round(cals)} kcal`, secondary: diff===0 ? 'right on target' : `${diff} kcal ${cals>caloriesTarget?'over':'under'} target`, pct:barPct, status};
         })
       }
     }
