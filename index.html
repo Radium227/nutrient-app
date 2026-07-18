@@ -85,6 +85,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 /* ---------- Calorie summary ---------- */
 .cal-row{display:flex; align-items:flex-end; gap:16px;}
+.cal-row-tap{cursor:pointer; border-radius:var(--radius-md); transition:background .15s ease; margin:-6px; padding:6px;}
+.cal-row-tap:active{background:var(--surface-2);}
 .cal-big{font-family:var(--font-display); font-size:44px; font-weight:600; line-height:1;}
 .cal-sub{color:var(--text-dim); font-size:13px; margin-top:4px;}
 .cal-remaining{margin-left:auto; text-align:center; padding:0 10px; border-left:1px solid var(--line); border-right:1px solid var(--line);}
@@ -96,7 +98,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .cal-bar{height:8px; border-radius:6px; background:var(--surface-3); margin-top:14px; overflow:hidden;}
 .cal-bar-fill{height:100%; background:linear-gradient(90deg, var(--macro), #FFC08A); border-radius:6px; transition:width .4s ease;}
 .macro-mini{display:flex; gap:10px; margin-top:14px;}
-.macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px; border-top:2px solid var(--chip-color, var(--line));}
+.macro-chip{flex:1; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 12px; border-top:2px solid var(--chip-color, var(--line)); cursor:pointer; transition:background .15s ease;}
+.macro-chip:active{background:var(--surface-3);}
 .fast-day-chip{margin-bottom:5px; background:transparent; color:var(--macro); border:1px solid var(--macro); border-radius:999px; padding:2px 9px; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;}
 .fast-day-chip.active{background:var(--macro); color:#1a0d05;}
 .macro-chip .l{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-faint);}
@@ -747,7 +750,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="view active" id="view-dashboard">
     <div class="card">
       <h2><span class="h2-dot" style="background:var(--macro)"></span>Energy</h2>
-      <div class="cal-row">
+      <div class="cal-row cal-row-tap" onclick="openBioMetricDetail('calories')">
         <div>
           <div class="cal-big mono" id="calConsumed">0</div>
           <div class="cal-sub" id="calSub">consumed today</div>
@@ -757,7 +760,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
           <div class="l" id="calRemainingLabel">kcal remaining</div>
         </div>
         <div class="cal-target">
-          <button class="fast-day-chip" id="fastDayChip" style="display:none;" onclick="toggleCountLowCalorieDay()">Add</button>
+          <button class="fast-day-chip" id="fastDayChip" style="display:none;" onclick="event.stopPropagation(); toggleCountLowCalorieDay()">Add</button>
           <div class="n mono" id="calTarget">2000</div>
           <div class="l">target kcal</div>
         </div>
@@ -2400,7 +2403,7 @@ function renderDashboard(day){
     const v = totals[m.id]||0; const t = getTarget(m.id)||1;
     const p = Math.min(100, (v/t)*100);
     const fillColor = nutrientStatusColor(m.id, p);
-    return `<div class="macro-chip" style="--chip-color:${m.color}">
+    return `<div class="macro-chip" style="--chip-color:${m.color}" onclick="openBioMetricDetail('${m.id}')">
       <div class="l">${m.label}</div>
       <div class="v">${Math.round(v)}<span style="color:var(--text-faint)">/${Math.round(t)}g</span></div>
       <div class="bar"><span style="width:${p}%; background:${fillColor}; color:${fillColor};"></span></div>
@@ -4070,6 +4073,33 @@ async function computeWeeklyBiologyMetrics(){
     ? Math.round(proteinLoggedDays.reduce((s,d)=>s+Math.min(100,((computeTotals(d).protein||0)/proteinTarget)*100),0)/proteinLoggedDays.length)
     : 0;
 
+  const carbsTarget = getTarget('carbs')||0;
+  const carbsLoggedDays = carbsTarget ? thisWeek.filter(d=>(d.foods||[]).length>0) : [];
+  const carbsPct = carbsLoggedDays.length
+    ? Math.round(carbsLoggedDays.reduce((s,d)=>s+Math.min(100,((computeTotals(d).carbs||0)/carbsTarget)*100),0)/carbsLoggedDays.length)
+    : 0;
+
+  const fatTarget = getTarget('fat')||0;
+  const fatLoggedDays = fatTarget ? thisWeek.filter(d=>(d.foods||[]).length>0) : [];
+  const fatPct = fatLoggedDays.length
+    ? Math.round(fatLoggedDays.reduce((s,d)=>s+Math.min(100,((computeTotals(d).fat||0)/fatTarget)*100),0)/fatLoggedDays.length)
+    : 0;
+
+  // Calories reward being CLOSE to target in either direction (unlike
+  // protein/carbs/fat, where more is generally fine) -- reuses the same
+  // "100 minus % deviation" idea as the Trends consistency stat, just at
+  // the weekly-snapshot grain so tapping the Energy card gets a real
+  // day-by-day detail view instead of just today's single number.
+  const caloriesTarget = calTarget;
+  const caloriesLoggedDays = caloriesTarget ? thisWeek.filter(d=>(d.foods||[]).length>0) : [];
+  const caloriesClosenessPct = caloriesLoggedDays.length
+    ? Math.round(caloriesLoggedDays.reduce((s,d)=>{
+        const cals = computeTotals(d).calories||0;
+        const dev = Math.abs(cals-caloriesTarget)/caloriesTarget*100;
+        return s + Math.max(0, 100-dev);
+      },0)/caloriesLoggedDays.length)
+    : 0;
+
   // Per-day breakdown data for the tap-to-expand detail modal — every
   // metric below is built from these same 14 aligned days so the modal can
   // show exactly what fed the headline number, and matches the 14-day
@@ -4079,6 +4109,8 @@ async function computeWeeklyBiologyMetrics(){
   const thisWeekCalories = dayDatas.map(d=>computeTotals(d).calories||0);
   const thisWeekWater = dayDatas.map(d=>computeTotals(d).water||0);
   const thisWeekProtein = dayDatas.map(d=>computeTotals(d).protein||0);
+  const thisWeekCarbs = dayDatas.map(d=>computeTotals(d).carbs||0);
+  const thisWeekFat = dayDatas.map(d=>computeTotals(d).fat||0);
   // Was "% of days where every single habit got done" -- all-or-nothing, so
   // a week where you hit 3 of 4 habits nearly every day still read as 0%.
   // Average completion (checkmarks actually earned / checkmarks possible)
@@ -4200,6 +4232,64 @@ async function computeWeeklyBiologyMetrics(){
           if(!proteinTarget) return {primary:`${Math.round(protein)}g`, secondary:'no target set', pct:0, status:'none'};
           const pct = Math.min(100, (protein/proteinTarget)*100);
           return {primary:`${Math.round(protein)}g`, secondary:`${Math.round(pct)}% of ${Math.round(proteinTarget)}g`, pct, status:dayStatus(pct, true)};
+        })
+      }
+    },
+    {
+      key:'carbs',
+      label:'Carb Consistency',
+      value: `${carbsPct}%`,
+      sub:'avg daily target reached',
+      color: carbsLoggedDays.length ? 'var(--vit)' : 'var(--text-faint)',
+      spark: sparkHeights(dayDatas.map(d=>carbsTarget ? Math.min(100,((computeTotals(d).carbs||0)/carbsTarget)*100) : 0), 100),
+      detail:{
+        note: carbsTarget ? `Carbs logged each day against your ${Math.round(carbsTarget)}g goal.` : 'Set a carb target in Settings to track this.',
+        rows: buildRows(i=>{
+          const carbs = thisWeekCarbs[i];
+          if(!carbsTarget) return {primary:`${Math.round(carbs)}g`, secondary:'no target set', pct:0, status:'none'};
+          const pct = Math.min(100, (carbs/carbsTarget)*100);
+          return {primary:`${Math.round(carbs)}g`, secondary:`${Math.round(pct)}% of ${Math.round(carbsTarget)}g`, pct, status:dayStatus(pct, true)};
+        })
+      }
+    },
+    {
+      key:'fat',
+      label:'Fat Consistency',
+      value: `${fatPct}%`,
+      sub:'avg daily target reached',
+      color: fatLoggedDays.length ? 'var(--min)' : 'var(--text-faint)',
+      spark: sparkHeights(dayDatas.map(d=>fatTarget ? Math.min(100,((computeTotals(d).fat||0)/fatTarget)*100) : 0), 100),
+      detail:{
+        note: fatTarget ? `Fat logged each day against your ${Math.round(fatTarget)}g goal.` : 'Set a fat target in Settings to track this.',
+        rows: buildRows(i=>{
+          const fat = thisWeekFat[i];
+          if(!fatTarget) return {primary:`${Math.round(fat)}g`, secondary:'no target set', pct:0, status:'none'};
+          const pct = Math.min(100, (fat/fatTarget)*100);
+          return {primary:`${Math.round(fat)}g`, secondary:`${Math.round(pct)}% of ${Math.round(fatTarget)}g`, pct, status:dayStatus(pct, true)};
+        })
+      }
+    },
+    {
+      key:'calories',
+      label:'Energy Consistency',
+      value: !caloriesTarget ? '—' : `${caloriesClosenessPct}%`,
+      sub: !caloriesTarget ? 'no target set' : 'avg daily target closeness',
+      color: caloriesLoggedDays.length ? 'var(--macro)' : 'var(--text-faint)',
+      spark: sparkHeights(dayDatas.map(d=>{
+        if(!caloriesTarget) return 0;
+        const cals = computeTotals(d).calories||0;
+        const dev = Math.abs(cals-caloriesTarget)/caloriesTarget*100;
+        return Math.max(0, 100-dev);
+      }), 100),
+      detail:{
+        note: caloriesTarget ? `How close daily calories landed to your ${Math.round(caloriesTarget)} kcal target, in either direction — over and under both count against this.` : 'Set a calorie target in Settings to track this.',
+        rows: buildRows(i=>{
+          const cals = thisWeekCalories[i];
+          if(!caloriesTarget) return {primary:`${Math.round(cals)} kcal`, secondary:'no target set', pct:0, status:'none'};
+          const dev = Math.abs(cals-caloriesTarget)/caloriesTarget*100;
+          const pct = Math.max(0, 100-dev);
+          const overUnder = cals>caloriesTarget ? 'over' : cals<caloriesTarget ? 'under' : 'on';
+          return {primary:`${Math.round(cals)} kcal`, secondary: overUnder==='on' ? 'right on target' : `${Math.round(Math.abs(cals-caloriesTarget))} kcal ${overUnder} target`, pct, status:dayStatus(pct, thisWeekHasFood[i])};
         })
       }
     }
