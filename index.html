@@ -4090,12 +4090,17 @@ async function computeWeeklyBiologyMetrics(){
   // "100 minus % deviation" idea as the Trends consistency stat, just at
   // the weekly-snapshot grain so tapping the Energy card gets a real
   // day-by-day detail view instead of just today's single number.
+  // Effective target = target + calories burned that day (same fix as the
+  // Trends calendar tiles): a day where you burned 700 kcal through
+  // exercise has that much more real budget before it's actually "over".
+  const thisWeekBurns = dayDatas.map(d=>computeBurned(d)||0);
   const caloriesTarget = calTarget;
   const caloriesLoggedDays = caloriesTarget ? thisWeek.filter(d=>(d.foods||[]).length>0) : [];
   const caloriesClosenessPct = caloriesLoggedDays.length
     ? Math.round(caloriesLoggedDays.reduce((s,d)=>{
         const cals = computeTotals(d).calories||0;
-        const dev = Math.abs(cals-caloriesTarget)/caloriesTarget*100;
+        const effectiveTarget = caloriesTarget + (computeBurned(d)||0);
+        const dev = Math.abs(cals-effectiveTarget)/effectiveTarget*100;
         return s + Math.max(0, 100-dev);
       },0)/caloriesLoggedDays.length)
     : 0;
@@ -4279,22 +4284,25 @@ async function computeWeeklyBiologyMetrics(){
       value: !caloriesTarget ? '—' : `${caloriesClosenessPct}%`,
       sub: !caloriesTarget ? 'no target set' : 'avg daily target closeness',
       color: caloriesLoggedDays.length ? 'var(--macro)' : 'var(--text-faint)',
-      spark: sparkHeights(dayDatas.map(d=>{
+      spark: sparkHeights(dayDatas.map((d,i)=>{
         if(!caloriesTarget) return 0;
-        const cals = computeTotals(d).calories||0;
-        const dev = Math.abs(cals-caloriesTarget)/caloriesTarget*100;
+        const cals = thisWeekCalories[i];
+        const effectiveTarget = caloriesTarget + thisWeekBurns[i];
+        const dev = Math.abs(cals-effectiveTarget)/effectiveTarget*100;
         return Math.max(0, 100-dev);
       }), 100),
       detail:{
-        note: caloriesTarget ? `How close daily calories landed to your ${Math.round(caloriesTarget)} kcal target, in either direction — over and under both count against this.` : 'Set a calorie target in Settings to track this.',
+        note: caloriesTarget ? `How close daily calories landed to your ${Math.round(caloriesTarget)} kcal target, in either direction — over and under both count against this. Calories burned through exercise widen that day's effective target, same as the calendar view.` : 'Set a calorie target in Settings to track this.',
         rows: buildRows(i=>{
           const cals = thisWeekCalories[i];
           if(!caloriesTarget) return {primary:`${Math.round(cals)} kcal`, secondary:'no target set', pct:0, status:'none'};
-          const truePct = (cals/caloriesTarget)*100;
+          const effectiveTarget = caloriesTarget + thisWeekBurns[i];
+          const truePct = (cals/effectiveTarget)*100;
           const barPct = Math.min(100, truePct);
-          const diff = Math.round(Math.abs(cals-caloriesTarget));
+          const diff = Math.round(Math.abs(cals-effectiveTarget));
           const status = isOverLimit('calories', truePct) ? 'bad' : dayStatus(barPct, thisWeekHasFood[i]);
-          return {primary:`${Math.round(cals)} kcal`, secondary: diff===0 ? 'right on target' : `${diff} kcal ${cals>caloriesTarget?'over':'under'} target`, pct:barPct, status};
+          const burnNote = thisWeekBurns[i]>0 ? ` (incl. ${Math.round(thisWeekBurns[i])} kcal burned)` : '';
+          return {primary:`${Math.round(cals)} kcal`, secondary: diff===0 ? `right on target${burnNote}` : `${diff} kcal ${cals>effectiveTarget?'over':'under'} target${burnNote}`, pct:barPct, status};
         })
       }
     }
