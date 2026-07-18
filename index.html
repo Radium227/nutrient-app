@@ -786,7 +786,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       </div>
       <div class="water-bar-track"><div class="water-bar-fill" id="waterBarFill" style="width:0%"></div></div>
       <div class="water-quick">
-        <button onclick="quickAddWater(300)">+300 ml</button>
+        <button onclick="quickAddWater(250)">+250 ml</button>
         <button onclick="quickAddWater(500)">+500 ml</button>
         <button onclick="quickAddWater(1000)">+1 L</button>
         <button class="ghost" onclick="promptCustomWater()">+ Custom</button>
@@ -3176,6 +3176,16 @@ async function renderTrends(){
     const burnCanvas = document.getElementById('burnedLineChart');
     if(burnedLineChartInst){ burnedLineChartInst.destroy(); burnedLineChartInst=null; }
     const burnPointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#5FB2E8', 3, 5, '#141416');
+    // Chart.js's default axis-scaling picks a "nice" round ceiling (0/500/
+    // 1000 etc) regardless of how high the data actually goes -- so if the
+    // real numbers top out around 650, a third of the chart's height sits
+    // empty above the data, and that unused space is exactly what makes the
+    // line look flat. Scaling the ceiling to the real max (with a little
+    // headroom) instead makes the actual day-to-day variation fill the
+    // chart, which is the whole point of this chart having its own scale.
+    const burnValues = [...burns, ...rolling7Burn].filter(v=>v!=null && v>0);
+    const burnMax = burnValues.length ? Math.max(...burnValues) : 0;
+    const burnAxisMax = burnMax>0 ? Math.ceil((burnMax*1.15)/25)*25 : undefined;
     burnedLineChartInst = new Chart(burnCanvas, {
       type:'line',
       data:{
@@ -3212,7 +3222,7 @@ async function renderTrends(){
         },
         scales:{
           x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}}
+          y:{beginAtZero:true, suggestedMax:burnAxisMax, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}}
         }
       }
     });
@@ -4069,8 +4079,13 @@ async function computeWeeklyBiologyMetrics(){
   const thisWeekCalories = dayDatas.map(d=>computeTotals(d).calories||0);
   const thisWeekWater = dayDatas.map(d=>computeTotals(d).water||0);
   const thisWeekProtein = dayDatas.map(d=>computeTotals(d).protein||0);
-  const habitDaysAllDone = habits.length ? dayDatas.slice(7).filter(d=>habits.every(h=>getHabitCompletion(d,h.id))).length : 0;
-  const habitConsistencyPct = habits.length ? Math.round((habitDaysAllDone/7)*100) : 0;
+  // Was "% of days where every single habit got done" -- all-or-nothing, so
+  // a week where you hit 3 of 4 habits nearly every day still read as 0%.
+  // Average completion (checkmarks actually earned / checkmarks possible)
+  // reflects a mostly-good week as mostly-good instead of a blank zero.
+  const habitCheckmarksEarned = habits.length ? dayDatas.slice(7).reduce((sum,d)=>sum + habits.filter(h=>getHabitCompletion(d,h.id)).length, 0) : 0;
+  const habitCheckmarksPossible = habits.length * 7;
+  const habitConsistencyPct = habits.length ? Math.round((habitCheckmarksEarned/habitCheckmarksPossible)*100) : 0;
   function dayStatus(pct, hasData){
     if(!hasData) return 'none';
     if(pct>=80) return 'good';
@@ -4138,11 +4153,11 @@ async function computeWeeklyBiologyMetrics(){
       key:'habits',
       label:'Habit Consistency',
       value: !habits.length ? '—' : `${habitConsistencyPct}%`,
-      sub: !habits.length ? 'no habits set yet' : 'days all habits done',
+      sub: !habits.length ? 'no habits set yet' : 'avg daily completion',
       color: !habits.length ? 'var(--text-faint)' : 'var(--bio-stability)',
       spark: sparkHeights(dayDatas.map(d=>habits.length ? (habits.filter(h=>getHabitCompletion(d,h.id)).length/habits.length)*100 : 0), 100),
       detail:{
-        note: habits.length ? `How many of your ${habits.length} daily habit${habits.length===1?'':'s'} got checked off each day.` : 'Add a daily habit on the dashboard to start tracking this.',
+        note: habits.length ? `On average, ${habitConsistencyPct}% of your ${habits.length} daily habit${habits.length===1?'':'s'} got checked off each day. The list below shows exactly how many were done each day.` : 'Add a daily habit on the dashboard to start tracking this.',
         rows: buildRows(i=>{
           const hasFood = thisWeekHasFood[i];
           if(!habits.length) return {primary:'No habits', secondary:'—', pct:0, status:'none'};
