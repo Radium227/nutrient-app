@@ -3660,7 +3660,7 @@ async function recordAnalysisUsage(provider, promptText, responseData){
 function analysisRequestTimeoutMs(analysisMode){
   // These must stay comfortably above the server's own per-provider budget
   // (see getAnalysisConfig in analyze.js: diet=25000ms, image=40000ms,
-  // text/default=30000ms) -- AND above the server's own Gemini retry budget
+  // text/default=40000ms) -- AND above the server's own Gemini retry budget
   // (up to 3 attempts before falling back to Groq/OpenRouter, so a slow-but-
   // legitimate multi-item photo can take several times one provider's
   // budget before it ever reaches you). Too-low a client timeout aborts a
@@ -3670,7 +3670,7 @@ function analysisRequestTimeoutMs(analysisMode){
   // any provider actually failed.
   if(analysisMode === 'diet') return 60000;
   if(analysisMode === 'image') return 90000;
-  return 60000;
+  return 90000;
 }
 
 function buildDietAnalysisSignature(day){
