@@ -12,7 +12,16 @@ function getAnalysisConfig(analysisMode) {
   if (analysisMode === 'image') {
     return { timeoutMs: 40000, maxTokens: 8192 };
   }
-  return { timeoutMs: 30000, maxTokens: 4096 };
+  // Plain-text descriptions (the "Describe" tab) used to get a much smaller
+  // budget than photos (30s / 4096 tokens vs. photos' 40s / 8192 tokens),
+  // but a detailed multi-item meal described in text -- several foods, each
+  // needing its own full nutrient breakdown -- produces just as much JSON
+  // as a photo does. The old 4096-token cap meant that kind of response
+  // could get cut off mid-generation, which produces invalid JSON, which
+  // triggers a retry, which hits the same cap again -- burning through the
+  // retry budget and surfacing as "Analysis took too long" even though
+  // nothing was actually stuck, it just never had room to finish.
+  return { timeoutMs: 40000, maxTokens: 8192 };
 }
 
 function delay(ms) {
