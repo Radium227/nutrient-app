@@ -479,7 +479,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   background:linear-gradient(180deg, rgba(47,234,99,0.26), rgba(47,234,99,0.10));
   border-color:rgba(47,234,99,0.55);
 }
-.heatmap-tile.near{
+.heatmap-tile.near, .heatmap-tile.overdeficit{
   background:linear-gradient(180deg, rgba(255,214,10,0.26), rgba(255,214,10,0.10));
   border-color:rgba(255,214,10,0.55);
 }
@@ -488,7 +488,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   border-color:rgba(255,69,58,0.55);
 }
 .heatmap-tile.under .sub{color:var(--good); font-weight:600;}
-.heatmap-tile.near .sub{color:var(--vit); font-weight:600;}
+.heatmap-tile.near .sub, .heatmap-tile.overdeficit .sub{color:var(--vit); font-weight:600;}
 .heatmap-tile.over .sub{color:var(--danger); font-weight:600;}
 .heatmap-tile .tile-del{
   position:absolute;
@@ -1446,6 +1446,10 @@ let dayCache = {};      // dateStr -> {foods:[], exercises:[], weight:null}
 let lastBioMetrics = []; // most recent 7-day snapshot metrics, for the tap-to-expand detail modal
 let profile = {age:30, sex:'male', height:170, weight:70, activity:1.2, goal:0, useNetCalories:true, eatBackPct:75};
 let targetOverrides = {};
+// Date (YYYY-MM-DD) the calorie target was last changed. Days strictly
+// before this date get treated as neutral in the heatmap rather than
+// judged against a target that didn't exist yet at the time.
+let calorieTargetEffectiveDate = null;
 let savedMeals = []; // starred meals, reusable as one-tap templates
 let mealStacks = []; // groups of saved meals logged together (e.g. "Morning vitamins"), checked off per-use
 let pendingStackMemberIds = new Set(); // working selection while creating/editing a stack
@@ -1611,6 +1615,7 @@ async function loadSettings(){
   if(p) profile = Object.assign(profile, p);
   const t = await storeGet('targetOverrides');
   if(t) targetOverrides = t;
+  calorieTargetEffectiveDate = await storeGet('calorieTargetEffectiveDate') || null;
   savedMeals = (await storeGet('savedMeals') || []).map(m=>({
     ...m,
     baseGrams: m.baseGrams || m.grams || 1,
@@ -1639,6 +1644,18 @@ function computeCalorieTarget(){
   if(sex==='male') bmr = 10*weight + 6.25*height - 5*age + 5;
   else bmr = 10*weight + 6.25*height - 5*age - 161;
   return Math.round(bmr*activity + Number(goal));
+}
+// Estimated maintenance calories — same Mifflin-St Jeor + activity-factor
+// methodology as the target, but WITHOUT the goal's deficit/surplus offset.
+// This is "what it takes to hold current weight steady", used as the
+// physiological reference line for the heatmap: going over your (deficit)
+// target isn't the same thing as going over maintenance.
+function computeMaintenanceCalories(){
+  const {age, sex, height, weight, activity} = profile;
+  let bmr;
+  if(sex==='male') bmr = 10*weight + 6.25*height - 5*age + 5;
+  else bmr = 10*weight + 6.25*height - 5*age - 161;
+  return Math.round(bmr*activity);
 }
 function getTarget(id){
   if(targetOverrides[id]!==undefined) return targetOverrides[id];
@@ -2897,6 +2914,15 @@ async function renderTrends(){
   const netToggleEl = document.getElementById('useNetCaloriesToggle');
   if(netToggleEl) netToggleEl.checked = !!profile.useNetCalories;
   const calTarget = getTarget('calories');
+  // Estimated maintenance calories (no goal offset) — the physiological
+  // reference point: going over the deficit *target* isn't the same thing
+  // as going over what it actually takes to gain weight.
+  const maintenanceCal = computeMaintenanceCalories();
+  // Days before this date predate the current calorie target, so they're
+  // shown as neutral in the heatmap instead of being judged against a
+  // number that wasn't in effect yet. Falls back to today for anyone who
+  // hasn't changed their target since this tracking was added.
+  const calTargetEffDate = calorieTargetEffectiveDate || todayStr();
   // Split each day's intake at the target: the portion under/equal to target
   // stays the normal "Intake" color, anything beyond it is drawn stacked on
   // top in red so days you went over your calorie budget stand out.
@@ -3205,6 +3231,16 @@ async function renderTrends(){
             tension:0
           },
           {
+            label:'Maintenance (est.)',
+            data:days.map(()=>maintenanceCal||null),
+            borderColor:'#8B8FA3',
+            borderWidth:1.5,
+            borderDash:[1,4],
+            pointRadius:0,
+            fill:false,
+            tension:0
+          },
+          {
             label:'7-day average',
             data:rolling7Intake,
             borderColor:'#B8791A',
@@ -3347,13 +3383,21 @@ async function renderTrends(){
     }
   }
 
-  const legendItems = [
-    {key:'under', label:'Under target', color:'#2FEA63'},
-    {key:'near', label:'Near target', color:'#FFD60A'},
-    {key:'over', label:'Over target', color:'#FF453A'},
-    {key:'empty', label:'No log', color:'#38383F'}
-  ];
-  legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>`;
+  const legendItems = maintenanceCal > calTarget
+    ? [
+        {key:'under', label:'Under target', color:'#2FEA63'},
+        {key:'overdeficit', label:'Over target, still a deficit', color:'#FFD60A'},
+        {key:'over', label:'Above maintenance', color:'#FF453A'},
+        {key:'empty', label:'No log', color:'#38383F'}
+      ]
+    : [
+        {key:'under', label:'Under target', color:'#2FEA63'},
+        {key:'near', label:'Near target', color:'#FFD60A'},
+        {key:'over', label:'Over target', color:'#FF453A'},
+        {key:'empty', label:'No log', color:'#38383F'}
+      ];
+  legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>` +
+    `<div class="chart-subtitle" style="margin-top:8px;">Est. maintenance ~${maintenanceCal.toLocaleString()} kcal/day — target ${calTarget.toLocaleString()} kcal is a ${maintenanceCal>calTarget?`${(maintenanceCal-calTarget).toLocaleString()} kcal deficit`:maintenanceCal<calTarget?`${(calTarget-maintenanceCal).toLocaleString()} kcal surplus`:'maintenance-level plan'}.</div>`;
   heatmapHost.className = 'heatmap-grid';
   heatmapHost.innerHTML = days.map((iso, idx)=>{
     const day = dayDatas[idx] || {};
@@ -3364,9 +3408,28 @@ async function renderTrends(){
     const dow = d.toLocaleDateString(undefined, {weekday:'short'});
     const dateNum = d.getDate();
     const hasFood = (day.foods||[]).length > 0;
-    const state = !hasFood ? 'empty' : (effective > calTarget*1.1 ? 'over' : effective < calTarget*0.9 ? 'under' : 'near');
-    const baseStatusText = state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target';
-    const statusText = !hasFood ? 'No food logged' : (profile.useNetCalories && burned>0 ? `${baseStatusText} · -${Math.round(burned*eatBackFraction())} credited` : baseStatusText);
+    const isPreTarget = iso < calTargetEffDate;
+    let state, baseStatusText;
+    if(!hasFood){
+      state = 'empty'; baseStatusText = 'No food logged';
+    } else if(isPreTarget){
+      // The current target wasn't in effect yet — don't retroactively
+      // judge this day against it.
+      state = 'under'; baseStatusText = 'Target updated after this day';
+    } else if(effective <= calTarget){
+      state = 'under'; baseStatusText = 'Under target';
+    } else if(maintenanceCal > calTarget){
+      // Deficit-style goal: distinguish "still losing, just a smaller
+      // deficit" from an actual surplus above maintenance.
+      if(effective <= maintenanceCal){ state = 'overdeficit'; baseStatusText = 'Over target, still a deficit'; }
+      else { state = 'over'; baseStatusText = 'Above maintenance'; }
+    } else {
+      // Maintain/surplus-style goal — maintenance framing doesn't add much,
+      // fall back to the simple target-adherence bands.
+      state = effective > calTarget*1.1 ? 'over' : 'near';
+      baseStatusText = state === 'near' ? 'Near target' : 'Over target';
+    }
+    const statusText = (hasFood && !isPreTarget && profile.useNetCalories && burned>0) ? `${baseStatusText} · -${Math.round(burned*eatBackFraction())} credited` : baseStatusText;
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
     return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
@@ -6367,8 +6430,13 @@ async function toggleUseNetCalories(checked){
 }
 async function saveTargetOverride(){
   const v = Number(document.getElementById('targetInput').value);
+  const calorieTargetChanged = editingTargetId==='calories' && targetOverrides.calories !== v;
   targetOverrides[editingTargetId] = v;
   await storeSet('targetOverrides', targetOverrides);
+  if(calorieTargetChanged){
+    calorieTargetEffectiveDate = todayStr();
+    await storeSet('calorieTargetEffectiveDate', calorieTargetEffectiveDate);
+  }
   closeModal('targetModal');
   await renderAll();
   if(document.getElementById('view-trends')?.classList.contains('active')) renderTrends();
@@ -6391,11 +6459,16 @@ async function saveProfile(){
   // Recalculates calorie/macro targets from the formula and stores them as
   // explicit overrides (otherwise the coach-plan defaults in NUTRIENTS keep applying).
   const cals = computeCalorieTarget();
+  const calorieTargetChanged = targetOverrides.calories !== cals;
   targetOverrides.calories = cals;
   targetOverrides.protein = Math.round(profile.weight*2.0);
   targetOverrides.fat = Math.round(cals*0.30/9);
   targetOverrides.carbs = Math.round((cals - targetOverrides.protein*4 - targetOverrides.fat*9)/4);
   await storeSet('targetOverrides', targetOverrides);
+  if(calorieTargetChanged){
+    calorieTargetEffectiveDate = todayStr();
+    await storeSet('calorieTargetEffectiveDate', calorieTargetEffectiveDate);
+  }
   const ok = await storeSet('profile', profile);
   showToast(ok ? 'Targets recalculated' : 'Recalculated for this session (cloud sync pending)');
   await renderAll();
