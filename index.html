@@ -2446,38 +2446,51 @@ function renderDashboard(day){
   document.getElementById('calTarget').textContent = calTarget;
   document.getElementById('calSub').textContent = burned>0 ? `consumed · ${burned} kcal burned (${Math.round(burnedCredit)} credited)` : 'consumed today';
   document.getElementById('calRemaining').textContent = Math.abs(Math.round(remaining));
-  document.getElementById('calRemaining').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
   document.getElementById('calRemainingLabel').textContent = remaining<0 ? 'kcal over' : 'kcal remaining';
   // "Over target" (the goal line, which already has your deficit/surplus
   // baked in) and "under/over maintenance" (the physiological breakeven
   // point) are two different reference lines by design -- see the heatmap
   // tile logic below. Surfacing both together here stops them from
   // reading like a contradiction when only one was shown at a time.
-  if(remaining<0 && profile.useNetCalories !== false){
-    const maintenanceCal = computeMaintenanceCalories();
-    if(maintenanceCal>0){
-      const effective = Math.max(0, consumed - burnedCredit);
-      const vsMaintenance = Math.round(maintenanceCal - effective);
-      const maintNote = document.getElementById('calMaintenanceNote');
-      const noteText = vsMaintenance>=0
-        ? `still ${vsMaintenance.toLocaleString()} kcal under maintenance (~${maintenanceCal.toLocaleString()})`
-        : `${Math.abs(vsMaintenance).toLocaleString()} kcal over maintenance too (~${maintenanceCal.toLocaleString()})`;
-      if(maintNote){
-        maintNote.textContent = noteText;
-        maintNote.style.display = '';
+  // Colour-wise, "over target but still under maintenance" is a caution
+  // (amber), not a real problem (red) -- you're still in a deficit, just a
+  // smaller one than your goal. Only genuinely over maintenance earns red.
+  let overState = 'ok'; // 'ok' | 'caution' | 'over'
+  if(remaining<0){
+    overState = 'over';
+    if(profile.useNetCalories !== false){
+      const maintenanceCal = computeMaintenanceCalories();
+      if(maintenanceCal>0){
+        const effective = Math.max(0, consumed - burnedCredit);
+        const vsMaintenance = Math.round(maintenanceCal - effective);
+        const maintNote = document.getElementById('calMaintenanceNote');
+        const noteText = vsMaintenance>=0
+          ? `still ${vsMaintenance.toLocaleString()} kcal under maintenance (~${maintenanceCal.toLocaleString()})`
+          : `${Math.abs(vsMaintenance).toLocaleString()} kcal over maintenance too (~${maintenanceCal.toLocaleString()})`;
+        if(maintNote){
+          maintNote.textContent = noteText;
+          maintNote.style.display = '';
+        }
+        overState = vsMaintenance>=0 ? 'caution' : 'over';
       }
     }
-  }else{
+  }
+  if(overState==='ok'){
     const maintNote = document.getElementById('calMaintenanceNote');
     if(maintNote) maintNote.style.display = 'none';
   }
+  const overColor = overState==='caution' ? '#FFD60A' : 'var(--danger)';
+  document.getElementById('calRemaining').style.color = overState==='ok' ? 'var(--text)' : overColor;
+  document.getElementById('calRemainingLabel').style.color = overState==='ok' ? '' : overColor;
   const effectiveTarget = calTarget + burnedCredit;
   const pct = effectiveTarget>0 ? Math.min(100, (consumed/effectiveTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
-  document.getElementById('calBarFill').style.background = remaining<0
+  document.getElementById('calBarFill').style.background = overState==='over'
     ? 'linear-gradient(90deg, #FF453A, #FF1F1F)'
-    : ceilingProgressColor(pct);
-  document.getElementById('calConsumed').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
+    : overState==='caution'
+      ? 'linear-gradient(90deg, #FFD60A, #FF9F0A)'
+      : ceilingProgressColor(pct);
+  document.getElementById('calConsumed').style.color = overState==='ok' ? 'var(--text)' : overColor;
 
   // Under 1000 kcal usually means logging was incomplete that day, so it's
   // excluded from the Trends average by default (see renderTrends). This
