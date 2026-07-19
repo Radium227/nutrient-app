@@ -2918,11 +2918,6 @@ async function renderTrends(){
   // reference point: going over the deficit *target* isn't the same thing
   // as going over what it actually takes to gain weight.
   const maintenanceCal = computeMaintenanceCalories();
-  // Days before this date predate the current calorie target, so they're
-  // shown as neutral in the heatmap instead of being judged against a
-  // number that wasn't in effect yet. Falls back to today for anyone who
-  // hasn't changed their target since this tracking was added.
-  const calTargetEffDate = calorieTargetEffectiveDate || todayStr();
   // Split each day's intake at the target: the portion under/equal to target
   // stays the normal "Intake" color, anything beyond it is drawn stacked on
   // top in red so days you went over your calorie budget stand out.
@@ -3223,9 +3218,9 @@ async function renderTrends(){
           {
             label:'Target',
             data:days.map(()=>calTarget||null),
-            borderColor:'#C2C3CB',
-            borderWidth:1.5,
-            borderDash:[2,3],
+            borderColor:'#5FD1FF',
+            borderWidth:2.5,
+            borderDash:[8,4],
             pointRadius:0,
             fill:false,
             tension:0
@@ -3233,9 +3228,9 @@ async function renderTrends(){
           {
             label:'Maintenance (est.)',
             data:days.map(()=>maintenanceCal||null),
-            borderColor:'#8B8FA3',
-            borderWidth:1.5,
-            borderDash:[1,4],
+            borderColor:'#FF6FA8',
+            borderWidth:2.5,
+            borderDash:[3,3],
             pointRadius:0,
             fill:false,
             tension:0
@@ -3408,14 +3403,9 @@ async function renderTrends(){
     const dow = d.toLocaleDateString(undefined, {weekday:'short'});
     const dateNum = d.getDate();
     const hasFood = (day.foods||[]).length > 0;
-    const isPreTarget = iso < calTargetEffDate;
     let state, baseStatusText;
     if(!hasFood){
       state = 'empty'; baseStatusText = 'No food logged';
-    } else if(isPreTarget){
-      // The current target wasn't in effect yet — don't retroactively
-      // judge this day against it.
-      state = 'under'; baseStatusText = 'Target updated after this day';
     } else if(effective <= calTarget){
       state = 'under'; baseStatusText = 'Under target';
     } else if(maintenanceCal > calTarget){
@@ -3429,7 +3419,7 @@ async function renderTrends(){
       state = effective > calTarget*1.1 ? 'over' : 'near';
       baseStatusText = state === 'near' ? 'Near target' : 'Over target';
     }
-    const statusText = (hasFood && !isPreTarget && profile.useNetCalories && burned>0) ? `${baseStatusText} · -${Math.round(burned*eatBackFraction())} credited` : baseStatusText;
+    const statusText = (hasFood && profile.useNetCalories && burned>0) ? `${baseStatusText} · -${Math.round(burned*eatBackFraction())} credited` : baseStatusText;
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
     return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
