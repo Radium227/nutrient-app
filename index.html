@@ -120,6 +120,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .water-quick button{flex:1; min-width:70px; background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:11px 6px; font-size:13px; font-weight:500; min-height:42px;}
 .water-quick button:active{background:var(--surface-3);}
 .water-quick button.ghost{background:none; color:var(--min); border-color:var(--min);}
+.water-clear-btn{margin-left:auto; align-self:flex-start; background:none; border:none; color:var(--text-faint); font-size:15px; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+.water-clear-btn:active{background:var(--surface-2); color:var(--danger);}
+.water-edit-link{width:100%; background:none; border:none; color:var(--text-faint); font-size:12px; text-align:center; margin-top:10px; padding:4px;}
+.water-edit-link:active{color:var(--text-dim);}
 
 /* ---------- Nutrient detail modal ---------- */
 .detail-gauge{margin-bottom:16px;}
@@ -407,7 +411,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
    that self-referential math entirely — the chart always fills this fixed
    box, so first render and every render after it are pixel-identical.*/
 .chart-canvas-wrap{position:relative; width:100%; height:220px;}
-.chart-canvas-wrap-sm{height:120px;}
+.chart-canvas-wrap-sm{height:190px;}
 .chart-canvas-wrap canvas{width:100% !important; height:100% !important;}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
 .net-cal-toggle{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); margin:-2px 0 12px; cursor:pointer; line-height:1.35;}
@@ -786,14 +790,11 @@ input,select,textarea{font-family:inherit; color:var(--text);}
           <h2><span class="h2-dot" style="background:var(--min)"></span>Water</h2>
           <div class="water-amount"><span class="mono" id="waterAmount">0 L</span> <span class="dim" id="waterTargetLbl">of 4 L</span></div>
         </div>
+        <button class="water-clear-btn" id="waterClearBtn" style="display:none;" title="Remove today's logged water" onclick="clearWaterToday()">✕</button>
       </div>
       <div class="water-bar-track"><div class="water-bar-fill" id="waterBarFill" style="width:0%"></div></div>
-      <div class="water-quick">
-        <button onclick="quickAddWater(250)">+250 ml</button>
-        <button onclick="quickAddWater(500)">+500 ml</button>
-        <button onclick="quickAddWater(1000)">+1 L</button>
-        <button class="ghost" onclick="promptCustomWater()">+ Custom</button>
-      </div>
+      <div class="water-quick" id="waterQuick"></div>
+      <button class="ghost water-edit-link" onclick="editWaterPresets()">✎ Edit these amounts</button>
     </div>
 
     <div class="spectrum-wrap" onclick="openRemainingModal()" style="cursor:pointer;">
@@ -2372,11 +2373,12 @@ function renderDashboard(day){
   document.getElementById('calRemaining').textContent = Math.abs(remaining);
   document.getElementById('calRemaining').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
   document.getElementById('calRemainingLabel').textContent = remaining<0 ? 'kcal over' : 'kcal remaining';
-  const pct = calTarget>0 ? Math.min(100, (consumed/calTarget)*100) : 0;
+  const effectiveTarget = calTarget + burned;
+  const pct = effectiveTarget>0 ? Math.min(100, (consumed/effectiveTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
   document.getElementById('calBarFill').style.background = remaining<0
     ? 'linear-gradient(90deg, #FF453A, #FF1F1F)'
-    : progressColor(pct);
+    : ceilingProgressColor(pct);
   document.getElementById('calConsumed').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
 
   // Under 1000 kcal usually means logging was incomplete that day, so it's
@@ -2418,6 +2420,8 @@ function renderDashboard(day){
   document.getElementById('waterTargetLbl').textContent = 'of '+(waterTarget/1000)+' L';
   document.getElementById('waterBarFill').style.width = waterPct+'%';
   document.getElementById('waterBarFill').style.background = barColor(waterPct, 'var(--min)');
+  renderWaterQuickButtons();
+  document.getElementById('waterClearBtn').style.display = waterVal>0 ? 'flex' : 'none';
 
   // spectrum / overall completion
   let bars = '';
@@ -2625,6 +2629,30 @@ function progressColor(pct){
     {p:50,  c:[255,149,0]},   // orange
     {p:75,  c:[255,214,10]},  // yellow
     {p:100, c:[47,234,99]}    // green
+  ];
+  let lo = stops[0], hi = stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    if(pct>=stops[i].p && pct<=stops[i+1].p){ lo=stops[i]; hi=stops[i+1]; break; }
+  }
+  const range = (hi.p - lo.p) || 1;
+  const t = (pct - lo.p) / range;
+  const r = Math.round(lo.c[0] + (hi.c[0]-lo.c[0])*t);
+  const g = Math.round(lo.c[1] + (hi.c[1]-lo.c[1])*t);
+  const b = Math.round(lo.c[2] + (hi.c[2]-lo.c[2])*t);
+  return `rgb(${r},${g},${b})`;
+}
+// For budget/ceiling-style metrics (calories, carbs, fat) where MORE isn't
+// better -- unlike progressColor above, which rewards reaching 100% with
+// green, this stays green while there's real headroom left and only turns
+// to warning colors as you approach the limit, since being close to a
+// ceiling is the thing that should read as "watch out", not "great job".
+function ceilingProgressColor(pct){
+  pct = Math.max(0, Math.min(100, pct));
+  const stops = [
+    {p:0,   c:[47,234,99]},   // green - plenty of budget left
+    {p:70,  c:[47,234,99]},   // still green
+    {p:88,  c:[255,214,10]},  // yellow - getting close
+    {p:100, c:[255,149,0]}    // orange - right at the limit
   ];
   let lo = stops[0], hi = stops[stops.length-1];
   for(let i=0;i<stops.length-1;i++){
@@ -3178,7 +3206,7 @@ async function renderTrends(){
   try{
     const burnCanvas = document.getElementById('burnedLineChart');
     if(burnedLineChartInst){ burnedLineChartInst.destroy(); burnedLineChartInst=null; }
-    const burnPointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#5FB2E8', 3, 5, '#141416');
+    const burnPointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#5FB2E8', 4, 7, '#141416');
     // Chart.js's default axis-scaling picks a "nice" round ceiling (0/500/
     // 1000 etc) regardless of how high the data actually goes -- so if the
     // real numbers top out around 650, a third of the chart's height sits
@@ -3197,21 +3225,21 @@ async function renderTrends(){
           label:'Burned',
           data:burns,
           borderColor:'#5FB2E8',
-          backgroundColor:'rgba(95,178,232,0.16)',
+          backgroundColor:'rgba(95,178,232,0.3)',
           fill:true,
           tension:0.35,
-          borderWidth:2.5,
+          borderWidth:3.5,
           pointRadius:burnPointStyles.radius,
           pointHoverRadius:burnPointStyles.hoverRadius,
           pointBackgroundColor:burnPointStyles.bg,
           pointBorderColor:burnPointStyles.border,
-          pointBorderWidth:1.2
+          pointBorderWidth:2
         },{
           label:'7-day average',
           data:rolling7Burn,
-          borderColor:'#2E7DAF',
-          borderDash:[6,4],
-          borderWidth:2,
+          borderColor:'#4FA0DE',
+          borderDash:[9,5],
+          borderWidth:3,
           pointRadius:0,
           tension:0.35,
           fill:false
@@ -3220,12 +3248,12 @@ async function renderTrends(){
       options:{
         maintainAspectRatio:false,
         plugins:{
-          legend:{position:'bottom', labels:{color:'#D3D4DA', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
-          tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
+          legend:{position:'bottom', labels:{color:'#D3D4DA', boxWidth:12, boxHeight:12, padding:14, font:{family:"'IBM Plex Sans', sans-serif", size:12.5, weight:'600'}}},
+          tooltip:{bodyFont:{size:13}, titleFont:{size:13}, callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
         },
         scales:{
-          x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, suggestedMax:burnAxisMax, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}}
+          x:{ticks:{color:'#D3D4DA', maxTicksLimit:5, font:{size:12}}, grid:{display:false}},
+          y:{beginAtZero:true, suggestedMax:burnAxisMax, ticks:{color:'#D3D4DA', font:{size:12}, callback:(v)=>`${v}`}, grid:{color:'#4A4A55'}}
         }
       }
     });
@@ -5948,6 +5976,46 @@ async function quickAddWater(ml){
   }
   renderAll();
   showToast(`+${ml>=1000?(ml/1000)+' L':ml+' ml'} water`);
+  saveDay(currentDate);
+}
+// Quick-add amounts are editable (profile.waterPresets), defaulting to
+// 300/500/1000ml. Rendered fresh each time so an edit takes effect
+// immediately without needing a full page reload.
+const DEFAULT_WATER_PRESETS = [300, 500, 1000];
+function getWaterPresets(){
+  const p = profile.waterPresets;
+  return Array.isArray(p) && p.length===3 && p.every(v=>Number.isFinite(v) && v>0) ? p : DEFAULT_WATER_PRESETS;
+}
+function renderWaterQuickButtons(){
+  const host = document.getElementById('waterQuick');
+  if(!host) return;
+  const presets = getWaterPresets();
+  host.innerHTML = presets.map(ml=>
+    `<button onclick="quickAddWater(${ml})">+${ml>=1000 && ml%1000===0 ? (ml/1000)+' L' : ml+' ml'}</button>`
+  ).join('') + `<button class="ghost" onclick="promptCustomWater()">+ Custom</button>`;
+}
+async function editWaterPresets(){
+  const current = getWaterPresets();
+  const input = prompt('Edit the 3 quick-add amounts, in ml, comma-separated:', current.join(','));
+  if(input===null) return;
+  const parsed = input.split(',').map(s=>Math.round(Number(s.trim())));
+  if(parsed.length!==3 || parsed.some(v=>!v || v<=0)){
+    showToast('Enter exactly 3 positive numbers, e.g. 300,500,1000');
+    return;
+  }
+  profile = {...profile, waterPresets: parsed};
+  await storeSet('profile', profile);
+  renderWaterQuickButtons();
+  showToast('Quick-add amounts updated');
+}
+async function clearWaterToday(){
+  const day = await loadDay(currentDate);
+  const entry = day.foods.find(f=>f.id===WATER_ENTRY_ID);
+  if(!entry) return;
+  if(!confirm(`Remove all ${entry.grams||0} ml of water logged today?`)) return;
+  day.foods = day.foods.filter(f=>f.id!==WATER_ENTRY_ID);
+  renderAll();
+  showToast('Water log cleared for today');
   saveDay(currentDate);
 }
 function promptCustomWater(){
