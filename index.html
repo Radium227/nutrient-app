@@ -758,6 +758,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <div>
           <div class="cal-big mono" id="calConsumed">0</div>
           <div class="cal-sub" id="calSub">consumed today</div>
+          <div class="cal-sub" id="calMaintenanceNote" style="display:none; color:var(--text-dim); margin-top:2px;"></div>
         </div>
         <div class="cal-remaining">
           <div class="n mono" id="calRemaining">0</div>
@@ -900,7 +901,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <label class="net-cal-toggle"><input type="checkbox" id="useNetCaloriesToggle" onchange="toggleUseNetCalories(this.checked)"> Count exercise against target (use net calories = intake − burned)</label>
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
-      <div class="chart-canvas-wrap" style="margin-top:14px;"><canvas id="calorieLineChart"></canvas></div>
+      <div class="chart-canvas-wrap" style="margin-top:14px; height:260px;"><canvas id="calorieLineChart"></canvas></div>
       <div class="chart-subtitle" style="margin-top:14px;">Calories burned (own scale, so day-to-day variation is actually visible)</div>
       <div class="chart-canvas-wrap chart-canvas-wrap-sm"><canvas id="burnedLineChart"></canvas></div>
       <div class="trend-insight" id="calorieInsight"></div>
@@ -1232,6 +1233,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="modal-handle"></div>
     <div class="modal-head"><h3 id="targetModalName">Edit target</h3><button onclick="closeModal('targetModal')">✕</button></div>
     <div class="field"><label>Daily target</label><input type="number" step="any" id="targetInput"></div>
+    <div id="targetModalHint" style="display:none; font-size:12px; color:var(--text-dim); margin:-6px 0 12px;"></div>
     <button class="btn block" onclick="saveTargetOverride()">Save</button>
   </div>
 </div>
@@ -2438,6 +2440,29 @@ function renderDashboard(day){
   document.getElementById('calRemaining').textContent = Math.abs(Math.round(remaining));
   document.getElementById('calRemaining').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
   document.getElementById('calRemainingLabel').textContent = remaining<0 ? 'kcal over' : 'kcal remaining';
+  // "Over target" (the goal line, which already has your deficit/surplus
+  // baked in) and "under/over maintenance" (the physiological breakeven
+  // point) are two different reference lines by design -- see the heatmap
+  // tile logic below. Surfacing both together here stops them from
+  // reading like a contradiction when only one was shown at a time.
+  if(remaining<0 && profile.useNetCalories !== false){
+    const maintenanceCal = computeMaintenanceCalories();
+    if(maintenanceCal>0){
+      const effective = Math.max(0, consumed - burnedCredit);
+      const vsMaintenance = Math.round(maintenanceCal - effective);
+      const maintNote = document.getElementById('calMaintenanceNote');
+      const noteText = vsMaintenance>=0
+        ? `still ${vsMaintenance.toLocaleString()} kcal under maintenance (~${maintenanceCal.toLocaleString()})`
+        : `${Math.abs(vsMaintenance).toLocaleString()} kcal over maintenance too (~${maintenanceCal.toLocaleString()})`;
+      if(maintNote){
+        maintNote.textContent = noteText;
+        maintNote.style.display = '';
+      }
+    }
+  }else{
+    const maintNote = document.getElementById('calMaintenanceNote');
+    if(maintNote) maintNote.style.display = 'none';
+  }
   const effectiveTarget = calTarget + burnedCredit;
   const pct = effectiveTarget>0 ? Math.min(100, (consumed/effectiveTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
@@ -3213,54 +3238,70 @@ async function renderTrends(){
     const clCanvas = document.getElementById('calorieLineChart');
     if(calorieLineChartInst){ calorieLineChartInst.destroy(); calorieLineChartInst=null; }
     const intakePointStyles = buildPointStyles(days.length, (i)=>days[i]===currentDate, '#FF8F5E', 3, 5, '#141416');
+    // Redesigned for readability: four lines that were all similar hues,
+    // similar dash patterns, and similar y-values were impossible to tell
+    // apart. Fix: (1) Target + Maintenance become a shaded "zone" between
+    // two thin solid lines instead of two crossing dashed lines fighting
+    // for attention: (2) the 7-day average is muted to a thin dotted
+    // background reference instead of a fourth competing dashed line; (3)
+    // Net intake is drawn LAST (on top, in dataset order) so it's always
+    // the visually dominant line, exactly matching its role as "the thing
+    // you're actually looking at".
     calorieLineChartInst = new Chart(clCanvas, {
       type:'line',
       data:{
         labels,
         datasets:[
           {
-            label: profile.useNetCalories ? 'Net intake' : 'Intake',
-            data:effectiveIntakes,
-            borderColor:'#FF8F5E',
-            backgroundColor:'rgba(255,143,94,0.14)',
-            fill:true,
+            label:'7-day average',
+            data:rolling7Intake,
+            borderColor:'#6E7381',
+            borderDash:[2,3],
+            borderWidth:1.5,
+            pointRadius:0,
             tension:0.35,
-            borderWidth:2.5,
-            pointRadius:intakePointStyles.radius,
-            pointHoverRadius:intakePointStyles.hoverRadius,
-            pointBackgroundColor:intakePointStyles.bg,
-            pointBorderColor:intakePointStyles.border,
-            pointBorderWidth:1.2
+            fill:false,
+            order:4
           },
           {
             label:'Target',
             data:days.map(()=>calTarget||null),
-            borderColor:'#5FD1FF',
-            borderWidth:2.5,
-            borderDash:[8,4],
+            borderColor:'#4ADE80',
+            borderWidth:2,
             pointRadius:0,
             fill:false,
-            tension:0
+            tension:0,
+            order:3
           },
           {
             label:'Maintenance (est.)',
             data:days.map(()=>maintenanceCal||null),
             borderColor:'#FF6FA8',
-            borderWidth:2.5,
-            borderDash:[3,3],
-            pointRadius:0,
-            fill:false,
-            tension:0
-          },
-          {
-            label:'7-day average',
-            data:rolling7Intake,
-            borderColor:'#B8791A',
-            borderDash:[6,4],
             borderWidth:2,
             pointRadius:0,
+            // Shades the gap between Target and Maintenance as a soft band
+            // (the "still losing weight, just less aggressively" zone) so
+            // the relationship between the two reads at a glance instead
+            // of requiring the eye to trace two thin lines and compare.
+            fill: maintenanceCal>calTarget ? '-1' : false,
+            backgroundColor:'rgba(255,214,10,0.08)',
+            tension:0,
+            order:2
+          },
+          {
+            label: profile.useNetCalories ? 'Net intake' : 'Intake',
+            data:effectiveIntakes,
+            borderColor:'#FF8F5E',
+            backgroundColor:'rgba(255,143,94,0.16)',
+            fill:true,
             tension:0.35,
-            fill:false
+            borderWidth:3,
+            pointRadius:intakePointStyles.radius,
+            pointHoverRadius:intakePointStyles.hoverRadius,
+            pointBackgroundColor:intakePointStyles.bg,
+            pointBorderColor:intakePointStyles.border,
+            pointBorderWidth:1.2,
+            order:1
           }
         ]
       },
@@ -3268,11 +3309,22 @@ async function renderTrends(){
         maintainAspectRatio:false,
         plugins:{
           legend:{position:'bottom', labels:{color:'#D3D4DA', boxWidth:10, boxHeight:10, padding:12, font:{family:"'IBM Plex Sans', sans-serif", size:11}}},
-          tooltip:{callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}}
+          tooltip:{
+            // Draw all four values for the hovered day in one tooltip
+            // instead of one line at a time, and always in the same
+            // fixed order regardless of which line got hovered -- much
+            // faster to compare than moving the mouse between lines.
+            mode:'index', intersect:false,
+            itemSort:(a,b)=>{
+              const order = {'Net intake':0,'Intake':0,'Target':1,'Maintenance (est.)':2,'7-day average':3};
+              return (order[a.dataset.label]??9) - (order[b.dataset.label]??9);
+            },
+            callbacks:{label:(item)=>`${item.dataset.label}: ${Math.round(item.parsed.y ?? 0)} kcal`}
+          }
         },
         scales:{
           x:{ticks:{color:'#C2C3CB', maxTicksLimit:5}, grid:{display:false}},
-          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#38383F'}}
+          y:{beginAtZero:true, ticks:{color:'#C2C3CB', callback:(v)=>`${v}`}, grid:{color:'#2A2E38'}}
         }
       }
     });
@@ -6429,6 +6481,13 @@ function openTargetModal(id){
   const n = NUTRIENTS.find(x=>x.id===id);
   document.getElementById('targetModalName').textContent = 'Edit target — '+n.name;
   document.getElementById('targetInput').value = getTarget(id);
+  const hintEl = document.getElementById('targetModalHint');
+  if(hintEl){
+    hintEl.textContent = (id==='protein'||id==='fat')
+      ? `Carbs will auto-adjust to keep your ${Math.round(getTarget('calories')||computeCalorieTarget()).toLocaleString()} kcal target consistent.`
+      : '';
+    hintEl.style.display = (id==='protein'||id==='fat') ? '' : 'none';
+  }
   openModal('targetModal');
 }
 async function toggleUseNetCalories(checked){
@@ -6440,6 +6499,17 @@ async function saveTargetOverride(){
   const v = Number(document.getElementById('targetInput').value);
   const calorieTargetChanged = editingTargetId==='calories' && targetOverrides.calories !== v;
   targetOverrides[editingTargetId] = v;
+  // Protein and fat directly determine how many calories are "spoken for";
+  // carbs is the flexible macro that should absorb the difference so the
+  // three keep summing to the calorie target instead of silently drifting
+  // out of sync with it (e.g. lowering protein without freeing that room
+  // up for carbs would just shrink your total intake unintentionally).
+  if(editingTargetId==='protein' || editingTargetId==='fat'){
+    const calTarget = getTarget('calories') || computeCalorieTarget();
+    const protein = editingTargetId==='protein' ? v : (getTarget('protein')||0);
+    const fat = editingTargetId==='fat' ? v : (getTarget('fat')||0);
+    targetOverrides.carbs = Math.max(0, Math.round((calTarget - protein*4 - fat*9)/4));
+  }
   await storeSet('targetOverrides', targetOverrides);
   if(calorieTargetChanged){
     calorieTargetEffectiveDate = todayStr();
