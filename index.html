@@ -984,6 +984,18 @@ input,select,textarea{font-family:inherit; color:var(--text);}
           <option value="300">Gain weight</option>
         </select>
       </div>
+      <div class="field">
+        <label>Eat back exercise calories</label>
+        <select id="pEatBackPct">
+          <option value="0">0% — don't credit exercise at all</option>
+          <option value="50">50%</option>
+          <option value="70">70%</option>
+          <option value="75">75% (recommended default)</option>
+          <option value="80">80%</option>
+          <option value="100">100% — credit the full burn</option>
+        </select>
+        <div class="hint">Burn estimates from trackers/apps tend to run high, so crediting only part of it back toward your target is safer. Start at 70-80% and reassess every 2-4 weeks against your actual weight trend.</div>
+      </div>
       <button class="btn block" onclick="saveProfile()">Save &amp; recalculate targets</button>
       <div class="hint" style="margin-top:10px;">Calorie &amp; macro targets default to your coach's plan. Hit this button to instead calculate them from your stats (Mifflin-St Jeor). Micronutrient targets are pre-set to your personalized plan — tap any nutrient in the Nutrients tab to override.</div>
     </div>
@@ -1432,7 +1444,7 @@ const CAT_META = {
 let currentDate = todayStr();
 let dayCache = {};      // dateStr -> {foods:[], exercises:[], weight:null}
 let lastBioMetrics = []; // most recent 7-day snapshot metrics, for the tap-to-expand detail modal
-let profile = {age:30, sex:'male', height:170, weight:70, activity:1.375, goal:0, useNetCalories:true};
+let profile = {age:30, sex:'male', height:170, weight:70, activity:1.2, goal:0, useNetCalories:true, eatBackPct:75};
 let targetOverrides = {};
 let savedMeals = []; // starred meals, reusable as one-tap templates
 let mealStacks = []; // groups of saved meals logged together (e.g. "Morning vitamins"), checked off per-use
@@ -1760,6 +1772,24 @@ function computeTotals(day){
 }
 function computeBurned(day){
   return (day.exercises||[]).reduce((s,e)=>s+(Number(e.calories)||0),0);
+}
+// What fraction of exercise calories to credit back toward the daily
+// target. Fully crediting 100% overstates how much extra you can eat
+// (burn estimates run optimistic), so this defaults to 75%, in the
+// commonly-recommended 70-80% range — adjustable in Settings.
+function eatBackFraction(){
+  return Math.max(0, Math.min(100, Number(profile.eatBackPct))||0) / 100;
+}
+// The number that should actually be compared against the calorie target:
+// calories eaten minus a partial credit for calories burned. Used by every
+// "over/under/near target" decision in the app (dashboard remaining, the
+// Nutrients tab bad-overage alert, the heatmap tile color, the AI diet
+// prompts' overage flags, Calorie Stability) so a workout day never gets
+// flagged as "over target" using the full raw amount eaten.
+function effectiveCalories(day){
+  const consumed = computeTotals(day).calories || 0;
+  const burned = computeBurned(day);
+  return Math.max(0, consumed - burned*eatBackFraction());
 }
 
 /* =========================================================
@@ -2364,16 +2394,17 @@ async function refreshHabitsView(){
 function renderDashboard(day){
   const totals = computeTotals(day);
   const burned = computeBurned(day);
+  const burnedCredit = burned * eatBackFraction();
   const calTarget = getTarget('calories');
   const consumed = Math.round(totals.calories);
-  const remaining = calTarget - consumed + burned;
+  const remaining = calTarget - consumed + burnedCredit;
   document.getElementById('calConsumed').textContent = consumed;
   document.getElementById('calTarget').textContent = calTarget;
-  document.getElementById('calSub').textContent = burned>0 ? `consumed · ${burned} kcal burned` : 'consumed today';
-  document.getElementById('calRemaining').textContent = Math.abs(remaining);
+  document.getElementById('calSub').textContent = burned>0 ? `consumed · ${burned} kcal burned (${Math.round(burnedCredit)} credited)` : 'consumed today';
+  document.getElementById('calRemaining').textContent = Math.abs(Math.round(remaining));
   document.getElementById('calRemaining').style.color = remaining<0 ? 'var(--danger)' : 'var(--text)';
   document.getElementById('calRemainingLabel').textContent = remaining<0 ? 'kcal over' : 'kcal remaining';
-  const effectiveTarget = calTarget + burned;
+  const effectiveTarget = calTarget + burnedCredit;
   const pct = effectiveTarget>0 ? Math.min(100, (consumed/effectiveTarget)*100) : 0;
   document.getElementById('calBarFill').style.width = pct+'%';
   document.getElementById('calBarFill').style.background = remaining<0
@@ -2546,7 +2577,7 @@ function renderNutrients(day){
   NUTRIENTS.forEach(n=>{
     const target = getTarget(n.id);
     if(!target) return;
-    const value = totals[n.id] || 0;
+    const value = n.id==='calories' ? effectiveCalories(day) : (totals[n.id] || 0);
     const pct = (value / target) * 100;
     if((isUpperLimitNutrient(n.id) || n.id==='calories') && pct > 100){
       alerts.push({kind:'bad', label:n.name, pct:Math.round(pct), note:'over target'});
@@ -2572,15 +2603,18 @@ function renderNutrients(day){
       <div class="cat-body" id="body-${cat}">`;
     groups[cat].forEach(n=>{
       const v = totals[n.id]||0;
+      const statusValue = n.id==='calories' ? effectiveCalories(day) : v;
       const t = getTarget(n.id);
-      const pct = t>0 ? Math.min(999,(v/t)*100) : null;
+      const pct = t>0 ? Math.min(999,(statusValue/t)*100) : null;
       const pctStyle = nutrientStatusTextStyle(n.id, pct);
       const fill = nutrientStatusColor(n.id, pct, {gradient:true});
+      const burnedForRow = n.id==='calories' ? computeBurned(day) : 0;
+      const netNote = (n.id==='calories' && burnedForRow>0) ? ` <span style="color:var(--text-faint);">(net ${Math.round(statusValue)} after ${Math.round(burnedForRow*eatBackFraction())} credited)</span>` : '';
       html += `<div class="nutrient-row" onclick="openNutrientDetail('${n.id}')">
         <div class="name">${n.name}</div>
         ${t>0 ? `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${fill}"></div></div>
         <div class="pct" style="${pctStyle}">${Math.round(pct)}%</div>` : `<div class="pct">—</div>`}
-        <div class="vals">${fmtAmount(v, n.unit)}${t>0?` / ${fmtAmount(t, n.unit)}`:''}</div>
+        <div class="vals">${fmtAmount(v, n.unit)}${t>0?` / ${fmtAmount(t, n.unit)}`:''}${netNote}</div>
       </div>`;
     });
     html += `</div></div>`;
@@ -2859,7 +2893,7 @@ async function renderTrends(){
   // comparing against target — so a 700kcal burn day isn't marked "over"
   // just because raw food intake alone crossed the line. Floored at 0
   // since a day can't have negative effective intake.
-  const effectiveIntakes = profile.useNetCalories ? intakes.map((v,i)=>Math.max(0, v - burns[i])) : intakes;
+  const effectiveIntakes = profile.useNetCalories ? intakes.map((v,i)=>Math.max(0, v - burns[i]*eatBackFraction())) : intakes;
   const netToggleEl = document.getElementById('useNetCaloriesToggle');
   if(netToggleEl) netToggleEl.checked = !!profile.useNetCalories;
   const calTarget = getTarget('calories');
@@ -3125,7 +3159,7 @@ async function renderTrends(){
   lookbackDayDatas.forEach((d,i)=>{
     const cal = Math.round(computeTotals(d).calories||0);
     const burn = computeBurned(d)||0;
-    dailyEffectiveIntakeByDate.set(lookbackDays[i], profile.useNetCalories ? Math.max(0, cal-burn) : cal);
+    dailyEffectiveIntakeByDate.set(lookbackDays[i], profile.useNetCalories ? Math.max(0, cal-burn*eatBackFraction()) : cal);
     dailyBurnByDate.set(lookbackDays[i], burn);
   });
   function trailingDailyAvg(dateStr, byDateMap, windowSize){
@@ -3332,7 +3366,7 @@ async function renderTrends(){
     const hasFood = (day.foods||[]).length > 0;
     const state = !hasFood ? 'empty' : (effective > calTarget*1.1 ? 'over' : effective < calTarget*0.9 ? 'under' : 'near');
     const baseStatusText = state === 'under' ? 'Under target' : state === 'near' ? 'Near target' : 'Over target';
-    const statusText = !hasFood ? 'No food logged' : (profile.useNetCalories && burned>0 ? `${baseStatusText} · -${Math.round(burned)} burned` : baseStatusText);
+    const statusText = !hasFood ? 'No food logged' : (profile.useNetCalories && burned>0 ? `${baseStatusText} · -${Math.round(burned*eatBackFraction())} credited` : baseStatusText);
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
     return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
@@ -3652,7 +3686,7 @@ function buildDailyDietPrompt(day){
     .map(n=>{
       const target = getTarget(n.id);
       if(!target) return null;
-      const value = Number(totals[n.id] || 0);
+      const value = n.id==='calories' ? effectiveCalories(day) : Number(totals[n.id] || 0);
       const pct = Math.round((value / target) * 100);
       return {id:n.id, name:n.name, unit:n.unit, value, target, pct};
     })
@@ -3664,7 +3698,7 @@ function buildDailyDietPrompt(day){
   return `You are a nutrition coach. Analyze today's diet and give a short, practical summary focused on missing vitamins/minerals and any bad overages.
 
 User: ${profile.age}yo ${profile.sex}, ${profile.height}cm, ${profile.weight}kg, activity ${profile.activity}, goal ${profile.goal}.
-Today: ${Math.round(totals.calories || 0)} kcal eaten, ${burned} kcal burned, target ${calTarget} kcal.
+Today: ${Math.round(totals.calories || 0)} kcal eaten, ${burned} kcal burned (${Math.round(burned*eatBackFraction())} credited back at ${profile.eatBackPct}%), target ${calTarget} kcal.
 Foods:
 ${summarizeDayFoods(day) || '- No foods logged.'}
 
@@ -3806,7 +3840,7 @@ function buildNutrientInsightPrompt(day, recentMentions){
   const gaps = NUTRIENTS.map(n=>{
     const target = getTarget(n.id);
     if(!target) return null;
-    const value = Number(totals[n.id] || 0);
+    const value = n.id==='calories' ? effectiveCalories(day) : Number(totals[n.id] || 0);
     const pct = Math.round((value / target) * 100);
     return {name:n.name, cat:n.cat, pct};
   }).filter(Boolean).sort((a,b)=>a.pct-b.pct);
@@ -4081,7 +4115,7 @@ async function computeWeeklyBiologyMetrics(){
 
   const calTarget = getTarget('calories')||0;
   const loggedThisWeek = thisWeek.filter(d=>(d.foods||[]).length>0);
-  const calDeviations = calTarget ? loggedThisWeek.map(d=>Math.abs((computeTotals(d).calories||0)-calTarget)/calTarget*100) : [];
+  const calDeviations = calTarget ? loggedThisWeek.map(d=>Math.abs(effectiveCalories(d)-calTarget)/calTarget*100) : [];
   const avgDeviation = calDeviations.length ? calDeviations.reduce((a,b)=>a+b,0)/calDeviations.length : null;
   const stabilityScore = avgDeviation==null ? null : Math.max(0, Math.round(100 - avgDeviation));
 
@@ -6352,6 +6386,7 @@ async function saveProfile(){
     weight: Number(document.getElementById('pWeight').value)||70,
     activity: Number(document.getElementById('pActivity').value),
     goal: Number(document.getElementById('pGoal').value),
+    eatBackPct: Number(document.getElementById('pEatBackPct').value),
   };
   // Recalculates calorie/macro targets from the formula and stores them as
   // explicit overrides (otherwise the coach-plan defaults in NUTRIENTS keep applying).
@@ -6373,6 +6408,7 @@ function fillSettingsForm(){
   document.getElementById('pWeight').value = profile.weight;
   document.getElementById('pActivity').value = profile.activity;
   document.getElementById('pGoal').value = profile.goal;
+  document.getElementById('pEatBackPct').value = [0,50,70,75,80,100].includes(Number(profile.eatBackPct)) ? Number(profile.eatBackPct) : 75;
 }
 
 async function exportData(){
