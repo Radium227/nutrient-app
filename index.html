@@ -895,13 +895,21 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div class="stat-grid" id="exerciseStatGrid2" style="margin-top:10px;"></div>
     </div>
     <div class="card chart-card">
-      <h2><span class="h2-dot" style="background:var(--macro)"></span>Calories (last 14 days)</h2>
+      <h2><span class="h2-dot" style="background:var(--macro)"></span>Calories</h2>
       <div class="trend-summary" id="calorieSummary"></div>
-      <div class="chart-subtitle">Each day is a tile — under, near, or over target at a glance.</div>
+      <div class="chart-subtitle" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span>Each day is a tile — under, near, or over target at a glance.</span>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:8px 0 4px;">
+        <button type="button" id="heatmapPrevBtn" onclick="shiftHeatmapPage(1)" style="background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;">‹ Older</button>
+        <span id="heatmapPageLabel" style="font-size:11.5px; color:var(--text-dim);"></span>
+        <button type="button" id="heatmapNextBtn" onclick="shiftHeatmapPage(-1)" style="background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;">Newer ›</button>
+      </div>
       <label class="net-cal-toggle"><input type="checkbox" id="useNetCaloriesToggle" onchange="toggleUseNetCalories(this.checked)"> Count exercise against target (use net calories = intake − burned)</label>
       <div id="calorieHeatmap"></div>
       <div id="calorieLegend"></div>
-      <div class="chart-canvas-wrap" style="margin-top:14px; height:260px;"><canvas id="calorieLineChart"></canvas></div>
+      <div class="chart-subtitle" style="margin-top:14px;">Full history — every day you've logged, not just the last 14.</div>
+      <div class="chart-canvas-wrap" style="margin-top:6px; height:260px;"><canvas id="calorieLineChart"></canvas></div>
       <div class="chart-subtitle" style="margin-top:14px;">Calories burned (own scale, so day-to-day variation is actually visible)</div>
       <div class="chart-canvas-wrap chart-canvas-wrap-sm"><canvas id="burnedLineChart"></canvas></div>
       <div class="trend-insight" id="calorieInsight"></div>
@@ -2813,6 +2821,40 @@ function ensureChartJs(){
    TRENDS
 ========================================================= */
 let weightChartInst=null, exerciseChartInst=null, calorieLineChartInst=null, burnedLineChartInst=null;
+// The heatmap tiles show a 14-day page of history at a time (independent of
+// how far back the line charts go, which now show full history) --
+// heatmapPageOffset counts pages back from today: 0 = most recent 14 days,
+// 1 = the 14 days before that, etc.
+let heatmapPageOffset = 0;
+async function shiftHeatmapPage(delta){
+  heatmapPageOffset = Math.max(0, heatmapPageOffset + delta);
+  await renderTrends();
+}
+// Finds the earliest day the person has ever logged food for, via a
+// Firestore range query on the "day:*" document IDs (cheap -- returns just
+// one document) rather than guessing a fixed lookback window. Used so the
+// calorie/weight/exercise charts can show a person's ENTIRE logging
+// history instead of an arbitrary fixed number of days.
+async function getEarliestLoggedDateStr(){
+  if(!currentUser) return null;
+  try{
+    const snap = await withTimeout(
+      db.collection('users').doc(currentUser.uid).collection('kv')
+        .where(firebase.firestore.FieldPath.documentId(), '>=', 'day:')
+        .where(firebase.firestore.FieldPath.documentId(), '<', 'day;')
+        .orderBy(firebase.firestore.FieldPath.documentId())
+        .limit(1)
+        .get(),
+      CLOUD_READ_TIMEOUT_MS,
+      'Cloud read'
+    );
+    if(snap.empty) return null;
+    return snap.docs[0].id.slice('day:'.length);
+  }catch(e){
+    console.error('Could not determine earliest logged date, falling back to a 14-day chart range:', e);
+    return null;
+  }
+}
 // Builds per-point style arrays for a Chart.js dataset so whichever point
 // corresponds to the day currently open on the Dashboard/Diary (currentDate)
 // is drawn larger and green, distinct from every other point on the line.
@@ -2901,7 +2943,22 @@ async function renderTrends(){
   // anything about how the charts look, size themselves, or behave.
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   const days = [];
-  for(let i=13;i>=0;i--){
+  // Charts now show the person's ENTIRE logging history rather than a fixed
+  // 14-day window -- found via a single cheap Firestore query for the
+  // earliest "day:*" document instead of guessing a lookback size. Capped
+  // at MAX_CHART_HISTORY_DAYS so a multi-year account doesn't try to fetch
+  // and render an unbounded number of days in one go; still "entire data"
+  // for the overwhelming majority of real usage.
+  const MAX_CHART_HISTORY_DAYS = 180;
+  const earliestLoggedStr = await getEarliestLoggedDateStr();
+  let historyDayCount = 14;
+  if(earliestLoggedStr){
+    const earliestDate = new Date(earliestLoggedStr+'T00:00:00');
+    const todayDate = new Date(todayStr()+'T00:00:00');
+    const diffDays = Math.round((todayDate - earliestDate) / 86400000) + 1;
+    historyDayCount = Math.min(MAX_CHART_HISTORY_DAYS, Math.max(14, diffDays));
+  }
+  for(let i=historyDayCount-1; i>=0; i--){
     const d = new Date(); d.setDate(d.getDate()-i);
     days.push(todayStr(d));
   }
@@ -2927,7 +2984,7 @@ async function renderTrends(){
   // `days`/`dayDatas` (used everywhere else in this view).
   const MOVING_AVG_WINDOW = 10;
   const lookbackDays = [];
-  for(let i=13+MOVING_AVG_WINDOW-1; i>=0; i--){
+  for(let i=(days.length-1)+MOVING_AVG_WINDOW-1; i>=0; i--){
     const d = new Date(); d.setDate(d.getDate()-i);
     lookbackDays.push(todayStr(d));
   }
@@ -3463,11 +3520,37 @@ async function renderTrends(){
   legendHost.innerHTML = `<div class="heatmap-legend">${legendItems.map(item=>`<div class="legend-item"><span class="swatch" style="background:${item.color}"></span>${item.label}</div>`).join('')}</div>` +
     `<div class="chart-subtitle" style="margin-top:8px;">Est. maintenance ~${maintenanceCal.toLocaleString()} kcal/day — target ${calTarget.toLocaleString()} kcal is a ${maintenanceCal>calTarget?`${(maintenanceCal-calTarget).toLocaleString()} kcal deficit`:maintenanceCal<calTarget?`${(calTarget-maintenanceCal).toLocaleString()} kcal surplus`:'maintenance-level plan'}.</div>`;
   heatmapHost.className = 'heatmap-grid';
-  heatmapHost.innerHTML = days.map((iso, idx)=>{
-    const day = dayDatas[idx] || {};
-    const intake = intakes[idx] || 0;
-    const burned = burns[idx] || 0;
-    const effective = effectiveIntakes[idx] || 0;
+  // Tiles show one 14-day page at a time, independent of how far back the
+  // charts above now go -- slice the page out of the full-history arrays
+  // rather than fetching/rendering all of them as tiles at once.
+  const TILE_WINDOW = 14;
+  const maxHeatmapPageOffset = Math.max(0, Math.ceil(days.length / TILE_WINDOW) - 1);
+  if(heatmapPageOffset > maxHeatmapPageOffset) heatmapPageOffset = maxHeatmapPageOffset;
+  const tileEndIdx = days.length - heatmapPageOffset*TILE_WINDOW;
+  const tileStartIdx = Math.max(0, tileEndIdx - TILE_WINDOW);
+  const tileDays = days.slice(tileStartIdx, tileEndIdx);
+  const tileDayDatas = dayDatas.slice(tileStartIdx, tileEndIdx);
+  const tileIntakes = intakes.slice(tileStartIdx, tileEndIdx);
+  const tileBurns = burns.slice(tileStartIdx, tileEndIdx);
+  const tileEffectiveIntakes = effectiveIntakes.slice(tileStartIdx, tileEndIdx);
+  const prevBtn = document.getElementById('heatmapPrevBtn');
+  const nextBtn = document.getElementById('heatmapNextBtn');
+  const pageLabel = document.getElementById('heatmapPageLabel');
+  if(prevBtn) prevBtn.disabled = heatmapPageOffset >= maxHeatmapPageOffset;
+  if(nextBtn) nextBtn.disabled = heatmapPageOffset === 0;
+  if(prevBtn) prevBtn.style.opacity = prevBtn.disabled ? '0.4' : '1';
+  if(nextBtn) nextBtn.style.opacity = nextBtn.disabled ? '0.4' : '1';
+  if(prevBtn) prevBtn.style.cursor = prevBtn.disabled ? 'default' : 'pointer';
+  if(nextBtn) nextBtn.style.cursor = nextBtn.disabled ? 'default' : 'pointer';
+  if(pageLabel && tileDays.length){
+    const fmtShort = (iso)=>new Date(iso+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    pageLabel.textContent = heatmapPageOffset===0 ? 'Most recent 14 days' : `${fmtShort(tileDays[0])} – ${fmtShort(tileDays[tileDays.length-1])}`;
+  }
+  heatmapHost.innerHTML = tileDays.map((iso, idx)=>{
+    const day = tileDayDatas[idx] || {};
+    const intake = tileIntakes[idx] || 0;
+    const burned = tileBurns[idx] || 0;
+    const effective = tileEffectiveIntakes[idx] || 0;
     const d = new Date(iso+'T00:00:00');
     const dow = d.toLocaleDateString(undefined, {weekday:'short'});
     const dateNum = d.getDate();
