@@ -979,7 +979,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <div class="field">
         <label>Goal</label>
         <select id="pGoal">
-          <option value="-500">Lose weight</option>
+          <option value="-300">Lose weight</option>
           <option value="0">Maintain</option>
           <option value="300">Gain weight</option>
         </select>
@@ -1613,8 +1613,25 @@ const TARGETS_VERSION = 2; // bump whenever default NUTRIENTS targets change mea
 async function loadSettings(){
   const p = await storeGet('profile');
   if(p) profile = Object.assign(profile, p);
+  // The "Lose weight" preset used to be a 500kcal deficit; it's now 300kcal.
+  // Migrate anyone still on the old value once, and recompute the calorie/
+  // macro targets that were derived from it so the change actually takes
+  // effect everywhere instead of just for future dropdown selections.
+  const goalMigrated = profile.goal === -500;
+  if(goalMigrated){
+    profile.goal = -300;
+    await storeSet('profile', profile);
+  }
   const t = await storeGet('targetOverrides');
   if(t) targetOverrides = t;
+  if(goalMigrated && typeof targetOverrides.calories === 'number'){
+    const cals = computeCalorieTarget();
+    targetOverrides.calories = cals;
+    targetOverrides.protein = Math.round(profile.weight*2.0);
+    targetOverrides.fat = Math.round(cals*0.30/9);
+    targetOverrides.carbs = Math.round((cals - targetOverrides.protein*4 - targetOverrides.fat*9)/4);
+    await storeSet('targetOverrides', targetOverrides);
+  }
   calorieTargetEffectiveDate = await storeGet('calorieTargetEffectiveDate') || null;
   savedMeals = (await storeGet('savedMeals') || []).map(m=>({
     ...m,
@@ -3419,7 +3436,8 @@ async function renderTrends(){
       state = effective > calTarget*1.1 ? 'over' : 'near';
       baseStatusText = state === 'near' ? 'Near target' : 'Over target';
     }
-    const statusText = (hasFood && profile.useNetCalories && burned>0) ? `${baseStatusText} · -${Math.round(burned*eatBackFraction())} credited` : baseStatusText;
+    const dayDeficit = Math.round(maintenanceCal - effective);
+    const statusText = hasFood ? `${baseStatusText} · ${dayDeficit>=0?'-':'+'}${Math.abs(dayDeficit)} ${dayDeficit>=0?'deficit':'surplus'}` : baseStatusText;
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
     return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
