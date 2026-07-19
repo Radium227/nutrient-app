@@ -3255,9 +3255,9 @@ async function renderTrends(){
           {
             label:'7-day average',
             data:rolling7Intake,
-            borderColor:'#6E7381',
-            borderDash:[2,3],
-            borderWidth:1.5,
+            borderColor:'#E8EAF0',
+            borderDash:[5,3],
+            borderWidth:2.5,
             pointRadius:0,
             tension:0.35,
             fill:false,
@@ -3489,7 +3489,12 @@ async function renderTrends(){
       baseStatusText = state === 'near' ? 'Near target' : 'Over target';
     }
     const dayDeficit = Math.round(maintenanceCal - effective);
-    const statusText = hasFood ? `${baseStatusText} · ${dayDeficit>=0?'-':'+'}${Math.abs(dayDeficit)} ${dayDeficit>=0?'deficit':'surplus'}` : baseStatusText;
+    // Tile color (green/yellow/red border) already carries the under/over
+    // status -- the sub-line used to repeat that in words AND give the
+    // number ("Over target, still a deficit · -39 deficit"), which was a
+    // lot to read on a small tile. Down to an arrow + signed number: ↓ for
+    // still-under-maintenance, ↑ for over-maintenance.
+    const statusText = hasFood ? `${dayDeficit>=0?'↓':'↑'} ${dayDeficit>=0?'-':'+'}${Math.abs(dayDeficit)}` : baseStatusText;
     const kcalText = hasFood ? intake.toLocaleString() : '?';
     const compact = hasFood && kcalText.replace(/,/g,'').length >= 4;
     return `<div class="heatmap-tile ${state}">${hasFood ? `<button class="tile-del" title="Clear this day's data" onclick="event.stopPropagation(); clearDay('${iso}', '${dow} ${dateNum}')">✕</button>` : ''}<div class="dow">${dow} ${dateNum}</div><div class="val ${compact ? 'compact' : ''}">${hasFood ? `<span class="num">${kcalText}</span><span class="unit">kcal</span>` : `<span class="num">?</span>`}</div><div class="sub">${statusText}</div></div>`;
@@ -6510,14 +6515,18 @@ async function saveTargetOverride(){
     const fat = editingTargetId==='fat' ? v : (getTarget('fat')||0);
     targetOverrides.carbs = Math.max(0, Math.round((calTarget - protein*4 - fat*9)/4));
   }
+  if(calorieTargetChanged) calorieTargetEffectiveDate = todayStr();
+  // Close and re-render immediately with the in-memory value -- same
+  // instant-close pattern every other modal in the app uses -- instead of
+  // making the person watch the modal sit there while the network write
+  // completes. The writes below still happen, just in the background.
+  closeModal('targetModal');
+  renderAll();
+  if(document.getElementById('view-trends')?.classList.contains('active')) renderTrends();
   await storeSet('targetOverrides', targetOverrides);
   if(calorieTargetChanged){
-    calorieTargetEffectiveDate = todayStr();
     await storeSet('calorieTargetEffectiveDate', calorieTargetEffectiveDate);
   }
-  closeModal('targetModal');
-  await renderAll();
-  if(document.getElementById('view-trends')?.classList.contains('active')) renderTrends();
 }
 
 /* =========================================================
@@ -6542,15 +6551,13 @@ async function saveProfile(){
   targetOverrides.protein = Math.round(profile.weight*2.0);
   targetOverrides.fat = Math.round(cals*0.30/9);
   targetOverrides.carbs = Math.round((cals - targetOverrides.protein*4 - targetOverrides.fat*9)/4);
-  await storeSet('targetOverrides', targetOverrides);
-  if(calorieTargetChanged){
-    calorieTargetEffectiveDate = todayStr();
-    await storeSet('calorieTargetEffectiveDate', calorieTargetEffectiveDate);
-  }
-  const ok = await storeSet('profile', profile);
-  showToast(ok ? 'Targets recalculated' : 'Recalculated for this session (cloud sync pending)');
+  if(calorieTargetChanged) calorieTargetEffectiveDate = todayStr();
+  showToast('Targets recalculated');
   await renderAll();
   if(document.getElementById('view-trends')?.classList.contains('active')) renderTrends();
+  const writes = [storeSet('targetOverrides', targetOverrides), storeSet('profile', profile)];
+  if(calorieTargetChanged) writes.push(storeSet('calorieTargetEffectiveDate', calorieTargetEffectiveDate));
+  await Promise.all(writes);
 }
 function fillSettingsForm(){
   document.getElementById('pAge').value = profile.age;
