@@ -4305,7 +4305,52 @@ async function computeWeeklyBiologyMetrics(){
           return {primary:`${Math.round(cals)} kcal`, secondary: diff===0 ? `right on target${burnNote}` : `${diff} kcal ${cals>effectiveTarget?'over':'under'} target${burnNote}`, pct:barPct, status};
         })
       }
-    }
+    },
+    // Consolidates calories/protein/carbs/fat into ONE score instead of 4
+    // separate near-identical "X% avg daily target reached" cards -- those
+    // individual entries stay above (so tapping a macro chip on the
+    // Dashboard still opens its own specific breakdown), this is just the
+    // one that actually shows up in the strip.
+    (() => {
+      const dayScore = (i)=>{
+        const parts = [];
+        if(caloriesTarget){
+          const effTarget = caloriesTarget + thisWeekBurns[i];
+          parts.push(Math.max(0, 100-Math.abs(thisWeekCalories[i]-effTarget)/effTarget*100));
+        }
+        if(proteinTarget) parts.push(Math.min(100, (thisWeekProtein[i]/proteinTarget)*100));
+        if(carbsTarget) parts.push(Math.min(100, (thisWeekCarbs[i]/carbsTarget)*100));
+        if(fatTarget) parts.push(Math.min(100, (thisWeekFat[i]/fatTarget)*100));
+        return parts.length ? parts.reduce((a,b)=>a+b,0)/parts.length : null;
+      };
+      const dayExcess = (i)=>{
+        if(caloriesTarget && isOverLimit('calories', (thisWeekCalories[i]/(caloriesTarget+thisWeekBurns[i]))*100)) return true;
+        if(carbsTarget && isOverLimit('carbs', (thisWeekCarbs[i]/carbsTarget)*100)) return true;
+        if(fatTarget && isOverLimit('fat', (thisWeekFat[i]/fatTarget)*100)) return true;
+        return false;
+      };
+      const anyTarget = caloriesTarget || proteinTarget || carbsTarget || fatTarget;
+      const loggedIdx = thisWeek.map((d,i)=>i).filter(i=>thisWeekHasFood[i]);
+      const scores = loggedIdx.map(dayScore).filter(v=>v!=null);
+      const accuracyPct = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0;
+      return {
+        key:'nutritionAccuracy',
+        label:'Nutrition Accuracy',
+        value: !anyTarget ? '—' : `${accuracyPct}%`,
+        sub: !anyTarget ? 'no targets set' : 'calories + macros vs targets',
+        color: scores.length ? 'var(--macro)' : 'var(--text-faint)',
+        spark: sparkHeights(dayDatas.map((d,i)=> dayScore(i) ?? 0), 100),
+        detail:{
+          note: anyTarget ? 'One blended score per day from calories, protein, carbs, and fat vs. their targets — over-target days for calories/carbs/fat are flagged regardless of the average, since excess on any of those still matters even on an otherwise good day.' : 'Set calorie or macro targets in Settings to track this.',
+          rows: buildRows(i=>{
+            const score = dayScore(i);
+            if(score==null) return {primary:'—', secondary:'no targets set', pct:0, status:'none'};
+            const excess = dayExcess(i);
+            return {primary:`${Math.round(score)}%`, secondary: excess ? 'over target on calories/carbs/fat' : `${Math.round(score)}% avg across calories + macros`, pct:score, status: excess ? 'bad' : dayStatus(score, thisWeekHasFood[i])};
+          })
+        }
+      };
+    })()
   ];
 }
 // Color for a detail-row status, kept in one place so it can't drift out
@@ -4316,13 +4361,20 @@ function bioStatusColor(status){
   if(status==='bad') return 'var(--danger)';
   return 'var(--text-faint)';
 }
+// Only these 5 actually render as cards in the horizontal strip -- kept
+// deliberately short and non-redundant. The individual protein/carbs/fat/
+// calories/hydration entries still exist in the full metrics array (below)
+// purely so tapping a macro chip on the Dashboard can open its own specific
+// breakdown; they just don't get their own card here too.
+const BIO_STRIP_VISIBLE_KEYS = ['momentum','diversity','streak','habits','nutritionAccuracy'];
 function renderBioStrip(metrics){
   const strip = document.getElementById('bioStrip');
   const scroll = document.getElementById('bioScroll');
   lastBioMetrics = metrics || [];
-  if(!metrics || !metrics.length){ strip.style.display='none'; scroll.innerHTML=''; return; }
+  const visible = lastBioMetrics.filter(m=>BIO_STRIP_VISIBLE_KEYS.includes(m.key));
+  if(!visible.length){ strip.style.display='none'; scroll.innerHTML=''; return; }
   strip.style.display='block';
-  scroll.innerHTML = metrics.map(m=>`
+  scroll.innerHTML = visible.map(m=>`
     <div class="bio-card" onclick="openBioMetricDetail('${m.key}')">
       <div class="k">${escapeHtml(m.label)}</div>
       <div class="v" style="color:${m.color}">${escapeHtml(m.value)}</div>
