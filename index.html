@@ -6548,7 +6548,11 @@ async function openRemainingModal(){
   const totals = computeTotals(day);
   const list = NUTRIENTS.filter(n=>getTarget(n.id)>0).map(n=>{
     const t = getTarget(n.id);
-    const v = totals[n.id]||0;
+    // Calories is the one nutrient where "amount consumed" isn't the right
+    // number to compare against target -- exercise earns back some of that
+    // budget, same as the dashboard's Energy card and every other
+    // over/under-target decision in the app (see effectiveCalories above).
+    const v = n.id==='calories' ? effectiveCalories(day) : (totals[n.id]||0);
     const pct = (v/t)*100;
     return {n, pct, v, t};
   }).sort((a,b)=> nutrientImportanceRank(a.n.id) - nutrientImportanceRank(b.n.id));
