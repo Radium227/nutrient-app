@@ -286,9 +286,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .habits-add-row input::placeholder{color:var(--text-faint);}
 .habits-add-row button{flex:none; background:var(--surface-3); border:1px solid var(--line); border-radius:var(--radius-md); padding:0 16px; color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer;}
 .habits-week{display:flex; gap:5px; margin-top:14px;}
-.habits-week .d{flex:1; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:var(--surface-2); color:var(--text-faint); border:1px solid transparent; transition:background .15s ease, border-color .15s ease;}
-.habits-week .d.full{background:rgba(47,234,153,0.14); color:var(--complete); border-color:rgba(47,234,153,0.38);}
-.habits-week .d.partial{background:rgba(255,214,10,0.12); color:var(--vit); border-color:rgba(255,214,10,0.34);}
+.habits-week .d{flex:1; height:38px; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:var(--surface-2); color:var(--text-faint); border:1px solid transparent; transition:background .15s ease, border-color .15s ease;}
+.habits-week .d.today{box-shadow:0 0 0 1.5px var(--text) inset;}
+.habits-week .d-day{font-size:10px; font-weight:700;}
+.habits-week .d-ratio{font-size:9px; font-weight:600; font-family:var(--font-mono); opacity:.85;}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
 .spectrum-head .count{font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
@@ -2372,19 +2373,32 @@ function renderHabitsCard(day){
   renderHabitFrequency();
 }
 // A lightweight 7-day strip instead of a full chart -- just enough to see
-// the pattern at a glance without the overhead of another graph.
+// the pattern at a glance without the overhead of another graph. Color is
+// a genuine red->yellow->green gradient scaled to how much of that day's
+// habits got done (reusing the same progressColor scale used for macros
+// etc.), with the actual count shown on the cell, so "did more" vs "did
+// less" is visible directly instead of collapsing to just two shades.
 async function renderHabitsWeek(){
   const el = document.getElementById('habitsWeek');
   if(!el) return;
   if(!habits.length){ el.innerHTML = ''; return; }
   const days7 = [];
   for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days7.push(todayStr(d)); }
+  const today = todayStr();
   const dayDatas = await Promise.all(days7.map(loadDay));
   el.innerHTML = dayDatas.map((d,i)=>{
     const doneCount = habits.filter(h=>getHabitCompletion(d, h.id)).length;
-    const cls = doneCount===0 ? '' : doneCount===habits.length ? 'full' : 'partial';
+    const pct = habits.length ? (doneCount/habits.length)*100 : 0;
+    const isToday = days7[i]===today;
     const label = new Date(days7[i]+'T00:00:00').toLocaleDateString(undefined,{weekday:'narrow'});
-    return `<div class="d ${cls}" title="${days7[i]}: ${doneCount}/${habits.length} done">${label}</div>`;
+    let style = '';
+    if(doneCount>0){
+      const rgb = progressColor(pct).match(/\d+/g);
+      style = `background:rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.16); border-color:rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.4); color:rgb(${rgb[0]},${rgb[1]},${rgb[2]});`;
+    }
+    return `<div class="d${isToday?' today':''}" style="${style}" title="${days7[i]}: ${doneCount}/${habits.length} done">
+      <span class="d-day">${label}</span><span class="d-ratio">${doneCount}/${habits.length}</span>
+    </div>`;
   }).join('');
 }
 
