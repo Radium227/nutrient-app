@@ -285,10 +285,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .habits-add-row input{flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); padding:9px 12px; color:var(--text); font-size:13px;}
 .habits-add-row input::placeholder{color:var(--text-faint);}
 .habits-add-row button{flex:none; background:var(--surface-3); border:1px solid var(--line); border-radius:var(--radius-md); padding:0 16px; color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer;}
-.habits-week{display:flex; gap:4px; margin-top:14px;}
-.habits-week .d{flex:1; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; background:var(--surface-2); color:var(--text-faint);}
-.habits-week .d.full{background:var(--complete); color:#08130d;}
-.habits-week .d.partial{background:var(--vit); color:#241d02;}
+.habits-week{display:flex; gap:5px; margin-top:14px;}
+.habits-week .d{flex:1; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:var(--surface-2); color:var(--text-faint); border:1px solid transparent; transition:background .15s ease, border-color .15s ease;}
+.habits-week .d.full{background:rgba(47,234,153,0.14); color:var(--complete); border-color:rgba(47,234,153,0.38);}
+.habits-week .d.partial{background:rgba(255,214,10,0.12); color:var(--vit); border-color:rgba(255,214,10,0.34);}
 .spectrum-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
 .spectrum-head h2{margin:0;}
 .spectrum-head .count{font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
@@ -416,19 +416,13 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .chart-subtitle{font-size:12px; color:var(--text-faint); margin:-4px 0 12px; line-height:1.35;}
 .net-cal-toggle{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); margin:-2px 0 12px; cursor:pointer; line-height:1.35;}
 .net-cal-toggle input{accent-color:var(--macro); width:15px; height:15px; flex-shrink:0;}
-.exfreq-row{padding:12px 0; border-bottom:1px solid var(--line);}
-.exfreq-row:last-child{border-bottom:none;}
-.exfreq-headline{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap;}
-.exfreq-name{font-size:14px; font-weight:600;}
-.exfreq-count{font-size:12px; color:var(--text-dim); font-family:var(--font-mono); white-space:nowrap;}
-.exfreq-dots{display:flex; gap:3px;}
-.exfreq-dot{flex:1; height:22px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:var(--text-faint); position:relative;}
-.exfreq-dot.lvl-1{background:#C9A6EF;}
-.exfreq-dot.lvl-2{background:#A66EDB;}
-.exfreq-dot.lvl-3{background:#7C3FB0;}
-.exfreq-dot.lvl-4{background:#6B1E3C;}
-.exfreq-dot.today{box-shadow:0 0 0 1.5px var(--text) inset;}
-.exfreq-week{font-size:11.5px; color:var(--text-dim); margin-top:7px;}
+.freq-row{padding:12px 0; border-bottom:1px solid var(--line);}
+.freq-row:last-child{border-bottom:none;}
+.freq-headline{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap;}
+.freq-name{font-size:14px; font-weight:600;}
+.freq-count{font-size:12px; color:var(--text-dim); font-family:var(--font-mono); white-space:nowrap;}
+.freq-bar{height:7px; background:var(--surface-3); border-radius:4px; overflow:hidden;}
+.freq-bar span{display:block; height:100%; border-radius:4px; box-shadow:0 0 6px currentColor; transition:width .3s ease;}
 .heatmap-grid{
   display:grid;
   grid-template-columns:repeat(7, minmax(0, 1fr));
@@ -2394,38 +2388,29 @@ async function renderHabitsWeek(){
   }).join('');
 }
 
-// Per-habit breakdown: how many times each habit was logged on each of the
-// last 7 days -- this is what actually answers "did I do neck exercises
-// 3-4 times that day", which the plain done/not-done week strip above can't
-// show. Reuses the same .exfreq-* dot-strip styling as the Trends tab's
-// Exercise Frequency card, since that pattern already fits this exact job.
+// Per-habit breakdown over the last 7 days. Shown as one clean bar per
+// habit -- the fraction of the last 7 days it was logged -- rather than a
+// per-day intensity grid, since "how much of this did I actually keep up"
+// reads far more clearly as a single fill than as 7 separately-shaded cells.
 async function renderHabitFrequency(){
   const host = document.getElementById('habitFrequencyList');
   if(!host) return;
   if(!habits.length){ host.innerHTML = ''; return; }
   const days7 = [];
   for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days7.push(todayStr(d)); }
-  const today = todayStr();
   const dayDatas = await Promise.all(days7.map(loadDay));
-  // GitHub-style intensity: darker/deeper shade the more times a habit was
-  // logged that day, instead of printing the count inside the bar.
-  const levelForCount = (v)=> v<=0 ? 0 : v===1 ? 1 : v===2 ? 2 : v===3 ? 3 : 4;
   host.innerHTML = habits.map(h=>{
     const perDay = dayDatas.map(d=>getHabitCount(d, h.id));
     const total = perDay.reduce((a,b)=>a+b,0);
     const activeDays = perDay.filter(v=>v>0).length;
-    const dots = perDay.map((v,i)=>{
-      const isToday = days7[i]===today;
-      const label = new Date(days7[i]+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'});
-      const level = levelForCount(v);
-      return `<div class="exfreq-dot${level>0?' lvl-'+level:''}${isToday?' today':''}" title="${label}${v>0?': '+v+'×':': not logged'}"></div>`;
-    }).join('');
-    return `<div class="exfreq-row">
-      <div class="exfreq-headline">
-        <span class="exfreq-name">${escapeHtml(h.name)}</span>
-        <span class="exfreq-count">${total} time${total!==1?'s':''} · ${activeDays} of 7 days</span>
+    const pct = Math.round((activeDays/7)*100);
+    const color = pct>=100 ? 'var(--complete)' : pct>0 ? '#C08CF0' : 'var(--text-faint)';
+    return `<div class="freq-row">
+      <div class="freq-headline">
+        <span class="freq-name">${escapeHtml(h.name)}</span>
+        <span class="freq-count">${total} time${total!==1?'s':''} · ${activeDays} of 7 days</span>
       </div>
-      <div class="exfreq-dots">${dots}</div>
+      <div class="freq-bar"><span style="width:${pct}%; background:${color}; color:${color};"></span></div>
     </div>`;
   }).join('');
 }
