@@ -863,6 +863,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <!-- NUTRIENTS -->
   <div class="view" id="view-nutrients">
     <div class="section-title">Nutrients</div>
+    <input type="text" id="nutrientSearchInput" placeholder="Search nutrients…" oninput="renderNutrients(lastNutrientsDay)" style="width:100%; box-sizing:border-box; margin-bottom:12px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;">
     <div id="nutrientAlerts"></div>
     <div id="nutrientGroups"></div>
   </div>
@@ -1274,6 +1275,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3>Nutrient completion</h3><button onclick="closeModal('remainingModal')">✕</button></div>
+    <div id="remainingModalSummary"></div>
+    <input type="text" id="remainingSearchInput" placeholder="Search nutrients…" oninput="renderRemainingRows()" style="width:100%; box-sizing:border-box; margin:12px 0 14px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;">
     <div id="remainingModalBody"></div>
   </div>
 </div>
@@ -1448,6 +1451,7 @@ const CAT_META = {
    STATE + STORAGE HELPERS
 ========================================================= */
 let currentDate = todayStr();
+let lastNutrientsDay = null; // most recently rendered day's data, so the Nutrients search box can re-filter without reloading
 let dayCache = {};      // dateStr -> {foods:[], exercises:[], weight:null}
 let lastBioMetrics = []; // most recent 7-day snapshot metrics, for the tap-to-expand detail modal
 let profile = {age:30, sex:'male', height:170, weight:70, activity:1.2, goal:0, useNetCalories:true, eatBackPct:75};
@@ -2664,9 +2668,12 @@ function renderDiary(day){
 }
 
 function renderNutrients(day){
+  if(!day) return;
+  lastNutrientsDay = day;
   const totals = computeTotals(day);
   const groups = {};
   NUTRIENTS.forEach(n=>{ (groups[n.cat] = groups[n.cat]||[]).push(n); });
+  const query = (document.getElementById('nutrientSearchInput')?.value || '').trim().toLowerCase();
 
   const alerts = [];
   const lowCandidates = [];
@@ -2688,8 +2695,12 @@ function renderNutrients(day){
     : '';
 
   let html = '';
+  let anyMatched = false;
   Object.keys(CAT_META).forEach(cat=>{
     const meta = CAT_META[cat];
+    const catNutrients = query ? groups[cat].filter(n=>n.name.toLowerCase().includes(query)) : groups[cat];
+    if(query && !catNutrients.length) return;
+    anyMatched = true;
     html += `<div class="cat-group">
       <div class="cat-header" style="background:color-mix(in srgb, ${meta.color} 10%, transparent); border-left:3px solid ${meta.color}; border-radius:0 10px 10px 0; margin-bottom:2px;" onclick="toggleCat('${cat}')">
         <span class="dot" style="background:${meta.color}; box-shadow:0 0 8px ${meta.color};"></span>
@@ -2697,7 +2708,7 @@ function renderNutrients(day){
         <span class="chev" id="chev-${cat}">▾</span>
       </div>
       <div class="cat-body" id="body-${cat}">`;
-    groups[cat].forEach(n=>{
+    catNutrients.forEach(n=>{
       const v = totals[n.id]||0;
       const statusValue = n.id==='calories' ? effectiveCalories(day) : v;
       const t = getTarget(n.id);
@@ -2715,7 +2726,9 @@ function renderNutrients(day){
     });
     html += `</div></div>`;
   });
-  document.getElementById('nutrientGroups').innerHTML = html;
+  document.getElementById('nutrientGroups').innerHTML = (query && !anyMatched)
+    ? `<div class="empty-state" style="padding:24px 0;">No nutrients match "${escapeHtml(document.getElementById('nutrientSearchInput').value.trim())}"</div>`
+    : html;
 }
 function toggleCat(cat){
   document.getElementById('body-'+cat).classList.toggle('collapsed');
@@ -6560,6 +6573,8 @@ async function openFoodEntryDetail(id){
   openModal('foodDetailModal');
 }
 
+let lastRemainingList = []; // cached nutrient-completion list, for the search box in the modal
+
 async function openRemainingModal(){
   const day = await loadDay(currentDate);
   const totals = computeTotals(day);
@@ -6573,14 +6588,23 @@ async function openRemainingModal(){
     const pct = (v/t)*100;
     return {n, pct, v, t};
   }).sort((a,b)=> nutrientImportanceRank(a.n.id) - nutrientImportanceRank(b.n.id));
+  lastRemainingList = list;
   const avgPct = list.length ? Math.round(list.reduce((s,x)=>s+Math.min(100,x.pct),0)/list.length) : 0;
   const metCount = list.filter(x=>x.pct>=100).length;
-  document.getElementById('remainingModalBody').innerHTML = `
+  document.getElementById('remainingModalSummary').innerHTML = `
     <div class="remain-summary">
       <div class="big">${avgPct}%</div>
       <div class="sub">${metCount} of ${list.length} nutrients at target today</div>
     </div>
-    ${list.map(x=>{
+  `;
+  document.getElementById('remainingSearchInput').value = '';
+  renderRemainingRows();
+  openModal('remainingModal');
+}
+function renderRemainingRows(){
+  const query = (document.getElementById('remainingSearchInput')?.value || '').trim().toLowerCase();
+  const list = query ? lastRemainingList.filter(x=>x.n.name.toLowerCase().includes(query)) : lastRemainingList;
+  document.getElementById('remainingModalBody').innerHTML = list.length ? list.map(x=>{
       const capped = Math.min(100,x.pct);
       const col = nutrientStatusColor(x.n.id, x.pct);
       return `<div class="remain-row" onclick="closeModal('remainingModal'); openNutrientDetail('${x.n.id}')">
@@ -6589,9 +6613,8 @@ async function openRemainingModal(){
         <div class="rbar"><span style="width:${capped}%; background:${col}"></span></div>
         <div class="rpct">${Math.round(x.pct)}%</div>
       </div>`;
-    }).join('')}
-  `;
-  openModal('remainingModal');
+    }).join('')
+    : `<div class="empty-state" style="padding:16px 0;">No nutrients match "${escapeHtml(document.getElementById('remainingSearchInput').value.trim())}"</div>`;
 }
 
 /* =========================================================
