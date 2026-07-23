@@ -335,6 +335,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 @media (max-width:596px){ .fab{right:18px;} }
 
 /* ---------- Diary ---------- */
+.search-wrap{position:relative;}
+.search-wrap .search-input{width:100%; box-sizing:border-box; padding:10px 38px 10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;}
+.search-clear-btn{display:none; align-items:center; justify-content:center; position:absolute; right:6px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; background:var(--surface-3); border:none; color:var(--text-dim); font-size:13px; line-height:1; padding:0;}
+.search-clear-btn:active{background:var(--line);}
 .entry{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line);}
 .entry:last-child{border-bottom:none;}
 .entry .thumb{width:42px;height:42px;border-radius:10px;background:var(--surface-2); display:flex;align-items:center;justify-content:center; font-size:18px; flex-shrink:0; overflow:hidden;}
@@ -863,7 +867,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <!-- NUTRIENTS -->
   <div class="view" id="view-nutrients">
     <div class="section-title">Nutrients</div>
-    <input type="text" id="nutrientSearchInput" placeholder="Search nutrients…" oninput="renderNutrients(lastNutrientsDay)" style="width:100%; box-sizing:border-box; margin-bottom:12px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;">
+    <div class="search-wrap" style="margin-bottom:12px;">
+      <input type="text" id="nutrientSearchInput" class="search-input" placeholder="Search nutrients…" oninput="document.getElementById('nutrientSearchClear').style.display=this.value?'flex':'none'; renderNutrients(lastNutrientsDay)">
+      <button type="button" id="nutrientSearchClear" class="search-clear-btn" onclick="const el=document.getElementById('nutrientSearchInput'); el.value=''; this.style.display='none'; renderNutrients(lastNutrientsDay); el.focus();">✕</button>
+    </div>
     <div id="nutrientAlerts"></div>
     <div id="nutrientGroups"></div>
   </div>
@@ -1276,7 +1283,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="modal-handle"></div>
     <div class="modal-head"><h3>Nutrient completion</h3><button onclick="closeModal('remainingModal')">✕</button></div>
     <div id="remainingModalSummary"></div>
-    <input type="text" id="remainingSearchInput" placeholder="Search nutrients…" oninput="renderRemainingRows()" style="width:100%; box-sizing:border-box; margin:12px 0 14px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); font-size:14px;">
+    <div class="search-wrap" style="margin:12px 0 14px;">
+      <input type="text" id="remainingSearchInput" class="search-input" placeholder="Search nutrients…" oninput="document.getElementById('remainingSearchClear').style.display=this.value?'flex':'none'; renderRemainingRows()">
+      <button type="button" id="remainingSearchClear" class="search-clear-btn" onclick="const el=document.getElementById('remainingSearchInput'); el.value=''; this.style.display='none'; renderRemainingRows(); el.focus();">✕</button>
+    </div>
     <div id="remainingModalBody"></div>
   </div>
 </div>
@@ -6598,6 +6608,7 @@ async function openRemainingModal(){
     </div>
   `;
   document.getElementById('remainingSearchInput').value = '';
+  document.getElementById('remainingSearchClear').style.display = 'none';
   renderRemainingRows();
   openModal('remainingModal');
 }
