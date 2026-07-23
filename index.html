@@ -278,6 +278,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .habit-count-tag{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); margin-left:7px; font-weight:600;}
 .habit-name{flex:1; font-size:13.5px; color:var(--text); word-break:break-word;}
 .habit-row.done .habit-name{color:var(--text-faint); text-decoration:line-through;}
+.habit-edit{flex:none; background:none; border:none; color:var(--text-faint); font-size:14px; line-height:1; cursor:pointer; padding:4px 4px;}
 .habit-del{flex:none; background:none; border:none; color:var(--text-faint); font-size:16px; line-height:1; cursor:pointer; padding:4px 6px;}
 .habit-del:active{color:var(--danger);}
 .habits-empty{color:var(--text-faint); font-size:12.5px; padding:8px 0 4px; line-height:1.4;}
@@ -1075,7 +1076,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div id="addTextPane" style="display:none;">
       <div class="field">
         <label>What did you eat?</label>
-        <textarea id="textDescInput" placeholder="e.g. 2 fried eggs, a slice of whole wheat toast with butter, and a black coffee"></textarea>
+        <textarea id="textDescInput" placeholder="e.g. 2 fried eggs, a slice of whole wheat toast with butter, and a black coffee" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); analyzeText();}"></textarea>
       </div>
       <button class="btn block" onclick="analyzeText()">Analyze meal</button>
     </div>
@@ -1083,12 +1084,12 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div id="addManualPane" style="display:none;">
       <div class="field">
         <label>Name</label>
-        <input type="text" id="manualName" placeholder="e.g. Protein shake">
+        <input type="text" id="manualName" placeholder="e.g. Protein shake" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveManualFood();}">
       </div>
       <div class="row2" style="display:flex; gap:10px;">
         <div class="field">
           <label>Calories (kcal)</label>
-          <input type="number" inputmode="decimal" id="manualCalories" placeholder="0">
+          <input type="number" inputmode="decimal" id="manualCalories" placeholder="0" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveManualFood();}">
         </div>
         <div class="field">
           <label>Grams (optional)</label>
@@ -1138,7 +1139,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
     <div class="modal-head"><h3>Save meal</h3><button onclick="closeModal('saveMealModal')">✕</button></div>
     <div class="field">
       <label>Name</label>
-      <input type="text" id="saveMealName">
+      <input type="text" id="saveMealName" onkeydown="if(event.key==='Enter'){event.preventDefault(); confirmSaveMeal();}">
     </div>
     <div class="field">
       <label>How many items did this entry cover?</label>
@@ -1210,10 +1211,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3>Log exercise</h3><button onclick="closeModal('exerciseModal')">✕</button></div>
-    <div class="field"><label>Activity</label><input type="text" id="exName" placeholder="e.g. Running, or Neck tugs"></div>
+    <div class="field"><label>Activity</label><input type="text" id="exName" placeholder="e.g. Running, or Neck tugs" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveExercise();}"></div>
     <div class="row2">
-      <div class="field"><label>Minutes</label><input type="number" id="exMinutes" placeholder="Optional"></div>
-      <div class="field"><label>Calories burned</label><input type="number" id="exCalories" placeholder="Optional"></div>
+      <div class="field"><label>Minutes</label><input type="number" id="exMinutes" placeholder="Optional" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveExercise();}"></div>
+      <div class="field"><label>Calories burned</label><input type="number" id="exCalories" placeholder="Optional" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveExercise();}"></div>
     </div>
     <div class="hint" style="margin:-8px 0 12px;">For duration exercises (running, cycling) fill in minutes. For rep-based ones (neck tugs, stretches), just log it — add another entry each time you do it again.</div>
     <button class="btn block" onclick="saveExercise()">Add</button>
@@ -1225,7 +1226,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3>Log weight</h3><button onclick="closeModal('weightModal')">✕</button></div>
-    <div class="field"><label>Weight (kg)</label><input type="number" step="0.1" id="weightInput" placeholder="e.g. 72.4"></div>
+    <div class="field"><label>Weight (kg)</label><input type="number" step="0.1" id="weightInput" placeholder="e.g. 72.4" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveWeight();}"></div>
     <button class="btn block" onclick="saveWeight()">Save</button>
   </div>
 </div>
@@ -1235,7 +1236,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3 id="targetModalName">Edit target</h3><button onclick="closeModal('targetModal')">✕</button></div>
-    <div class="field"><label>Daily target</label><input type="number" step="any" id="targetInput"></div>
+    <div class="field"><label>Daily target</label><input type="number" step="any" id="targetInput" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveTargetOverride();}"></div>
     <div id="targetModalHint" style="display:none; font-size:12px; color:var(--text-dim); margin:-6px 0 12px;"></div>
     <button class="btn block" onclick="saveTargetOverride()">Save</button>
   </div>
@@ -2342,6 +2343,21 @@ function addHabit(){
   storeSet('habits', habits);
   refreshBioStrip();
 }
+// Renaming only touches habits[].name -- day.habitLog is keyed by habit ID,
+// never by name, so past completions are untouched no matter how many
+// times the label gets corrected/reworded.
+function renameHabit(habitId, evt){
+  if(evt) evt.stopPropagation();
+  const h = habits.find(x=>x.id===habitId);
+  if(!h) return;
+  const next = prompt('Edit habit name', h.name);
+  if(next===null) return;
+  const trimmed = next.trim();
+  if(!trimmed) return;
+  h.name = trimmed;
+  renderHabitsCard(dayCache[currentDate]);
+  storeSet('habits', habits);
+}
 function removeHabit(habitId){
   habits = habits.filter(h=>h.id!==habitId);
   renderHabitsCard(dayCache[currentDate]);
@@ -2365,6 +2381,7 @@ function renderHabitsCard(day){
         <button class="habit-check ${done?'done':''}" onclick="incrementHabit('${h.id}')" title="${done?'Tap to log it again':'Mark done'}">${count>1?count:(done?'✓':'')}</button>
         ${done?`<button class="habit-minus" onclick="decrementHabit('${h.id}', event)" title="Undo one">−</button>`:''}
         <div class="habit-name">${escapeHtml(h.name)}${count>1?`<span class="habit-count-tag">×${count} today</span>`:''}</div>
+        <button class="habit-edit" onclick="renameHabit('${h.id}', event)" title="Edit habit name">✎</button>
         <button class="habit-del" onclick="removeHabit('${h.id}')" title="Remove this habit">✕</button>
       </div>`;
     }).join('');
