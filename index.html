@@ -2051,38 +2051,57 @@ function emojiFor(name){
   if(/avocado/.test(n)) return '🥑'; if(/cheese/.test(n)) return '🧀';
   return '🍽️';
 }
-// Priority order per spec: (1) foods this user has actually eaten before
-// (learned in foodLibrary), (2) their saved meals, (3) common foods known
-// to the app. Fully data-driven — no per-nutrient branching logic.
+// Priority order: (1) curated, genuinely nutrient-dense sources for this
+// nutrient -- these are real best-in-class foods, not just whatever the
+// user happens to eat a lot. (2) A capped 1-2 picks from this user's own
+// history (foodLibrary + saved meals), ranked by how nutrient-dense they
+// turned out to be, as a "here's what's worked for you" garnish. Someone
+// who eats a lot of dal for protein should still see eggs/chicken/Greek
+// yogurt front and center, not five variants of "dal"/"biryani" pulled
+// from their own log just because they logged it often. If a nutrient has
+// no curated list yet, personal history can fill the whole list so
+// recommendations never come up empty.
 function getNutrientFoodRecommendations(id, day){
-  const target = getTarget(id);
   const eatenToday = new Set((day.foods||[]).map(f=>normalizeFoodName(f.name)));
-  const out = [];
   const seen = new Set();
-  const fromLibrary = Object.values(foodLibrary||{})
-    .filter(entry=>entry.perGram && entry.perGram[id] > 0)
-    .map(entry=>({name:entry.name, per100g: entry.perGram[id]*100}))
-    .sort((a,b)=>b.per100g-a.per100g);
-  const fromSaved = (savedMeals||[])
-    .filter(m=>m.baseNutrients && m.baseGrams && (m.baseNutrients[id]||0) > 0)
-    .map(m=>({name:m.name||m.baseName||'Saved meal', per100g:(m.baseNutrients[id]/m.baseGrams)*100}))
-    .sort((a,b)=>b.per100g-a.per100g);
-  [...fromLibrary, ...fromSaved].forEach(f=>{
+
+  const commonCandidates = [];
+  (COMMON_FOOD_SOURCES[id]||[]).forEach(entry=>{
+    const label = entry.replace(/^\S+\s/, '');
+    const key = normalizeFoodName(label);
+    if(seen.has(key) || eatenToday.has(key)) return;
+    seen.add(key);
+    commonCandidates.push(entry);
+  });
+
+  const personalRanked = [
+    ...Object.values(foodLibrary||{})
+      .filter(entry=>entry.perGram && entry.perGram[id] > 0)
+      .map(entry=>({name:entry.name, per100g: entry.perGram[id]*100})),
+    ...(savedMeals||[])
+      .filter(m=>m.baseNutrients && m.baseGrams && (m.baseNutrients[id]||0) > 0)
+      .map(m=>({name:m.name||m.baseName||'Saved meal', per100g:(m.baseNutrients[id]/m.baseGrams)*100}))
+  ].sort((a,b)=>b.per100g-a.per100g);
+  const personalCandidates = [];
+  personalRanked.forEach(f=>{
     const key = normalizeFoodName(f.name);
     if(!key || seen.has(key) || eatenToday.has(key)) return;
     seen.add(key);
-    out.push(`${emojiFor(f.name)} ${f.name}`);
+    personalCandidates.push(`${emojiFor(f.name)} ${f.name}`);
   });
-  if(out.length < 5){
-    (COMMON_FOOD_SOURCES[id]||[]).forEach(entry=>{
-      const label = entry.replace(/^\S+\s/, '');
-      const key = normalizeFoodName(label);
-      if(seen.has(key) || eatenToday.has(key)) return;
-      seen.add(key);
-      out.push(entry);
+
+  const personalLimit = commonCandidates.length ? 2 : 5;
+  const personalFinal = personalCandidates.slice(0, personalLimit);
+  const commonFinal = commonCandidates.slice(0, 5 - personalFinal.length);
+  const combined = [...commonFinal, ...personalFinal];
+  // If personal history came up short (or had nothing usable), backfill
+  // with any leftover curated sources rather than showing fewer than 5.
+  if(combined.length < 5){
+    commonCandidates.slice(commonFinal.length).forEach(c=>{
+      if(combined.length<5) combined.push(c);
     });
   }
-  return out.slice(0, 5);
+  return combined.slice(0, 5);
 }
 
 /* =========================================================
@@ -4182,7 +4201,7 @@ Return ONLY this JSON shape, nothing else:
   "foodsResponsible": ["food name(s) from today's diary that this finding is actually based on -- empty array if none apply"],
   "healthImpact": "1 short sentence on the expected real-world benefit or risk, in plain language -- empty string if not applicable",
   "nextAction": "1 short, concrete, specific next step the user could take -- empty string if not applicable",
-  "suggestedFoods": [{"emoji":"single emoji", "name":"food name"}],
+  "suggestedFoods": [{"emoji":"single emoji", "name":"food name"}] -- genuinely nutrient-dense real-world sources for the nutrient(s) named above (e.g. eggs/chicken/Greek yogurt for protein), NOT foods already in today's diary or minor variants of them,
   "scoreImprovement": integer 0-8, a rough estimate of how many points this could add to their nutrition completeness if acted on, 0 if not applicable
 }
 If there isn't enough logged today to say anything specific and genuinely useful, return exactly {"finding": null} and nothing else.`;
