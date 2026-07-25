@@ -723,6 +723,74 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .toast.show{opacity:1; transform:translate(-50%,-6px);}
 
 .tag{display:inline-block; font-size:10.5px; padding:3px 8px; border-radius:999px; background:var(--surface-3); color:var(--text-dim); margin-left:8px;}
+/* ---------- Gym ---------- */
+.gym-hero-row{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
+.gym-hero-stat{text-align:center; background:var(--surface-2); border-radius:var(--radius-md); padding:12px 4px;}
+.gym-hero-stat .v{font-family:var(--font-display); font-style:italic; font-weight:600; font-size:21px; color:var(--macro);}
+.gym-hero-stat .l{font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px; margin-top:2px;}
+.gym-hero-actions{display:flex; gap:10px;}
+.gym-template-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px;}
+.gym-template-chip{display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); padding:12px 14px; text-align:left; position:relative;}
+.gym-template-chip:active{background:var(--surface-3);}
+.gym-template-chip .tname{font-size:14px; font-weight:600;}
+.gym-template-chip .tmeta{font-size:11px; color:var(--text-faint);}
+.gym-template-chip .tedit{position:absolute; top:8px; right:8px; background:none; border:none; color:var(--text-faint); font-size:13px; padding:4px;}
+.gym-workout-meta{display:flex; justify-content:space-between; align-items:center; background:var(--surface-2); border-radius:var(--radius-md); padding:10px 14px; margin-bottom:14px; font-family:var(--font-mono); font-size:13px; color:var(--text-dim);}
+#gymWorkoutTimer{color:var(--macro); font-weight:600;}
+.gym-ex-card{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-md); padding:14px; margin-bottom:12px;}
+.gym-ex-card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:10px;}
+.gym-ex-card-head .name{font-size:15px; font-weight:600;}
+.gym-ex-card-head .muscle{font-size:10.5px; padding:2px 8px; border-radius:999px; margin-top:4px; display:inline-block;}
+.gym-ex-card-head .remove{background:none; border:none; color:var(--text-faint); font-size:16px; padding:2px 4px;}
+.gym-prev-row{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
+.gym-prev-row .lbl{color:var(--text-faint); text-transform:uppercase; font-size:9.5px; letter-spacing:.4px; font-family:var(--font-body); width:100%; margin-bottom:2px;}
+.gym-prev-chip{background:var(--surface-3); border-radius:6px; padding:3px 8px;}
+.gym-set-row{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
+.gym-set-row .setnum{width:20px; flex-shrink:0; text-align:center; font-family:var(--font-mono); font-size:12px; color:var(--text-faint);}
+.gym-set-row input{width:0; flex:1; min-width:0; background:var(--surface-3); border:1px solid var(--line); border-radius:8px; padding:9px 6px; font-size:15px; text-align:center; color:var(--text); font-family:var(--font-mono);}
+.gym-set-row .x{color:var(--text-faint); font-size:12px; flex-shrink:0;}
+.gym-set-row .copybtn{flex-shrink:0; background:var(--surface-3); border:1px solid var(--line); color:var(--text-dim); border-radius:8px; width:34px; height:34px; font-size:13px;}
+.gym-set-row .delbtn{flex-shrink:0; background:none; border:none; color:var(--text-faint); font-size:15px; width:22px;}
+.gym-set-row.done input{border-color:var(--good); color:var(--good);}
+.gym-addset-btn{width:100%; background:none; border:1px dashed var(--line); color:var(--text-dim); border-radius:8px; padding:8px; font-size:12.5px; margin-top:2px;}
+.gym-badges{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.gym-badge{font-size:11px; font-weight:600; padding:4px 9px; border-radius:999px; display:inline-flex; align-items:center; gap:4px;}
+.gym-badge.pr{background:rgba(255,69,58,0.16); color:#FF8F7F;}
+.gym-badge.reps{background:rgba(47,234,99,0.16); color:var(--good);}
+.gym-badge.volume{background:rgba(255,214,10,0.16); color:var(--vit);}
+.gym-notes-input{width:100%; box-sizing:border-box; background:var(--surface-3); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12.5px; color:var(--text-dim); margin-top:8px;}
+.gym-lib-row{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line); cursor:pointer;}
+.gym-lib-row:last-child{border-bottom:none;}
+.gym-lib-row .dot{width:9px; height:9px; border-radius:3px; flex-shrink:0;}
+.gym-lib-row .info{flex:1; min-width:0;}
+.gym-lib-row .info .n{font-size:14px;}
+.gym-lib-row .info .m{font-size:11px; color:var(--text-faint); margin-top:1px;}
+.gym-lib-row .pr{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); text-align:right;}
+.gym-pick-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer;}
+.gym-pick-row:last-child{border-bottom:none;}
+.gym-pick-row input[type="checkbox"]{width:20px; height:20px; accent-color:var(--macro); flex-shrink:0;}
+.gym-pick-row .dot{width:8px; height:8px; border-radius:3px; flex-shrink:0;}
+.gym-pick-row .info{flex:1; min-width:0; font-size:14px;}
+.gym-pick-row .info .m{font-size:11px; color:var(--text-faint);}
+.gym-stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0;}
+.gym-stat-grid .cell{background:var(--surface-2); border-radius:var(--radius-md); padding:12px;}
+.gym-stat-grid .cell .l{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.4px;}
+.gym-stat-grid .cell .v{font-family:var(--font-mono); font-size:16px; margin-top:4px;}
+.gym-history-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px;}
+.gym-history-row:last-child{border-bottom:none;}
+.gym-history-row .d{color:var(--text-faint); font-size:11.5px;}
+.gym-plateau-note{background:rgba(255,214,10,0.12); border:1px solid rgba(255,214,10,0.35); border-radius:var(--radius-md); padding:10px 12px; font-size:12.5px; color:var(--vit); margin-top:10px;}
+.gym-review-group{margin-bottom:16px;}
+.gym-review-group h4{font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-faint); margin-bottom:8px;}
+.gym-review-item{display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+.gym-review-item:last-child{border-bottom:none;}
+.gym-review-item .delta{font-family:var(--font-mono); font-size:12.5px;}
+.gym-muscle-bar-row{display:flex; align-items:center; gap:10px; padding:8px 0;}
+.gym-muscle-bar-row .lbl{width:76px; flex-shrink:0; font-size:12.5px;}
+.gym-muscle-bar-row .track{flex:1; height:8px; background:var(--surface-3); border-radius:5px; overflow:hidden;}
+.gym-muscle-bar-row .track span{display:block; height:100%; border-radius:5px;}
+.gym-muscle-bar-row .amt{font-family:var(--font-mono); font-size:11.5px; color:var(--text-faint); width:56px; text-align:right; flex-shrink:0;}
+
 </style>
 </head>
 <body>
@@ -861,6 +929,48 @@ input,select,textarea{font-family:inherit; color:var(--text);}
       <h2><span class="h2-dot" style="background:var(--min)"></span>Weight</h2>
       <div id="weightToday"></div>
       <button class="btn ghost small" style="margin-top:8px;" onclick="openWeightModal()">+ Log weight</button>
+    </div>
+  </div>
+
+  <!-- GYM -->
+  <div class="view" id="view-gym">
+    <div class="section-title">Gym</div>
+
+    <div class="card gym-hero">
+      <div class="gym-hero-row">
+        <div class="gym-hero-stat"><div class="v" id="gymStatStreak">0</div><div class="l">day streak</div></div>
+        <div class="gym-hero-stat"><div class="v" id="gymStatWeekCount">0</div><div class="l">this week</div></div>
+        <div class="gym-hero-stat"><div class="v" id="gymStatWeekVolume">0</div><div class="l">kg/wk</div></div>
+        <div class="gym-hero-stat"><div class="v" id="gymStatPRs">0</div><div class="l">PRs/mo</div></div>
+      </div>
+      <div class="gym-hero-actions">
+        <button class="btn block" style="flex:1;" onclick="openGymAnalytics()">📊 Analytics</button>
+        <button class="btn ghost block" style="flex:1;" onclick="openGymWeeklyReview()">🗓️ Weekly review</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        Start a workout
+        <button class="btn ghost small" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="openGymTemplateModal()">+ New template</button>
+      </h2>
+      <div id="gymTemplateChips" class="gym-template-grid"></div>
+      <button class="btn outline block" style="margin-top:12px;" onclick="startGymWorkout(null)">+ Quick start (no template)</button>
+    </div>
+
+    <div class="card">
+      <h2>Recent workouts</h2>
+      <div id="gymRecentList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Exercise library</h2>
+      <div class="hint" style="margin-top:-4px; margin-bottom:10px;">Tap any exercise for its history, PRs, and trend.</div>
+      <div class="search-wrap">
+        <input type="text" id="gymExerciseSearch" class="search-input" placeholder="Search exercises…" oninput="document.getElementById('gymExSearchClear').style.display=this.value?'flex':'none'; renderGymExerciseLibrary()">
+        <button type="button" id="gymExSearchClear" class="search-clear-btn" onclick="const el=document.getElementById('gymExerciseSearch'); el.value=''; this.style.display='none'; renderGymExerciseLibrary(); el.focus();">✕</button>
+      </div>
+      <div id="gymExerciseLibraryList" style="margin-top:10px;"></div>
     </div>
   </div>
 
@@ -1033,6 +1143,10 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         Diary
       </button>
+      <button class="navbtn" data-view="gym" onclick="switchView('gym')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10v4M20 10v4M7 8v8M17 8v8M7 12h10"/></svg>
+        Gym
+      </button>
       <button class="navbtn" data-view="nutrients" onclick="switchView('nutrients')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v14M22 20V8"/></svg>
         Nutrients
@@ -1050,6 +1164,109 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         Settings
       </button>
     </div>
+  </div>
+</div>
+
+<!-- GYM: ACTIVE WORKOUT -->
+<div class="modal-backdrop" id="gymWorkoutModal">
+  <div class="modal" style="max-height:94vh;">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <h3 id="gymWorkoutTitle">Workout</h3>
+      <button onclick="confirmCloseGymWorkout()">✕</button>
+    </div>
+    <div class="gym-workout-meta">
+      <span id="gymWorkoutTimer">0:00</span>
+      <span id="gymWorkoutVolumeLive">0 kg total</span>
+    </div>
+    <div id="gymWorkoutExerciseList"></div>
+    <button class="btn ghost block" style="margin-top:6px;" onclick="openGymExercisePicker('workout')">+ Add exercise</button>
+    <button class="btn block" style="margin-top:12px;" onclick="finishGymWorkout()">Finish workout</button>
+  </div>
+</div>
+
+<!-- GYM: EXERCISE PICKER (reused for workout + template building) -->
+<div class="modal-backdrop" id="gymExercisePickerModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="gymPickerTitle">Add exercises</h3><button onclick="closeModal('gymExercisePickerModal')">✕</button></div>
+    <input type="text" id="gymPickerSearch" class="search-input" placeholder="Search exercises…" oninput="renderGymPickerList()" style="width:100%; box-sizing:border-box; margin-bottom:10px;">
+    <button class="btn ghost block" style="margin-bottom:10px;" onclick="openGymNewExerciseModal()">+ Create new exercise</button>
+    <div id="gymPickerList"></div>
+    <button class="btn block" style="margin-top:10px;" onclick="confirmGymPicker()">Add selected</button>
+  </div>
+</div>
+
+<!-- GYM: NEW EXERCISE -->
+<div class="modal-backdrop" id="gymNewExerciseModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3>New exercise</h3><button onclick="closeModal('gymNewExerciseModal')">✕</button></div>
+    <div class="field"><label>Name</label><input type="text" id="gymNewExName" placeholder="e.g. Cable Fly"></div>
+    <div class="field">
+      <label>Muscle group</label>
+      <select id="gymNewExMuscle">
+        <option>Chest</option><option>Back</option><option>Legs</option><option>Shoulders</option><option>Arms</option><option>Core</option>
+      </select>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:14px; color:var(--text); margin-bottom:0;">
+        <input type="checkbox" id="gymNewExBodyweight" style="width:18px;height:18px;accent-color:var(--macro);"> Bodyweight exercise (reps-based, optional added weight)
+      </label>
+    </div>
+    <button class="btn block" onclick="confirmCreateGymExercise()">Create</button>
+  </div>
+</div>
+
+<!-- GYM: NEW/EDIT TEMPLATE -->
+<div class="modal-backdrop" id="gymTemplateModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="gymTemplateModalTitle">New template</h3><button onclick="closeModal('gymTemplateModal')">✕</button></div>
+    <div class="field"><label>Template name</label><input type="text" id="gymTemplateName" placeholder="e.g. Push Day A"></div>
+    <div class="field">
+      <label>Exercises</label>
+      <div id="gymTemplateExerciseList"></div>
+      <button class="btn ghost small" style="margin-top:8px;" onclick="openGymExercisePicker('template')">+ Add exercises</button>
+    </div>
+    <button class="btn block" onclick="confirmSaveGymTemplate()">Save template</button>
+    <button class="detail-edit-link" id="gymTemplateDeleteBtn" style="display:none; color:var(--danger);" onclick="deleteGymTemplateFromEditor()">Delete this template</button>
+  </div>
+</div>
+
+<!-- GYM: PAST SESSION DETAIL (read-only) -->
+<div class="modal-backdrop" id="gymSessionDetailModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="gymSessionDetailTitle">Workout</h3><button onclick="closeModal('gymSessionDetailModal')">✕</button></div>
+    <div id="gymSessionDetailBody"></div>
+  </div>
+</div>
+
+<!-- GYM: EXERCISE DETAIL (PRs, history, trend graph) -->
+<div class="modal-backdrop" id="gymExerciseDetailModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3 id="gymExDetailTitle">Exercise</h3><button onclick="closeModal('gymExerciseDetailModal')">✕</button></div>
+    <div id="gymExDetailBody"></div>
+  </div>
+</div>
+
+<!-- GYM: ANALYTICS DASHBOARD -->
+<div class="modal-backdrop" id="gymAnalyticsModal">
+  <div class="modal" style="max-height:94vh;">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3>Gym analytics</h3><button onclick="closeModal('gymAnalyticsModal')">✕</button></div>
+    <div id="gymAnalyticsBody"></div>
+  </div>
+</div>
+
+<!-- GYM: WEEKLY REVIEW -->
+<div class="modal-backdrop" id="gymWeeklyReviewModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3>Weekly review</h3><button onclick="closeModal('gymWeeklyReviewModal')">✕</button></div>
+    <div id="gymWeeklyReviewBody"></div>
   </div>
 </div>
 
@@ -1478,6 +1695,13 @@ let pendingLogStackId = null;
 let pendingLogStackChecked = new Set(); // working checked-off set while logging a stack
 let foodLibrary = {}; // learned per-gram nutrient profiles, keyed by normalized food name
 let habits = []; // {id, name, createdAt} -- recurring daily habits (checked per-day in day.habitLog)
+let gymExercises = []; // {id, name, muscleGroup, isBodyweight} -- master exercise library (seeded + custom)
+let gymTemplates = []; // {id, name, exerciseIds:[...]} -- user-created workout templates (built-ins are constants, not stored)
+let gymStats = {exercises:{}, sessionDates:[], totalSessions:0}; // incrementally-maintained PR/history index, see recomputeGymStatsForExercise()
+let gymDayCache = {}; // dateStr -> {date, sessions:[...]} , mirrors dayCache but for gym: keys
+let activeWorkout = null; // the in-progress session object while a workout modal is open
+let gymPickerMode = null; // 'workout' | 'template' -- what the exercise picker modal is being used for
+let gymPickerSelection = new Set(); // working selection while picking exercises for a template
 let addMode = 'photo';
 let pendingPhotos = []; // [{base64, mime, dataUrl}] — supports multiple images per analysis
 let pendingResults = []; // parsed food items awaiting confirm
@@ -1661,6 +1885,10 @@ async function loadSettings(){
   mealStacks = await storeGet('mealStacks') || [];
   foodLibrary = await storeGet('foodLibrary') || {};
   habits = await storeGet('habits') || [];
+  gymExercises = await storeGet('gymExercises');
+  if(!gymExercises || !gymExercises.length){ gymExercises = seedDefaultGymExercises(); await storeSet('gymExercises', gymExercises); }
+  gymTemplates = await storeGet('gymTemplates') || [];
+  gymStats = await storeGet('gymStats') || {exercises:{}, sessionDates:[], totalSessions:0};
   // One-time migration: earlier versions auto-saved calories/protein/fat/carbs
   // overrides from a generic formula. Those stale numbers would otherwise sit
   // in storage and silently mask the new personalized plan defaults below.
@@ -2307,6 +2535,7 @@ function switchView(name){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
   if(name==='trends') renderTrends();
   if(name==='habits') refreshHabitsView();
+  if(name==='gym') renderGymHome();
 }
 async function shiftDate(delta){
   const d = new Date(currentDate+'T00:00:00');
@@ -6800,6 +7029,734 @@ async function exportDayNutrientProfile(){
   a.href = URL.createObjectURL(blob);
   a.download = `nutrient-profile-${currentDate}.csv`;
   a.click();
+}
+
+/* =========================================================
+   GYM — progressive-overload workout tracking
+========================================================= */
+let gymWorkoutTimerInterval = null;
+let pendingTemplateExerciseIds = [];
+let editingGymTemplateId = null;
+let gymExDetailChartInst = null;
+let gymVolumeChartInst = null;
+
+const GYM_MUSCLE_COLORS = {Chest:'#FF8F5E', Back:'#5FB2E8', Legs:'#C08CF0', Shoulders:'#FFD60A', Arms:'#2FEA63', Core:'#FF6FB5'};
+
+function seedDefaultGymExercises(){
+  const list = [
+    ['Bench Press','Chest',false], ['Incline Dumbbell Press','Chest',false], ['Cable Fly','Chest',false], ['Push-ups','Chest',true],
+    ['Deadlift','Back',false], ['Barbell Row','Back',false], ['Lat Pulldown','Back',false], ['Pull-ups','Back',true],
+    ['Squat','Legs',false], ['Leg Press','Legs',false], ['Romanian Deadlift','Legs',false], ['Walking Lunge','Legs',false],
+    ['Overhead Press','Shoulders',false], ['Lateral Raise','Shoulders',false], ['Face Pull','Shoulders',false],
+    ['Barbell Curl','Arms',false], ['Tricep Pushdown','Arms',false], ['Dips','Arms',true],
+    ['Hanging Leg Raise','Core',true], ['Cable Crunch','Core',false], ['Plank','Core',true]
+  ];
+  return list.map((x,i)=>({id:'gex_seed_'+i, name:x[0], muscleGroup:x[1], isBodyweight:x[2]}));
+}
+const GYM_BUILT_IN_TEMPLATE_DEFS = [
+  {name:'Push', exNames:['Bench Press','Incline Dumbbell Press','Overhead Press','Lateral Raise','Tricep Pushdown','Dips']},
+  {name:'Pull', exNames:['Deadlift','Barbell Row','Lat Pulldown','Pull-ups','Barbell Curl','Face Pull']},
+  {name:'Legs', exNames:['Squat','Leg Press','Romanian Deadlift','Walking Lunge']},
+  {name:'Upper', exNames:['Bench Press','Barbell Row','Overhead Press','Lat Pulldown','Barbell Curl','Tricep Pushdown']},
+  {name:'Lower', exNames:['Squat','Romanian Deadlift','Leg Press','Walking Lunge','Hanging Leg Raise']},
+  {name:'Full Body', exNames:['Squat','Bench Press','Barbell Row','Overhead Press','Deadlift']},
+];
+function resolveBuiltInGymTemplates(){
+  return GYM_BUILT_IN_TEMPLATE_DEFS.map(t=>({
+    id:'builtin_'+t.name.replace(/\s+/g,'_'),
+    name:t.name,
+    builtin:true,
+    exerciseIds: t.exNames.map(n=>{
+      const ex = gymExercises.find(e=>e.name.toLowerCase()===n.toLowerCase());
+      return ex ? ex.id : null;
+    }).filter(Boolean)
+  }));
+}
+function allGymTemplates(){ return [...resolveBuiltInGymTemplates(), ...gymTemplates]; }
+function findGymExercise(id){ return gymExercises.find(e=>e.id===id); }
+
+async function loadGymDay(dstr){
+  if(gymDayCache[dstr]) return gymDayCache[dstr];
+  const d = await storeGet('gym:'+dstr) || {date:dstr, sessions:[]};
+  gymDayCache[dstr] = d;
+  return d;
+}
+async function saveGymDay(dstr){ return storeSet('gym:'+dstr, gymDayCache[dstr]); }
+
+// Epley formula -- the standard, widely-used estimated-1RM calculation.
+function gymEst1RM(weight, reps){
+  if(!weight || !reps) return 0;
+  if(reps===1) return Math.round(weight*10)/10;
+  return Math.round(weight*(1+reps/30)*10)/10;
+}
+// For bodyweight exercises, "weight" on a set is ADDED weight -- the
+// effective load also includes bodyweight itself (from your profile),
+// so volume/1RM/PRs for pull-ups, push-ups, dips etc. are still meaningful.
+function gymSetEffectiveWeight(ex, set){
+  const w = Number(set.weight)||0;
+  if(ex && ex.isBodyweight) return (Number(profile.weight)||0) + w;
+  return w;
+}
+function gymSetVolume(ex, set){
+  const reps = Number(set.reps)||0;
+  if(!reps) return 0;
+  return gymSetEffectiveWeight(ex,set)*reps;
+}
+function gymEntryVolume(ex, entry){ return (entry.sets||[]).reduce((s,st)=>s+gymSetVolume(ex,st),0); }
+function gymEntryMaxWeight(ex, entry){ return (entry.sets||[]).reduce((m,st)=>Math.max(m, (Number(st.reps)>0? gymSetEffectiveWeight(ex,st):0)),0); }
+function gymEntryMaxEst1RM(ex, entry){
+  return (entry.sets||[]).reduce((m,st)=>{
+    const reps=Number(st.reps)||0; if(!reps) return m;
+    return Math.max(m, gymEst1RM(gymSetEffectiveWeight(ex,st), reps));
+  },0);
+}
+function gymEntryTotalReps(entry){ return (entry.sets||[]).reduce((s,st)=>s+(Number(st.reps)||0),0); }
+function gymEntryTotalSets(entry){ return (entry.sets||[]).filter(st=>Number(st.reps)>0).length; }
+
+// Updates the incremental PR/history index for one exercise after a
+// workout is finished, and returns which badges (pr/reps/volume) this
+// exercise earned this session -- this is the single source of truth for
+// progressive-overload detection everywhere in the Gym feature.
+function updateGymStatsForEntry(dateStr, ex, entry){
+  const id = ex.id;
+  const volume = gymEntryVolume(ex, entry);
+  const maxWeight = gymEntryMaxWeight(ex, entry);
+  const maxEst1RM = gymEntryMaxEst1RM(ex, entry);
+  const totalReps = gymEntryTotalReps(entry);
+  const totalSets = gymEntryTotalSets(entry);
+
+  let stat = gymStats.exercises[id];
+  if(!stat){
+    stat = {name:ex.name, muscleGroup:ex.muscleGroup, isBodyweight:ex.isBodyweight, lastSets:[], lastDate:null, prWeight:0, prReps:0, prVolume:0, prEst1RM:0, history:[]};
+    gymStats.exercises[id] = stat;
+  }
+  const badges = [];
+  if(maxWeight > (stat.prWeight||0) && maxWeight>0){ stat.prWeight = maxWeight; badges.push('pr'); }
+  if(maxEst1RM > (stat.prEst1RM||0)){ stat.prEst1RM = maxEst1RM; if(!badges.includes('pr')) badges.push('pr'); }
+  if(volume > (stat.prVolume||0)){ stat.prVolume = volume; badges.push('volume'); }
+  const prevTopReps = (stat.lastSets&&stat.lastSets.length) ? Math.max(...stat.lastSets.map(s=>Number(s.reps)||0)) : 0;
+  const thisTopReps = (entry.sets||[]).reduce((m,s)=>Math.max(m,Number(s.reps)||0),0);
+  if(thisTopReps > prevTopReps && prevTopReps>0) badges.push('reps');
+
+  stat.name = ex.name; stat.muscleGroup = ex.muscleGroup; stat.isBodyweight = ex.isBodyweight;
+  stat.lastSets = (entry.sets||[]).filter(s=>Number(s.reps)>0).map(s=>({weight:Number(s.weight)||0, reps:Number(s.reps)||0}));
+  stat.lastDate = dateStr;
+  stat.history = stat.history||[];
+  const existingIdx = stat.history.findIndex(h=>h.date===dateStr);
+  const histEntry = {date:dateStr, volume, maxWeight, maxEst1RM, totalReps, totalSets};
+  if(existingIdx>=0) stat.history[existingIdx]=histEntry; else stat.history.push(histEntry);
+  stat.history.sort((a,b)=>a.date.localeCompare(b.date));
+  if(stat.history.length>200) stat.history = stat.history.slice(stat.history.length-200);
+
+  if(badges.includes('pr')){
+    gymStats.prEvents = gymStats.prEvents||[];
+    gymStats.prEvents.push({date:dateStr, exerciseId:id, exerciseName:ex.name});
+    if(gymStats.prEvents.length>300) gymStats.prEvents = gymStats.prEvents.slice(gymStats.prEvents.length-300);
+  }
+  return badges;
+}
+function gymMarkSessionDate(dateStr, totalVolume, totalSets, durationMin){
+  gymStats.sessionDates = gymStats.sessionDates||[];
+  if(!gymStats.sessionDates.includes(dateStr)) gymStats.sessionDates.push(dateStr);
+  gymStats.sessionDates.sort();
+  gymStats.dateVolume = gymStats.dateVolume || {};
+  gymStats.dateSets = gymStats.dateSets || {};
+  gymStats.dateDuration = gymStats.dateDuration || {};
+  gymStats.dateVolume[dateStr] = (gymStats.dateVolume[dateStr]||0) + totalVolume;
+  gymStats.dateSets[dateStr] = (gymStats.dateSets[dateStr]||0) + totalSets;
+  gymStats.dateDuration[dateStr] = (gymStats.dateDuration[dateStr]||0) + (durationMin||0);
+  gymStats.totalSessions = (gymStats.totalSessions||0) + 1;
+}
+function gymCurrentStreak(){
+  const set = new Set(gymStats.sessionDates||[]);
+  let cursor = new Date(todayStr()+'T00:00:00');
+  if(!set.has(todayStr(cursor))) cursor.setDate(cursor.getDate()-1);
+  let streak=0;
+  while(set.has(todayStr(cursor))){ streak++; cursor.setDate(cursor.getDate()-1); }
+  return streak;
+}
+function gymVolumeSince(daysBack){
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const cutoffStr = todayStr(cutoff);
+  let total=0;
+  Object.keys(gymStats.dateVolume||{}).forEach(d=>{ if(d>=cutoffStr) total+=gymStats.dateVolume[d]; });
+  return Math.round(total);
+}
+function gymSessionsSince(daysBack){
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const cutoffStr = todayStr(cutoff);
+  return (gymStats.sessionDates||[]).filter(d=>d>=cutoffStr).length;
+}
+function gymPRsSince(daysBack){
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const cutoffStr = todayStr(cutoff);
+  return (gymStats.prEvents||[]).filter(e=>e.date>=cutoffStr).length;
+}
+function gymMuscleVolumeSince(daysBack){
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const cutoffStr = todayStr(cutoff);
+  const out = {};
+  Object.values(gymStats.exercises||{}).forEach(stat=>{
+    const mg = stat.muscleGroup||'Other';
+    (stat.history||[]).forEach(h=>{ if(h.date>=cutoffStr) out[mg]=(out[mg]||0)+h.volume; });
+  });
+  return out;
+}
+// Plateau = estimated 1RM barely moved (<3% spread) across the last 4-5
+// sessions of an exercise -- a useful nudge to change weight/reps/deload.
+function gymDetectPlateau(stat){
+  const hist = (stat.history||[]).slice(-5);
+  if(hist.length<4) return false;
+  const vals = hist.map(h=>h.maxEst1RM);
+  const max = Math.max(...vals), min = Math.min(...vals);
+  if(max<=0) return false;
+  return (max-min)/max < 0.03;
+}
+function gymWeeklyVolumeSeries(weeks){
+  const out = [];
+  for(let w=weeks-1; w>=0; w--){
+    const end = new Date(); end.setDate(end.getDate() - w*7);
+    const start = new Date(end); start.setDate(start.getDate()-6);
+    const startStr = todayStr(start), endStr = todayStr(end);
+    let total=0;
+    Object.keys(gymStats.dateVolume||{}).forEach(d=>{ if(d>=startStr && d<=endStr) total+=gymStats.dateVolume[d]; });
+    out.push({label: start.toLocaleDateString(undefined,{month:'short',day:'numeric'}), volume: Math.round(total)});
+  }
+  return out;
+}
+
+/* ---------- Rendering: Gym home ---------- */
+function renderGymHome(){
+  document.getElementById('gymStatStreak').textContent = gymCurrentStreak();
+  document.getElementById('gymStatWeekCount').textContent = gymSessionsSince(6);
+  document.getElementById('gymStatWeekVolume').textContent = gymVolumeSince(6).toLocaleString();
+  document.getElementById('gymStatPRs').textContent = gymPRsSince(29);
+  renderGymTemplateChips();
+  renderGymRecentList();
+  renderGymExerciseLibrary();
+}
+function renderGymTemplateChips(){
+  const templates = allGymTemplates();
+  document.getElementById('gymTemplateChips').innerHTML = templates.map(t=>`
+    <div class="gym-template-chip" style="cursor:pointer;" onclick="startGymWorkout('${t.id}')">
+      <span class="tname">${escapeHtml(t.name)}</span>
+      <span class="tmeta">${t.exerciseIds.length} exercise${t.exerciseIds.length===1?'':'s'}</span>
+      ${!t.builtin ? `<button type="button" class="tedit" onclick="event.stopPropagation(); openGymTemplateModal('${t.id}')">✎</button>` : ''}
+    </div>
+  `).join('');
+}
+async function renderGymRecentList(){
+  const el = document.getElementById('gymRecentList');
+  const dates = (gymStats.sessionDates||[]).slice(-8).reverse();
+  if(!dates.length){ el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No workouts logged yet. Start one above.</div>`; return; }
+  const days = await Promise.all(dates.map(loadGymDay));
+  const rows = [];
+  days.forEach(d=>{ (d.sessions||[]).forEach(s=>rows.push({date:d.date, session:s})); });
+  document.getElementById('gymRecentList').innerHTML = rows.length ? rows.map(r=>{
+    const vol = Math.round((r.session.entries||[]).reduce((sum,e)=>{
+      const ex = findGymExercise(e.exerciseId) || {isBodyweight:e.isBodyweight};
+      return sum + gymEntryVolume(ex, e);
+    },0));
+    return `<div class="entry" style="cursor:pointer;" onclick="openGymSessionDetail('${r.date}','${r.session.id}')">
+      <div class="thumb">🏋️</div>
+      <div class="info"><div class="name">${escapeHtml(r.session.templateName||'Workout')}</div><div class="meta">${fmtDateLabel(r.date)} · ${(r.session.entries||[]).length} exercises</div></div>
+      <div class="kcal">${vol.toLocaleString()} kg</div>
+    </div>`;
+  }).join('') : `<div class="empty-state" style="padding:16px 0;">No workouts logged yet. Start one above.</div>`;
+}
+function renderGymExerciseLibrary(){
+  const query = (document.getElementById('gymExerciseSearch')?.value||'').trim().toLowerCase();
+  const el = document.getElementById('gymExerciseLibraryList');
+  const list = gymExercises.filter(e=>!query || e.name.toLowerCase().includes(query))
+    .slice().sort((a,b)=>a.muscleGroup.localeCompare(b.muscleGroup) || a.name.localeCompare(b.name));
+  if(!list.length){ el.innerHTML = `<div class="empty-state" style="padding:16px 0;">No exercises match.</div>`; return; }
+  el.innerHTML = list.map(e=>{
+    const stat = gymStats.exercises[e.id];
+    const col = GYM_MUSCLE_COLORS[e.muscleGroup]||'var(--text-faint)';
+    const prText = stat ? (stat.prEst1RM ? `${Math.round(stat.prEst1RM)}kg e1RM` : (stat.lastSets&&stat.lastSets.length ? 'logged' : '—')) : '—';
+    return `<div class="gym-lib-row" onclick="openGymExerciseDetail('${e.id}')">
+      <span class="dot" style="background:${col};"></span>
+      <div class="info"><div class="n">${escapeHtml(e.name)}</div><div class="m">${escapeHtml(e.muscleGroup)}${e.isBodyweight?' · bodyweight':''}</div></div>
+      <div class="pr">${prText}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- Active workout ---------- */
+function startGymWorkout(templateId){
+  const templates = allGymTemplates();
+  const t = templateId ? templates.find(x=>x.id===templateId) : null;
+  activeWorkout = {
+    id:'gs'+Date.now(),
+    date: todayStr(),
+    templateId: t? t.id : null,
+    templateName: t? t.name : 'Quick workout',
+    startTs: Date.now(),
+    entries: (t? t.exerciseIds : []).map(exId=>({exerciseId:exId, sets:[{weight:null,reps:null}], notes:''}))
+  };
+  document.getElementById('gymWorkoutTitle').textContent = activeWorkout.templateName;
+  renderActiveWorkout();
+  openModal('gymWorkoutModal');
+  startGymWorkoutTimer();
+}
+function renderActiveWorkout(){
+  const el = document.getElementById('gymWorkoutExerciseList');
+  if(!activeWorkout.entries.length){
+    el.innerHTML = `<div class="empty-state" style="padding:20px 0;">No exercises yet — tap "+ Add exercise" below.</div>`;
+  } else {
+    el.innerHTML = activeWorkout.entries.map((entry,ei)=>{
+      const ex = findGymExercise(entry.exerciseId) || {name:'Unknown', muscleGroup:'Other', isBodyweight:false};
+      const stat = gymStats.exercises[entry.exerciseId];
+      const col = GYM_MUSCLE_COLORS[ex.muscleGroup]||'var(--text-faint)';
+      const prevHtml = (stat && stat.lastSets && stat.lastSets.length)
+        ? `<div class="gym-prev-row"><span class="lbl">Previous · ${escapeHtml(fmtDateLabel(stat.lastDate))}</span>${stat.lastSets.map(s=>`<span class="gym-prev-chip">${ex.isBodyweight? (s.weight? '+'+s.weight+'×'+s.reps : 'BW×'+s.reps) : s.weight+'×'+s.reps}</span>`).join('')}</div>`
+        : `<div class="gym-prev-row"><span class="lbl">No previous data yet</span></div>`;
+      const setsHtml = entry.sets.map((s,si)=>`
+        <div class="gym-set-row">
+          <div class="setnum">${si+1}</div>
+          <input type="number" inputmode="decimal" placeholder="${ex.isBodyweight?'+kg':'kg'}" value="${s.weight??''}" oninput="updateGymSet(${ei},${si},'weight',this.value)">
+          <span class="x">×</span>
+          <input type="number" inputmode="numeric" placeholder="reps" value="${s.reps??''}" oninput="updateGymSet(${ei},${si},'reps',this.value)">
+          <button type="button" class="copybtn" title="Copy previous set" onclick="copyPrevGymSet(${ei},${si})">↺</button>
+          <button type="button" class="delbtn" onclick="removeGymSet(${ei},${si})">✕</button>
+        </div>
+        <div class="gym-badges" id="gymbadges-${ei}-${si}"></div>
+      `).join('');
+      return `<div class="gym-ex-card">
+        <div class="gym-ex-card-head">
+          <div><div class="name">${escapeHtml(ex.name)}</div><span class="muscle" style="background:${col}22; color:${col};">${escapeHtml(ex.muscleGroup)}</span></div>
+          <button class="remove" onclick="removeGymExerciseFromWorkout(${ei})">✕</button>
+        </div>
+        ${prevHtml}
+        ${setsHtml}
+        <button type="button" class="gym-addset-btn" onclick="addGymSet(${ei})">+ Add set</button>
+        <input type="text" class="gym-notes-input" placeholder="Notes (optional)" value="${escapeHtml(entry.notes||'')}" oninput="activeWorkout.entries[${ei}].notes=this.value">
+      </div>`;
+    }).join('');
+  }
+  updateGymWorkoutVolumeLive();
+}
+function updateGymWorkoutVolumeLive(){
+  if(!activeWorkout) return;
+  const totalVol = activeWorkout.entries.reduce((s,entry)=>{
+    const ex = findGymExercise(entry.exerciseId)||{isBodyweight:false};
+    return s+gymEntryVolume(ex, entry);
+  },0);
+  const liveEl = document.getElementById('gymWorkoutVolumeLive');
+  if(liveEl) liveEl.textContent = `${Math.round(totalVol).toLocaleString()} kg total`;
+}
+function updateGymSet(ei,si,field,value){
+  const set = activeWorkout.entries[ei].sets[si];
+  set[field] = value===''? null : Number(value);
+  if(set.reps) checkLiveGymBadges(ei,si);
+  updateGymWorkoutVolumeLive();
+}
+function addGymSet(ei){
+  const sets = activeWorkout.entries[ei].sets;
+  const last = sets[sets.length-1];
+  sets.push({weight: last? last.weight : null, reps: last? last.reps : null});
+  renderActiveWorkout();
+}
+function removeGymSet(ei,si){
+  activeWorkout.entries[ei].sets.splice(si,1);
+  if(!activeWorkout.entries[ei].sets.length) activeWorkout.entries[ei].sets.push({weight:null,reps:null});
+  renderActiveWorkout();
+}
+function copyPrevGymSet(ei,si){
+  const entry = activeWorkout.entries[ei];
+  const stat = gymStats.exercises[entry.exerciseId];
+  if(!stat || !stat.lastSets || !stat.lastSets.length){ showToast('No previous set to copy'); return; }
+  const prev = stat.lastSets[Math.min(si, stat.lastSets.length-1)];
+  entry.sets[si].weight = prev.weight;
+  entry.sets[si].reps = prev.reps;
+  renderActiveWorkout();
+}
+function removeGymExerciseFromWorkout(ei){
+  activeWorkout.entries.splice(ei,1);
+  renderActiveWorkout();
+}
+// Live, encouraging hint shown the instant a set is entered. The
+// authoritative badge computation (and the one that actually updates PRs)
+// runs again in finishGymWorkout — this is just immediate feedback.
+function checkLiveGymBadges(ei,si){
+  const entry = activeWorkout.entries[ei];
+  const set = entry.sets[si];
+  const ex = findGymExercise(entry.exerciseId);
+  const holder = document.getElementById(`gymbadges-${ei}-${si}`);
+  if(!ex || !holder) return;
+  const stat = gymStats.exercises[ex.id];
+  const effWeight = gymSetEffectiveWeight(ex,set);
+  const badges = [];
+  if(stat){
+    const est = gymEst1RM(effWeight, Number(set.reps));
+    if((effWeight > (stat.prWeight||0) && effWeight>0) || est > (stat.prEst1RM||0)) badges.push({cls:'pr', label:'🔥 New PR'});
+    const prevTopReps = (stat.lastSets&&stat.lastSets.length) ? Math.max(...stat.lastSets.map(s=>s.reps)) : 0;
+    if(Number(set.reps) > prevTopReps && prevTopReps>0) badges.push({cls:'reps', label:'💪 More reps'});
+  }
+  holder.innerHTML = badges.map(b=>`<span class="gym-badge ${b.cls}">${b.label}</span>`).join('');
+}
+function startGymWorkoutTimer(){
+  stopGymWorkoutTimer();
+  const tick = ()=>{
+    if(!activeWorkout) return;
+    const secs = Math.floor((Date.now()-activeWorkout.startTs)/1000);
+    const m = Math.floor(secs/60), s = secs%60;
+    const el = document.getElementById('gymWorkoutTimer');
+    if(el) el.textContent = `${m}:${String(s).padStart(2,'0')}`;
+  };
+  tick();
+  gymWorkoutTimerInterval = setInterval(tick, 1000);
+}
+function stopGymWorkoutTimer(){
+  if(gymWorkoutTimerInterval){ clearInterval(gymWorkoutTimerInterval); gymWorkoutTimerInterval=null; }
+}
+function confirmCloseGymWorkout(){
+  const hasData = activeWorkout && activeWorkout.entries.some(e=>e.sets.some(s=>s.reps));
+  if(hasData && !confirm('Discard this workout? Nothing will be saved.')) return;
+  stopGymWorkoutTimer();
+  activeWorkout = null;
+  closeModal('gymWorkoutModal');
+}
+async function finishGymWorkout(){
+  if(!activeWorkout) return;
+  const validEntries = activeWorkout.entries
+    .map(entry=>({...entry, sets:(entry.sets||[]).filter(s=>Number(s.reps)>0)}))
+    .filter(entry=>entry.sets.length>0);
+  if(!validEntries.length){ showToast('Log at least one set before finishing'); return; }
+
+  const endTs = Date.now();
+  const durationMin = Math.max(1, Math.round((endTs-activeWorkout.startTs)/60000));
+  const session = {
+    id: activeWorkout.id,
+    templateId: activeWorkout.templateId,
+    templateName: activeWorkout.templateName,
+    startTs: activeWorkout.startTs, endTs, durationMin,
+    entries: validEntries.map(entry=>{
+      const ex = findGymExercise(entry.exerciseId);
+      return {exerciseId:entry.exerciseId, exerciseName:ex?ex.name:'Exercise', muscleGroup:ex?ex.muscleGroup:'Other', isBodyweight:ex?!!ex.isBodyweight:false, sets:entry.sets, notes:entry.notes||''};
+    })
+  };
+  const dateStr = activeWorkout.date;
+  const day = await loadGymDay(dateStr);
+  day.sessions = day.sessions||[];
+  day.sessions.push(session);
+
+  let allBadges = [], totalVolume=0, totalSets=0;
+  session.entries.forEach(entry=>{
+    const ex = findGymExercise(entry.exerciseId) || {id:entry.exerciseId, name:entry.exerciseName, muscleGroup:entry.muscleGroup, isBodyweight:entry.isBodyweight};
+    const badges = updateGymStatsForEntry(dateStr, ex, entry);
+    if(badges.length) allBadges.push({name:ex.name, badges});
+    totalVolume += gymEntryVolume(ex, entry);
+    totalSets += gymEntryTotalSets(entry);
+  });
+  gymMarkSessionDate(dateStr, totalVolume, totalSets, durationMin);
+
+  stopGymWorkoutTimer();
+  await saveGymDay(dateStr);
+  await storeSet('gymStats', gymStats);
+
+  closeModal('gymWorkoutModal');
+  activeWorkout = null;
+  renderGymHome();
+
+  const badgeIcon = b=> b==='pr'?'🔥':b==='reps'?'💪':'📈';
+  const badgeSummary = allBadges.length ? ' — ' + allBadges.map(a=>`${a.name} ${a.badges.map(badgeIcon).join('')}`).join(', ') : '';
+  showToast(`Workout logged: ${Math.round(totalVolume).toLocaleString()}kg, ${totalSets} sets${badgeSummary}`);
+}
+
+/* ---------- Exercise picker (shared: active workout + template builder) ---------- */
+function openGymExercisePicker(mode){
+  gymPickerMode = mode;
+  gymPickerSelection = new Set();
+  document.getElementById('gymPickerTitle').textContent = mode==='template' ? 'Add exercises to template' : 'Add exercises';
+  document.getElementById('gymPickerSearch').value = '';
+  renderGymPickerList();
+  openModal('gymExercisePickerModal');
+}
+function renderGymPickerList(){
+  const query = (document.getElementById('gymPickerSearch').value||'').trim().toLowerCase();
+  const list = gymExercises.filter(e=>!query||e.name.toLowerCase().includes(query))
+    .slice().sort((a,b)=>a.muscleGroup.localeCompare(b.muscleGroup)||a.name.localeCompare(b.name));
+  document.getElementById('gymPickerList').innerHTML = list.length ? list.map(e=>{
+    const col = GYM_MUSCLE_COLORS[e.muscleGroup]||'var(--text-faint)';
+    const checked = gymPickerSelection.has(e.id);
+    return `<label class="gym-pick-row">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleGymPick('${e.id}')">
+      <span class="dot" style="background:${col};"></span>
+      <div class="info">${escapeHtml(e.name)}<div class="m">${escapeHtml(e.muscleGroup)}${e.isBodyweight?' · bodyweight':''}</div></div>
+    </label>`;
+  }).join('') : `<div class="empty-state" style="padding:16px 0;">No exercises match.</div>`;
+}
+function toggleGymPick(id){ if(gymPickerSelection.has(id)) gymPickerSelection.delete(id); else gymPickerSelection.add(id); }
+function confirmGymPicker(){
+  if(!gymPickerSelection.size){ showToast('Pick at least one exercise'); return; }
+  if(gymPickerMode==='workout' && activeWorkout){
+    gymPickerSelection.forEach(id=>{
+      if(!activeWorkout.entries.some(e=>e.exerciseId===id)) activeWorkout.entries.push({exerciseId:id, sets:[{weight:null,reps:null}], notes:''});
+    });
+    renderActiveWorkout();
+  } else if(gymPickerMode==='template'){
+    gymPickerSelection.forEach(id=>{ if(!pendingTemplateExerciseIds.includes(id)) pendingTemplateExerciseIds.push(id); });
+    renderGymTemplateExerciseList();
+  }
+  closeModal('gymExercisePickerModal');
+}
+function openGymNewExerciseModal(){
+  document.getElementById('gymNewExName').value='';
+  document.getElementById('gymNewExMuscle').value='Chest';
+  document.getElementById('gymNewExBodyweight').checked=false;
+  openModal('gymNewExerciseModal');
+}
+async function confirmCreateGymExercise(){
+  const name = document.getElementById('gymNewExName').value.trim();
+  if(!name){ showToast('Give the exercise a name'); return; }
+  const ex = {id:'gex'+Date.now(), name, muscleGroup:document.getElementById('gymNewExMuscle').value, isBodyweight:document.getElementById('gymNewExBodyweight').checked};
+  gymExercises.push(ex);
+  await storeSet('gymExercises', gymExercises);
+  closeModal('gymNewExerciseModal');
+  gymPickerSelection.add(ex.id);
+  renderGymPickerList();
+  showToast(`${name} added to your library`);
+}
+
+/* ---------- Templates ---------- */
+function openGymTemplateModal(templateId){
+  editingGymTemplateId = templateId || null;
+  const t = editingGymTemplateId ? gymTemplates.find(x=>x.id===editingGymTemplateId) : null;
+  document.getElementById('gymTemplateModalTitle').textContent = t ? 'Edit template' : 'New template';
+  document.getElementById('gymTemplateName').value = t ? t.name : '';
+  pendingTemplateExerciseIds = t ? [...t.exerciseIds] : [];
+  document.getElementById('gymTemplateDeleteBtn').style.display = t ? 'block' : 'none';
+  renderGymTemplateExerciseList();
+  openModal('gymTemplateModal');
+}
+function renderGymTemplateExerciseList(){
+  const el = document.getElementById('gymTemplateExerciseList');
+  if(!pendingTemplateExerciseIds.length){ el.innerHTML = `<div class="empty-state" style="padding:12px 0;">No exercises yet.</div>`; return; }
+  el.innerHTML = pendingTemplateExerciseIds.map((id,i)=>{
+    const ex = findGymExercise(id);
+    if(!ex) return '';
+    const col = GYM_MUSCLE_COLORS[ex.muscleGroup]||'var(--text-faint)';
+    return `<div class="gym-lib-row" style="cursor:default;">
+      <span class="dot" style="background:${col};"></span>
+      <div class="info"><div class="n">${escapeHtml(ex.name)}</div><div class="m">${escapeHtml(ex.muscleGroup)}</div></div>
+      <button style="background:none;border:none;color:var(--text-faint);font-size:16px;padding:4px 2px 4px 8px; flex-shrink:0;" onclick="pendingTemplateExerciseIds.splice(${i},1); renderGymTemplateExerciseList();">✕</button>
+    </div>`;
+  }).join('');
+}
+async function confirmSaveGymTemplate(){
+  const name = document.getElementById('gymTemplateName').value.trim();
+  if(!name){ showToast('Give the template a name'); return; }
+  if(!pendingTemplateExerciseIds.length){ showToast('Add at least one exercise'); return; }
+  if(editingGymTemplateId){
+    const t = gymTemplates.find(x=>x.id===editingGymTemplateId);
+    if(t){ t.name=name; t.exerciseIds=[...pendingTemplateExerciseIds]; }
+  } else {
+    gymTemplates.push({id:'gt'+Date.now(), name, exerciseIds:[...pendingTemplateExerciseIds]});
+  }
+  await storeSet('gymTemplates', gymTemplates);
+  closeModal('gymTemplateModal');
+  editingGymTemplateId = null;
+  renderGymTemplateChips();
+  showToast('Template saved');
+}
+async function deleteGymTemplateFromEditor(){
+  if(!editingGymTemplateId) return;
+  gymTemplates = gymTemplates.filter(x=>x.id!==editingGymTemplateId);
+  await storeSet('gymTemplates', gymTemplates);
+  closeModal('gymTemplateModal');
+  editingGymTemplateId=null;
+  renderGymTemplateChips();
+  showToast('Template deleted');
+}
+
+/* ---------- Past session detail ---------- */
+async function openGymSessionDetail(dateStr, sessionId){
+  const day = await loadGymDay(dateStr);
+  const session = (day.sessions||[]).find(s=>s.id===sessionId);
+  if(!session) return;
+  document.getElementById('gymSessionDetailTitle').textContent = `${session.templateName} · ${fmtDateLabel(dateStr)}`;
+  const totalVolume = session.entries.reduce((s,e)=>{
+    const ex = findGymExercise(e.exerciseId)||{isBodyweight:e.isBodyweight};
+    return s+gymEntryVolume(ex,e);
+  },0);
+  const totalSets = session.entries.reduce((s,e)=>s+gymEntryTotalSets(e),0);
+  document.getElementById('gymSessionDetailBody').innerHTML = `
+    <div class="gym-stat-grid">
+      <div class="cell"><div class="l">Total volume</div><div class="v">${Math.round(totalVolume).toLocaleString()} kg</div></div>
+      <div class="cell"><div class="l">Total sets</div><div class="v">${totalSets}</div></div>
+      <div class="cell"><div class="l">Duration</div><div class="v">${session.durationMin||'—'} min</div></div>
+      <div class="cell"><div class="l">Exercises</div><div class="v">${session.entries.length}</div></div>
+    </div>
+    ${session.entries.map(e=>{
+      const col = GYM_MUSCLE_COLORS[e.muscleGroup]||'var(--text-faint)';
+      return `<div class="gym-ex-card">
+        <div class="gym-ex-card-head"><div><div class="name">${escapeHtml(e.exerciseName)}</div><span class="muscle" style="background:${col}22;color:${col};">${escapeHtml(e.muscleGroup)}</span></div></div>
+        <div class="gym-prev-row">${e.sets.map(s=>`<span class="gym-prev-chip">${e.isBodyweight?(s.weight?'+'+s.weight+'×'+s.reps:'BW×'+s.reps):s.weight+'×'+s.reps}</span>`).join('')}</div>
+        ${e.notes?`<div style="font-size:12px;color:var(--text-faint);margin-top:4px;">${escapeHtml(e.notes)}</div>`:''}
+      </div>`;
+    }).join('')}
+  `;
+  openModal('gymSessionDetailModal');
+}
+
+/* ---------- Exercise detail: PRs, history, trend graph ---------- */
+function openGymExerciseDetail(exerciseId){
+  const ex = findGymExercise(exerciseId);
+  if(!ex) return;
+  const stat = gymStats.exercises[exerciseId];
+  document.getElementById('gymExDetailTitle').textContent = ex.name;
+  const hist = (stat && stat.history) || [];
+  const plateaued = stat ? gymDetectPlateau(stat) : false;
+  document.getElementById('gymExDetailBody').innerHTML = `
+    <div class="gym-stat-grid">
+      <div class="cell"><div class="l">PR weight</div><div class="v">${stat&&stat.prWeight?stat.prWeight+' kg':'—'}</div></div>
+      <div class="cell"><div class="l">Est. 1RM</div><div class="v">${stat&&stat.prEst1RM?Math.round(stat.prEst1RM)+' kg':'—'}</div></div>
+      <div class="cell"><div class="l">Best session volume</div><div class="v">${stat&&stat.prVolume?Math.round(stat.prVolume).toLocaleString()+' kg':'—'}</div></div>
+      <div class="cell"><div class="l">Sessions logged</div><div class="v">${hist.length}</div></div>
+    </div>
+    ${plateaued?`<div class="gym-plateau-note">📉 Plateau detected — estimated 1RM has barely moved across your last few sessions. Consider adding weight, reps, or a deload week.</div>`:''}
+    ${hist.length>=2 ? `<div class="chart-canvas-wrap" style="height:180px; margin-top:14px;"><canvas id="gymExDetailChart"></canvas></div>` : ''}
+    <div class="nd-section-title" style="margin-top:16px;">Session history</div>
+    ${hist.length ? hist.slice().reverse().slice(0,20).map(h=>`
+      <div class="gym-history-row">
+        <div><div>${Math.round(h.maxWeight)}kg × best, ${h.totalSets} sets</div><div class="d">${escapeHtml(fmtDateLabel(h.date))}</div></div>
+        <div style="text-align:right;"><div>${Math.round(h.volume).toLocaleString()} kg vol</div><div class="d">e1RM ${Math.round(h.maxEst1RM)}kg</div></div>
+      </div>
+    `).join('') : `<div class="empty-state" style="padding:16px 0;">No sessions logged yet.</div>`}
+  `;
+  openModal('gymExerciseDetailModal');
+  if(hist.length>=2) requestAnimationFrame(()=>renderGymExDetailChart(hist));
+}
+function renderGymExDetailChart(hist){
+  const canvas = document.getElementById('gymExDetailChart');
+  if(!canvas) return;
+  if(gymExDetailChartInst){ gymExDetailChartInst.destroy(); gymExDetailChartInst=null; }
+  const points = hist.map(h=>({x:new Date(h.date+'T00:00:00').getTime(), y:Math.round(h.maxEst1RM)}));
+  gymExDetailChartInst = new Chart(canvas, {
+    type:'line',
+    data:{datasets:[{
+      label:'Estimated 1RM (kg)', data:points, borderColor:'#2FEA63', borderWidth:2.5,
+      backgroundColor:(ctx)=>{
+        const {chart}=ctx; const {ctx:c, chartArea}=chart;
+        if(!chartArea) return 'rgba(47,234,99,0.15)';
+        const g = c.createLinearGradient(0,chartArea.top,0,chartArea.bottom);
+        g.addColorStop(0,'rgba(47,234,99,0.30)'); g.addColorStop(1,'rgba(47,234,99,0)');
+        return g;
+      },
+      fill:true, tension:0.3, pointRadius:3, pointBackgroundColor:'#2FEA63'
+    }]},
+    options:{
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{
+        title:(items)=>new Date(items[0].parsed.x).toLocaleDateString(undefined,{month:'short',day:'numeric'}),
+        label:(item)=>`Est. 1RM: ${item.parsed.y} kg`
+      }}},
+      scales:{
+        x:{type:'linear', ticks:{color:'#9AA0A8', maxTicksLimit:5, callback:(v)=>new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric'})}, grid:{display:false}},
+        y:{ticks:{color:'#9AA0A8'}, grid:{color:'#2C4941'}}
+      }
+    }
+  });
+}
+
+/* ---------- Analytics dashboard ---------- */
+function openGymAnalytics(){ renderGymAnalytics(); openModal('gymAnalyticsModal'); }
+function renderGymAnalytics(){
+  const weekVol = gymVolumeSince(6), weekCount = gymSessionsSince(6);
+  const monthCount = gymSessionsSince(29);
+  const streak = gymCurrentStreak();
+  const muscleVol = gymMuscleVolumeSince(29);
+  const totalMuscleVol = Object.values(muscleVol).reduce((a,b)=>a+b,0) || 1;
+  const plateaued = Object.entries(gymStats.exercises||{}).filter(([id,s])=>gymDetectPlateau(s));
+  const recentPRs = (gymStats.prEvents||[]).slice().reverse().slice(0,10);
+  const weekly = gymWeeklyVolumeSeries(10);
+
+  document.getElementById('gymAnalyticsBody').innerHTML = `
+    <div class="gym-stat-grid">
+      <div class="cell"><div class="l">This week</div><div class="v">${weekCount} workout${weekCount===1?'':'s'}</div></div>
+      <div class="cell"><div class="l">This month</div><div class="v">${monthCount} workout${monthCount===1?'':'s'}</div></div>
+      <div class="cell"><div class="l">Streak</div><div class="v">${streak} day${streak===1?'':'s'}</div></div>
+      <div class="cell"><div class="l">Weekly volume</div><div class="v">${weekVol.toLocaleString()} kg</div></div>
+    </div>
+    <div class="nd-section-title" style="margin-top:6px;">Volume (last 10 weeks)</div>
+    <div class="chart-canvas-wrap" style="height:180px;"><canvas id="gymVolumeChart"></canvas></div>
+
+    <div class="nd-section-title" style="margin-top:18px;">Muscle group volume (30 days)</div>
+    ${Object.keys(muscleVol).length ? Object.entries(muscleVol).sort((a,b)=>b[1]-a[1]).map(([mg,v])=>{
+      const col = GYM_MUSCLE_COLORS[mg]||'var(--text-faint)';
+      const pct = Math.round((v/totalMuscleVol)*100);
+      return `<div class="gym-muscle-bar-row"><div class="lbl">${escapeHtml(mg)}</div><div class="track"><span style="width:${pct}%; background:${col};"></span></div><div class="amt">${Math.round(v).toLocaleString()}kg</div></div>`;
+    }).join('') : `<div class="empty-state" style="padding:12px 0;">No volume logged in the last 30 days.</div>`}
+
+    <div class="nd-section-title" style="margin-top:18px;">Recent PRs</div>
+    ${recentPRs.length ? recentPRs.map(p=>`<div class="gym-history-row"><div>🔥 ${escapeHtml(p.exerciseName)}</div><div class="d">${escapeHtml(fmtDateLabel(p.date))}</div></div>`).join('') : `<div class="empty-state" style="padding:12px 0;">No PRs yet — log a workout to start setting them.</div>`}
+
+    <div class="nd-section-title" style="margin-top:18px;">Plateau watch</div>
+    ${plateaued.length ? plateaued.map(([id,s])=>`<div class="gym-history-row" style="cursor:pointer;" onclick="closeModal('gymAnalyticsModal'); openGymExerciseDetail('${id}')"><div>📉 ${escapeHtml(s.name)}</div><div class="d">est. 1RM flat recently</div></div>`).join('') : `<div class="empty-state" style="padding:12px 0;">Nothing plateaued right now — good momentum.</div>`}
+  `;
+  requestAnimationFrame(()=>{
+    const canvas = document.getElementById('gymVolumeChart');
+    if(!canvas) return;
+    if(gymVolumeChartInst){ gymVolumeChartInst.destroy(); gymVolumeChartInst=null; }
+    gymVolumeChartInst = new Chart(canvas, {
+      type:'bar',
+      data:{labels:weekly.map(w=>w.label), datasets:[{label:'Volume (kg)', data:weekly.map(w=>w.volume), backgroundColor:'#FF8F5E', borderRadius:4}]},
+      options:{maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{
+        x:{ticks:{color:'#9AA0A8', maxTicksLimit:6}, grid:{display:false}},
+        y:{ticks:{color:'#9AA0A8'}, grid:{color:'#2C4941'}}
+      }}
+    });
+  });
+}
+
+/* ---------- Weekly review ---------- */
+function openGymWeeklyReview(){ renderGymWeeklyReview(); openModal('gymWeeklyReviewModal'); }
+function renderGymWeeklyReview(){
+  const now = new Date();
+  const thisStart = new Date(now); thisStart.setDate(thisStart.getDate()-6);
+  const prevEnd = new Date(thisStart); prevEnd.setDate(prevEnd.getDate()-1);
+  const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate()-6);
+  const thisStartStr = todayStr(thisStart), todayStrVal = todayStr(now);
+  const prevStartStr = todayStr(prevStart), prevEndStr = todayStr(prevEnd);
+
+  let improved=[], unchanged=[], declined=[];
+  Object.values(gymStats.exercises||{}).forEach(stat=>{
+    const thisWindow = (stat.history||[]).filter(h=>h.date>=thisStartStr && h.date<=todayStrVal);
+    const prevWindow = (stat.history||[]).filter(h=>h.date>=prevStartStr && h.date<=prevEndStr);
+    if(!thisWindow.length || !prevWindow.length) return;
+    const thisBest = Math.max(...thisWindow.map(h=>h.maxEst1RM));
+    const prevBest = Math.max(...prevWindow.map(h=>h.maxEst1RM));
+    const diffPct = prevBest>0 ? Math.round(((thisBest-prevBest)/prevBest)*1000)/10 : 0;
+    const item = {name:stat.name, diffPct};
+    if(diffPct > 2) improved.push(item); else if(diffPct < -2) declined.push(item); else unchanged.push(item);
+  });
+  improved.sort((a,b)=>b.diffPct-a.diffPct);
+  declined.sort((a,b)=>a.diffPct-b.diffPct);
+
+  let totalVolume=0, totalSets=0, totalDuration=0, sessionCount=0;
+  (gymStats.sessionDates||[]).filter(d=>d>=thisStartStr && d<=todayStrVal).forEach(d=>{
+    totalVolume += (gymStats.dateVolume&&gymStats.dateVolume[d])||0;
+    totalSets += (gymStats.dateSets&&gymStats.dateSets[d])||0;
+    totalDuration += (gymStats.dateDuration&&gymStats.dateDuration[d])||0;
+    sessionCount++;
+  });
+  const avgDuration = sessionCount ? Math.round(totalDuration/sessionCount) : 0;
+
+  const groupHtml = (title, items, col)=> items.length ? `<div class="gym-review-group"><h4>${title} (${items.length})</h4>${items.map(it=>`<div class="gym-review-item"><span>${escapeHtml(it.name)}</span><span class="delta" style="color:${col};">${it.diffPct>0?'+':''}${it.diffPct}%</span></div>`).join('')}</div>` : '';
+
+  document.getElementById('gymWeeklyReviewBody').innerHTML = `
+    <div class="gym-stat-grid">
+      <div class="cell"><div class="l">Workouts</div><div class="v">${sessionCount}</div></div>
+      <div class="cell"><div class="l">Total volume</div><div class="v">${Math.round(totalVolume).toLocaleString()} kg</div></div>
+      <div class="cell"><div class="l">Total sets</div><div class="v">${totalSets}</div></div>
+      <div class="cell"><div class="l">Avg duration</div><div class="v">${avgDuration?avgDuration+' min':'—'}</div></div>
+    </div>
+    ${groupHtml('Improved', improved, 'var(--good)')}
+    ${groupHtml('Declined', declined, 'var(--danger)')}
+    ${groupHtml('Unchanged', unchanged, 'var(--text-faint)')}
+    ${!improved.length && !declined.length && !unchanged.length ? `<div class="empty-state" style="padding:16px 0;">Not enough data yet — log workouts in two consecutive weeks to see a comparison.</div>` : ''}
+  `;
 }
 
 /* =========================================================
