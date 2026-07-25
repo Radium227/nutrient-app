@@ -7306,22 +7306,30 @@ function openGymDescribeModal(){
 }
 function buildGymWorkoutPrompt(rawText){
   const libraryList = gymExercises.map(e=>`${e.name} (${e.muscleGroup}${e.isBodyweight?', bodyweight':''})`).join(', ');
-  return `You are a strength-training log parser. The user typed a quick, informal note about the workout they just did — expect shorthand, typos, and missing punctuation. Parse it into structured sets. Do NOT ask any clarifying questions and do not skip anything for being ambiguous — always make your best reasonable inference and move on; the user cannot answer follow-up questions, this must be fully resolved in one pass.
+  return `You are a strength-training log parser. The user's note may be quick informal shorthand OR a clean structured list with explicit fields (Weight/Sets/Reps/Notes) — handle both equally well. Do NOT ask any clarifying questions and do not skip anything for being ambiguous — always make your best reasonable inference and move on; the user cannot answer follow-up questions, this must be fully resolved in one pass.
 
-Their existing exercise library (match against these by meaning first, even through typos/abbreviations/synonyms — e.g. "bench" or "benchpress" matches "Bench Press", "pullups" matches "Pull-ups", "ohp" matches "Overhead Press", "rdl" matches "Romanian Deadlift"):
+Their existing exercise library:
 ${libraryList || '(empty — nothing logged yet)'}
 
-Rules:
-- For each distinct exercise mentioned, if it clearly matches one of the library exercises above (even loosely, through typos/abbreviations/synonyms), set "isNew": false and "matchedName" to that EXACT library name, copied character-for-character.
-- If it does not reasonably match anything in the library, set "isNew": true, "matchedName": null, and provide a clean, properly-capitalized "name", plus your best-guess "muscleGroup" (exactly one of: Chest, Back, Legs, Shoulders, Arms, Core) and "isBodyweight" (true for exercises like push-ups/pull-ups/dips/bodyweight squats/planks where no external weight is typically used).
-- Parse weight/reps/sets from whatever shorthand is used. Common patterns: "50x5x3" = 50kg for 5 reps, done as 3 sets. "3x8 @ 60kg" = 3 sets of 8 reps at 60kg. "5,5,5 at 40" = three sets of 5 reps at 40kg. "pullups x8,x6,x5" = bodyweight pull-ups with reps 8, 6, 5 across 3 sets (weight: null unless added weight is mentioned). If only total sets/reps are given without a per-set breakdown (e.g. "squats 4x10 100kg"), expand it into that many identical sets.
-- Weights are in kg unless "lb" or "lbs" is explicitly written, in which case convert to kg (1 lb = 0.453592 kg) and round to 1 decimal.
+Matching rules:
+- Match an exercise to the library ONLY when it's genuinely the same movement referred to differently — typos, abbreviations, or an obvious synonym (e.g. "bench"/"benchpress" → "Bench Press", "pullups" → "Pull-ups", "ohp" → "Overhead Press", "rdl" → "Romanian Deadlift").
+- Do NOT match just because two exercises train the same muscle or share a word. Different equipment or setup is a DIFFERENT exercise: "Dumbbell Bicep Curl" is NOT "Barbell Curl". "Overhead Dumbbell Triceps Extension" is NOT "Tricep Pushdown". "Single-Arm Seated Row Machine" is NOT "Barbell Row". When genuinely unsure, prefer creating a new exercise over merging into a loosely-related one — a wrongly-merged exercise silently corrupts that exercise's PR history.
+- When creating new ("isNew": true), set "matchedName": null and give a clean, properly-capitalized "name" (keep the user's own naming/specificity, e.g. "Single-Leg Dumbbell Calf Raise" stays that specific, don't generalize it to "Calf Raise"), plus your best-guess "muscleGroup" (exactly one of: Chest, Back, Legs, Shoulders, Arms, Core) and "isBodyweight" (true only when no external weight is typically used, e.g. push-ups/pull-ups/planks — false for any dumbbell/barbell/machine/cable exercise).
+
+Weight & set parsing rules:
+- Both compact shorthand ("50x5x3") and explicit labeled fields ("Weight: 7.5 kg / Sets: 3 / Reps: 16, 12, 10") appear — parse either. A reps list like "16, 12, 10" with Sets:3 means three sets with those exact rep counts, all at the stated weight, in the order given.
+- If only total sets/reps are given with no per-set breakdown (e.g. "squats 4x10 100kg"), expand into that many identical sets.
+- "X kg dumbbell in each hand" / "X kg dumbbells" / "X kg per hand" means the resistance is X kg (the weight of one dumbbell) — record the weight as X, do NOT double it, even though both hands are lifting simultaneously. This is standard convention: you're progressively overloading the weight of a single dumbbell.
+- "Empty bar" / "empty barbell" / "just the bar" means a standard Olympic barbell: use 20 (kg).
+- Weights are in kg unless "lb" or "lbs" is explicit, in which case convert to kg (1 lb = 0.453592 kg) and round to 1 decimal.
 - Ignore filler words and anything that isn't a loggable exercise. If truly nothing loggable is present, return an empty exercises array rather than guessing something that wasn't mentioned.
+
+Notes: if the user attaches a comment to a specific exercise (form breakdown, which side struggled, how it felt, etc.), carry it into that exercise's "notes" field verbatim (trimmed). Use "" if none was given for that exercise — never invent one.
 
 User's workout note: """${rawText}"""
 
 Respond with ONLY valid JSON, no markdown, no commentary, matching exactly this schema:
-{"exercises":[{"matchedName":"string or null","isNew":boolean,"name":"string","muscleGroup":"Chest|Back|Legs|Shoulders|Arms|Core","isBodyweight":boolean,"sets":[{"weight":number|null,"reps":number}]}]}`;
+{"exercises":[{"matchedName":"string or null","isNew":boolean,"name":"string","muscleGroup":"Chest|Back|Legs|Shoulders|Arms|Core","isBodyweight":boolean,"notes":"string","sets":[{"weight":number|null,"reps":number}]}]}`;
 }
 async function analyzeGymWorkoutText(){
   const rawText = document.getElementById('gymDescribeInput').value.trim();
@@ -7375,6 +7383,9 @@ async function applyParsedGymWorkout(items){
     let entry = activeWorkout.entries.find(e=>e.exerciseId===ex.id);
     if(!entry){ entry = {exerciseId:ex.id, sets:[], notes:''}; activeWorkout.entries.push(entry); }
     entry.sets.push(...sets);
+    if(item.notes && String(item.notes).trim()){
+      entry.notes = entry.notes ? `${entry.notes} · ${String(item.notes).trim()}` : String(item.notes).trim();
+    }
   }
   if(createdAny) await storeSet('gymExercises', gymExercises);
   document.getElementById('gymWorkoutTitle').textContent = activeWorkout.templateName;
