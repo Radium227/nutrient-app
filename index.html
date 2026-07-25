@@ -955,7 +955,8 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         <button class="btn ghost small" style="padding:7px 12px; font-size:12.5px; min-height:auto; width:auto;" onclick="openGymTemplateModal()">+ New template</button>
       </h2>
       <div id="gymTemplateChips" class="gym-template-grid"></div>
-      <button class="btn outline block" style="margin-top:12px;" onclick="startGymWorkout(null)">+ Quick start (no template)</button>
+      <button class="btn block" style="margin-top:12px;" onclick="openGymDescribeModal()">🤖 Describe your workout — let AI log it</button>
+      <button class="btn outline block" style="margin-top:10px;" onclick="startGymWorkout(null)">+ Quick start (no template)</button>
     </div>
 
     <div class="card">
@@ -1164,6 +1165,21 @@ input,select,textarea{font-family:inherit; color:var(--text);}
         Settings
       </button>
     </div>
+  </div>
+</div>
+
+<!-- GYM: AI DESCRIBE WORKOUT -->
+<div class="modal-backdrop" id="gymDescribeModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><h3>Describe your workout</h3><button onclick="closeModal('gymDescribeModal')">✕</button></div>
+    <div class="field">
+      <label>What did you do?</label>
+      <textarea id="gymDescribeInput" placeholder="e.g. bench 50x5x3, squats 60kg 5 reps x4, pullups bodyweight x8 x6 x5, ohp 20x8x3" style="min-height:120px;"></textarea>
+      <div class="hint">Type it however's fastest — shorthand, typos, missing punctuation are all fine. AI matches it to your exercise library (or creates new exercises) and fills in the sets for you. No questions asked — just review and finish.</div>
+    </div>
+    <div id="gymDescribeStatus"></div>
+    <button class="btn block" onclick="analyzeGymWorkoutText()">Log with AI</button>
   </div>
 </div>
 
@@ -7280,6 +7296,92 @@ function renderGymExerciseLibrary(){
       <div class="pr">${prText}</div>
     </div>`;
   }).join('');
+}
+
+/* ---------- AI: describe workout in free text, no follow-up questions ---------- */
+function openGymDescribeModal(){
+  document.getElementById('gymDescribeInput').value = '';
+  document.getElementById('gymDescribeStatus').innerHTML = '';
+  openModal('gymDescribeModal');
+}
+function buildGymWorkoutPrompt(rawText){
+  const libraryList = gymExercises.map(e=>`${e.name} (${e.muscleGroup}${e.isBodyweight?', bodyweight':''})`).join(', ');
+  return `You are a strength-training log parser. The user typed a quick, informal note about the workout they just did — expect shorthand, typos, and missing punctuation. Parse it into structured sets. Do NOT ask any clarifying questions and do not skip anything for being ambiguous — always make your best reasonable inference and move on; the user cannot answer follow-up questions, this must be fully resolved in one pass.
+
+Their existing exercise library (match against these by meaning first, even through typos/abbreviations/synonyms — e.g. "bench" or "benchpress" matches "Bench Press", "pullups" matches "Pull-ups", "ohp" matches "Overhead Press", "rdl" matches "Romanian Deadlift"):
+${libraryList || '(empty — nothing logged yet)'}
+
+Rules:
+- For each distinct exercise mentioned, if it clearly matches one of the library exercises above (even loosely, through typos/abbreviations/synonyms), set "isNew": false and "matchedName" to that EXACT library name, copied character-for-character.
+- If it does not reasonably match anything in the library, set "isNew": true, "matchedName": null, and provide a clean, properly-capitalized "name", plus your best-guess "muscleGroup" (exactly one of: Chest, Back, Legs, Shoulders, Arms, Core) and "isBodyweight" (true for exercises like push-ups/pull-ups/dips/bodyweight squats/planks where no external weight is typically used).
+- Parse weight/reps/sets from whatever shorthand is used. Common patterns: "50x5x3" = 50kg for 5 reps, done as 3 sets. "3x8 @ 60kg" = 3 sets of 8 reps at 60kg. "5,5,5 at 40" = three sets of 5 reps at 40kg. "pullups x8,x6,x5" = bodyweight pull-ups with reps 8, 6, 5 across 3 sets (weight: null unless added weight is mentioned). If only total sets/reps are given without a per-set breakdown (e.g. "squats 4x10 100kg"), expand it into that many identical sets.
+- Weights are in kg unless "lb" or "lbs" is explicitly written, in which case convert to kg (1 lb = 0.453592 kg) and round to 1 decimal.
+- Ignore filler words and anything that isn't a loggable exercise. If truly nothing loggable is present, return an empty exercises array rather than guessing something that wasn't mentioned.
+
+User's workout note: """${rawText}"""
+
+Respond with ONLY valid JSON, no markdown, no commentary, matching exactly this schema:
+{"exercises":[{"matchedName":"string or null","isNew":boolean,"name":"string","muscleGroup":"Chest|Back|Legs|Shoulders|Arms|Core","isBodyweight":boolean,"sets":[{"weight":number|null,"reps":number}]}]}`;
+}
+async function analyzeGymWorkoutText(){
+  const rawText = document.getElementById('gymDescribeInput').value.trim();
+  if(!rawText){ showToast('Type what you did first'); return; }
+  const statusEl = document.getElementById('gymDescribeStatus');
+  statusEl.innerHTML = `<div class="analysis-status"><span class="spinner"></span> Reading your workout…</div>`;
+  try{
+    const prompt = buildGymWorkoutPrompt(rawText);
+    const parsed = await callGemini([{type:'text', text:prompt}], 'text');
+    const items = parsed.exercises || [];
+    if(!items.length){
+      statusEl.innerHTML = `<div class="error-box">Couldn't find any exercises in that — try adding a bit more detail (e.g. "bench 50x5x3").</div>`;
+      return;
+    }
+    await applyParsedGymWorkout(items);
+    closeModal('gymDescribeModal');
+    statusEl.innerHTML = '';
+  }catch(err){
+    statusEl.innerHTML = `<div class="error-box">Couldn't read that: ${escapeHtml(err.message)}</div>`;
+  }
+}
+// Matches each AI-parsed exercise to the existing library (creating new
+// exercises on the fly when nothing matches), then drops the parsed sets
+// straight into an active workout, pre-filled and ready to review/finish
+// — no manual entry, no follow-up questions.
+async function applyParsedGymWorkout(items){
+  if(!activeWorkout){
+    activeWorkout = {id:'gs'+Date.now(), date:todayStr(), templateId:null, templateName:'Logged from notes', startTs:Date.now(), entries:[]};
+  }
+  let createdAny = false;
+  for(const item of items){
+    let ex = null;
+    if(!item.isNew && item.matchedName){
+      ex = gymExercises.find(e=>e.name.toLowerCase()===String(item.matchedName).toLowerCase());
+    }
+    if(!ex){
+      ex = gymExercises.find(e=>e.name.toLowerCase()===String(item.name||'').toLowerCase());
+    }
+    if(!ex){
+      ex = {
+        id:'gex'+Date.now()+Math.random().toString(36).slice(2,6),
+        name: item.name || 'Exercise',
+        muscleGroup: ['Chest','Back','Legs','Shoulders','Arms','Core'].includes(item.muscleGroup) ? item.muscleGroup : 'Other',
+        isBodyweight: !!item.isBodyweight
+      };
+      gymExercises.push(ex);
+      createdAny = true;
+    }
+    const sets = (item.sets||[]).filter(s=>Number(s.reps)>0).map(s=>({weight: s.weight==null ? null : Number(s.weight), reps: Number(s.reps)}));
+    if(!sets.length) continue;
+    let entry = activeWorkout.entries.find(e=>e.exerciseId===ex.id);
+    if(!entry){ entry = {exerciseId:ex.id, sets:[], notes:''}; activeWorkout.entries.push(entry); }
+    entry.sets.push(...sets);
+  }
+  if(createdAny) await storeSet('gymExercises', gymExercises);
+  document.getElementById('gymWorkoutTitle').textContent = activeWorkout.templateName;
+  renderActiveWorkout();
+  openModal('gymWorkoutModal');
+  startGymWorkoutTimer();
+  showToast(`Logged ${items.length} exercise${items.length===1?'':'s'} from your note — review below`);
 }
 
 /* ---------- Active workout ---------- */
