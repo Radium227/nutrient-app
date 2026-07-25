@@ -7108,6 +7108,13 @@ function gymEst1RM(weight, reps){
 // For bodyweight exercises, "weight" on a set is ADDED weight -- the
 // effective load also includes bodyweight itself (from your profile),
 // so volume/1RM/PRs for pull-ups, push-ups, dips etc. are still meaningful.
+// "Did the person actually log something for this set?" -- previously this
+// was decided by reps alone everywhere (finishing a workout, set counts),
+// so a set where only the kg field got filled in (reps still blank/0) was
+// silently dropped in its entirety, weight included. Volume/1RM math still
+// correctly needs reps (below), but *keeping* a set only needs SOMETHING
+// entered.
+function gymSetHasData(set){ return Number(set.weight)>0 || Number(set.reps)>0; }
 function gymSetEffectiveWeight(ex, set){
   const w = Number(set.weight)||0;
   if(ex && ex.isBodyweight) return (Number(profile.weight)||0) + w;
@@ -7127,7 +7134,7 @@ function gymEntryMaxEst1RM(ex, entry){
   },0);
 }
 function gymEntryTotalReps(entry){ return (entry.sets||[]).reduce((s,st)=>s+(Number(st.reps)||0),0); }
-function gymEntryTotalSets(entry){ return (entry.sets||[]).filter(st=>Number(st.reps)>0).length; }
+function gymEntryTotalSets(entry){ return (entry.sets||[]).filter(gymSetHasData).length; }
 
 // Updates the incremental PR/history index for one exercise after a
 // workout is finished, and returns which badges (pr/reps/volume) this
@@ -7155,7 +7162,7 @@ function updateGymStatsForEntry(dateStr, ex, entry){
   if(thisTopReps > prevTopReps && prevTopReps>0) badges.push('reps');
 
   stat.name = ex.name; stat.muscleGroup = ex.muscleGroup; stat.isBodyweight = ex.isBodyweight;
-  stat.lastSets = (entry.sets||[]).filter(s=>Number(s.reps)>0).map(s=>({weight:Number(s.weight)||0, reps:Number(s.reps)||0}));
+  stat.lastSets = (entry.sets||[]).filter(gymSetHasData).map(s=>({weight:Number(s.weight)||0, reps:Number(s.reps)||0}));
   stat.lastDate = dateStr;
   stat.history = stat.history||[];
   const existingIdx = stat.history.findIndex(h=>h.date===dateStr);
@@ -7378,7 +7385,7 @@ async function applyParsedGymWorkout(items){
       gymExercises.push(ex);
       createdAny = true;
     }
-    const sets = (item.sets||[]).filter(s=>Number(s.reps)>0).map(s=>({weight: s.weight==null ? null : Number(s.weight), reps: Number(s.reps)}));
+    const sets = (item.sets||[]).filter(gymSetHasData).map(s=>({weight: s.weight==null ? null : Number(s.weight), reps: s.reps==null ? null : Number(s.reps)}));
     if(!sets.length) continue;
     let entry = activeWorkout.entries.find(e=>e.exerciseId===ex.id);
     if(!entry){ entry = {exerciseId:ex.id, sets:[], notes:''}; activeWorkout.entries.push(entry); }
@@ -7533,7 +7540,7 @@ function confirmCloseGymWorkout(){
 async function finishGymWorkout(){
   if(!activeWorkout) return;
   const validEntries = activeWorkout.entries
-    .map(entry=>({...entry, sets:(entry.sets||[]).filter(s=>Number(s.reps)>0)}))
+    .map(entry=>({...entry, sets:(entry.sets||[]).filter(gymSetHasData)}))
     .filter(entry=>entry.sets.length>0);
   if(!validEntries.length){ showToast('Log at least one set before finishing'); return; }
 
