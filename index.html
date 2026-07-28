@@ -685,6 +685,78 @@ input,select,textarea{font-family:inherit; color:var(--text);}
   .cal-row{gap:8px;}
 }
 
+/* ---------- Stack Editor ---------- */
+.stack-edit-modal {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+.stack-edit-modal .modal-head,
+.stack-edit-modal .field {
+  flex-shrink: 0;
+}
+.stack-picker-field {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  margin-bottom: 0;
+}
+.stack-member-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 120px;
+  padding-right: 4px;
+  margin-bottom: 8px;
+}
+.search-results-count {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: -4px 0 8px;
+}
+.stack-save-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, var(--surface) 70%, transparent);
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  margin: 0 -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+  border-top: 1px solid var(--line);
+  z-index: 2;
+  flex-shrink: 0;
+}
+.stack-save-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stack-save-count {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.stack-save-btn {
+  min-height: 42px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+#stackSearchInput:not(:placeholder-shown) + #stackSearchClear,
+#stackSearchInput:focus + #stackSearchClear,
+#stackSearchClear.visible {
+  display: flex !important;
+}
+.stack-member-scroll .pick-row {
+  padding: 12px 0;
+}
+
 /* ---------- Modal ---------- */
 .modal-backdrop{position:fixed; inset:0; background:rgba(4,7,14,0.72); z-index:50; display:none; align-items:flex-end; justify-content:center;}
 .modal-backdrop.open{display:flex;}
@@ -792,6 +864,7 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 .gym-muscle-bar-row .amt{font-family:var(--font-mono); font-size:11.5px; color:var(--text-faint); width:56px; text-align:right; flex-shrink:0;}
 
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -1419,20 +1492,30 @@ input,select,textarea{font-family:inherit; color:var(--text);}
 
 <!-- CREATE / EDIT STACK MODAL -->
 <div class="modal-backdrop" id="stackEditModal">
-  <div class="modal">
+  <div class="modal stack-edit-modal">
     <div class="modal-handle"></div>
     <div class="modal-head"><h3 id="stackEditTitle">New stack</h3><button onclick="closeModal('stackEditModal')">✕</button></div>
     <div class="field">
       <label>Stack name</label>
       <input type="text" id="stackNameInput" placeholder="e.g. Morning vitamins">
     </div>
-    <div class="field">
+    <div class="field stack-picker-field">
       <label>Items in this stack</label>
       <div class="hint" style="margin-top:-2px; margin-bottom:8px;">Pick from your saved meals. Save a meal first (☆ on any logged item, or from Photo/Describe/Manual) if what you want isn't listed yet.</div>
-      <div id="stackMemberPicker"></div>
+      <div class="search-wrap" style="margin-bottom:10px;">
+        <input type="text" id="stackSearchInput" class="search-input" placeholder="Search saved meals..." oninput="filterStackMemberPicker()">
+        <button type="button" class="search-clear-btn" id="stackSearchClear" onclick="clearStackSearch()">×</button>
+      </div>
+      <div id="stackSearchResultsCount" class="search-results-count" style="display:none;"></div>
+      <div id="stackMemberPicker" class="stack-member-scroll"></div>
     </div>
-    <button class="btn block" onclick="confirmSaveStack()">Save stack</button>
-    <button class="detail-edit-link" id="stackDeleteBtn" style="display:none; color:var(--danger);" onclick="deleteStackFromEditor()">Delete this stack</button>
+    <div class="stack-save-bar" id="stackSaveBar">
+      <div class="stack-save-bar-inner">
+        <span class="stack-save-count" id="stackSaveCount">0 items selected</span>
+        <button class="btn stack-save-btn" onclick="confirmSaveStack()">Save stack</button>
+      </div>
+    </div>
+    <button class="detail-edit-link" id="stackDeleteBtn" style="display:none; color:var(--danger); margin-top:8px;" onclick="deleteStackFromEditor()">Delete this stack</button>
   </div>
 </div>
 
@@ -1707,6 +1790,8 @@ let savedMeals = []; // starred meals, reusable as one-tap templates
 let mealStacks = []; // groups of saved meals logged together (e.g. "Morning vitamins"), checked off per-use
 let pendingStackMemberIds = new Set(); // working selection while creating/editing a stack
 let editingStackId = null;
+let pendingStackHasChanges = false;
+let stackSearchQuery = '';
 let pendingLogStackId = null;
 let pendingLogStackChecked = new Set(); // working checked-off set while logging a stack
 let foodLibrary = {}; // learned per-gram nutrient profiles, keyed by normalized food name
@@ -6327,17 +6412,53 @@ function openCreateStackModal(stackId){
   document.getElementById('stackEditTitle').textContent = stack ? 'Edit stack' : 'New stack';
   document.getElementById('stackNameInput').value = stack ? stack.name : '';
   pendingStackMemberIds = new Set(stack ? stack.memberIds : []);
+  pendingStackHasChanges = false;
+  const searchInput = document.getElementById('stackSearchInput');
+  if (searchInput) { searchInput.value = ''; }
+  stackSearchQuery = '';
+  const clearBtn = document.getElementById('stackSearchClear');
+  if (clearBtn) clearBtn.classList.remove('visible');
+  const countEl = document.getElementById('stackSearchResultsCount');
+  if (countEl) countEl.style.display = 'none';
   document.getElementById('stackDeleteBtn').style.display = stack ? 'block' : 'none';
   renderStackMemberPicker();
+  updateStackSaveBar();
   openModal('stackEditModal');
 }
 function renderStackMemberPicker(){
   const el = document.getElementById('stackMemberPicker');
+  const countEl = document.getElementById('stackSearchResultsCount');
   if(!savedMeals.length){
     el.innerHTML = `<div class="empty-state" style="padding:12px 0;">No saved meals yet — save one first, then come back to build a stack.</div>`;
+    if (countEl) countEl.style.display = 'none';
     return;
   }
-  el.innerHTML = savedMeals.slice().reverse().map(m=>{
+  const query = (stackSearchQuery || '').trim().toLowerCase();
+  let meals = savedMeals.slice().reverse();
+  let totalCount = meals.length;
+  if (query) {
+    meals = meals.filter(m => {
+      const name = (m.name || '').toLowerCase();
+      const calories = String(Math.round((m.baseNutrients||m.nutrients||{}).calories||0));
+      return name.includes(query) || calories.includes(query);
+    });
+  }
+  if (countEl) {
+    if (query && meals.length !== totalCount) {
+      countEl.textContent = `${meals.length} of ${totalCount} meals`;
+      countEl.style.display = 'block';
+    } else if (query && meals.length === 0) {
+      countEl.textContent = 'No meals match your search';
+      countEl.style.display = 'block';
+    } else {
+      countEl.style.display = 'none';
+    }
+  }
+  if (meals.length === 0 && query) {
+    el.innerHTML = `<div class="empty-state" style="padding:12px 0; color:var(--text-dim);">No saved meals match "${escapeHtml(query)}"</div>`;
+    return;
+  }
+  el.innerHTML = meals.map(m=>{
     const checked = pendingStackMemberIds.has(m.id);
     return `<label class="pick-row">
       <input type="checkbox" ${checked?'checked':''} onchange="toggleStackMemberPick('${m.id}')">
@@ -6352,6 +6473,44 @@ function renderStackMemberPicker(){
 function toggleStackMemberPick(id){
   if(pendingStackMemberIds.has(id)) pendingStackMemberIds.delete(id);
   else pendingStackMemberIds.add(id);
+  pendingStackHasChanges = true;
+  renderStackMemberPicker();
+  updateStackSaveBar();
+}
+function filterStackMemberPicker(){
+  const input = document.getElementById('stackSearchInput');
+  const clearBtn = document.getElementById('stackSearchClear');
+  stackSearchQuery = input ? input.value : '';
+  if (clearBtn) {
+    if (stackSearchQuery) clearBtn.classList.add('visible');
+    else clearBtn.classList.remove('visible');
+  }
+  renderStackMemberPicker();
+}
+function clearStackSearch(){
+  const input = document.getElementById('stackSearchInput');
+  const clearBtn = document.getElementById('stackSearchClear');
+  if (input) input.value = '';
+  stackSearchQuery = '';
+  if (clearBtn) clearBtn.classList.remove('visible');
+  renderStackMemberPicker();
+  if (input) input.focus();
+}
+function updateStackSaveBar(){
+  const count = pendingStackMemberIds.size;
+  const countEl = document.getElementById('stackSaveCount');
+  const btn = document.querySelector('.stack-save-btn');
+  if (countEl) {
+    countEl.textContent = count === 0 ? 'No items selected' :
+                          count === 1 ? '1 item selected' :
+                          `${count} items selected`;
+  }
+  if (btn) {
+    btn.textContent = editingStackId ? 'Save changes' : 'Save stack';
+    btn.disabled = count === 0;
+    btn.style.opacity = count === 0 ? '0.5' : '1';
+    btn.style.cursor = count === 0 ? 'not-allowed' : 'pointer';
+  }
 }
 async function confirmSaveStack(){
   const name = document.getElementById('stackNameInput').value.trim();
@@ -6369,6 +6528,7 @@ async function confirmSaveStack(){
   showToast(editingStackId ? 'Stack updated' : 'Stack created');
   storeSet('mealStacks', mealStacks);
   editingStackId = null;
+  pendingStackHasChanges = false;
 }
 async function deleteStackFromEditor(){
   if(!editingStackId) return;
