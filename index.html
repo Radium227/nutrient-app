@@ -4155,6 +4155,12 @@ function buildPrompt(context, notes){
 
 USER-PROVIDED VALUES ALWAYS WIN — HIGHEST PRIORITY RULE, overrides everything else in this prompt: if the person's own text (in the ${context} itself, or in any notes/context appended below) states an explicit numeric value for a field — a weight ("135g"), a calorie count ("330 kcal"), a macro ("Protein: 10.5g", "Carbs: 69g"), a micronutrient ("Iron: 2.3mg"), or any other nutrient — you MUST use that exact number verbatim for that item and field. Do not recalculate it, "correct" it, round it differently, sanity-check it against your own estimate, or blend it with your own number. The person is telling you a real, already-known value (often from a food label, a kitchen scale, or a source they trust more than a visual/text estimate) — treat it as ground truth, not as one input among several. Only estimate the fields they did NOT give an explicit number for. If they gave a full nutrient breakdown for an item, your job for that item shrinks to: keep their numbers exactly as given, and fill in only whichever fields (e.g. specific vitamins/minerals/amino acids) they left unstated.
 
+INGREDIENT BREAKDOWN — NON-NEGOTIABLE: When a user describes a mixed dish and gives ANY component info (weights, piece counts, ratios), you MUST split into separate items. NEVER use the mixed dish name + total weight.
+
+Steps: (1) Extract every ingredient with quantities. (2) Use given weights exactly; for piece counts estimate per-piece grams ("9 paneer pieces" ≈ 90g). (3) If total given but one component missing: missing = total − sum_of_known (e.g. total 261g, gravy 171g → paneer = 90g). (4) Create separate items with simple names ("paneer", "palak gravy") — NOT "palak paneer". (5) Calculate each from its own nutrient profile. NEVER use generic mixed-dish density.
+
+Examples: "261g palak paneer, 9 paneer pieces, 171g gravy" → "paneer" 90g + "palak gravy" 171g. "150g rice + 200g rajma" → "rice" 150g + "rajma" 200g. "2 bhature + 1 bowl chole" → "bhature" 2 pieces + "chole" 1 bowl.
+
 For each item, estimate a COMPLETE nutrient profile. Your response has a generous length budget, so there is no reason to skip categories to save space — completeness and accuracy matter far more than brevity.
 
 Nutrient fields to estimate: ${NUTRIENT_KEY_LIST}
@@ -5990,7 +5996,10 @@ function quickEditHtml(it){
       <input type="text" id="qe-name-${it._id}" value="${escapeAttr(it.name)}" style="flex:2; min-width:120px; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--text); font-size:13px;">
       <input type="number" id="qe-grams-${it._id}" value="${it.gramsEstimate||''}" style="flex:1; min-width:70px; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--text); font-size:13px;">
     </div>
-    <button type="button" class="btn ghost small" style="margin-top:8px;" onclick="applyQuickEdit('${it._id}')">Recalculate</button>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button type="button" class="btn ghost small" onclick="applyQuickEdit('${it._id}')">Recalculate</button>
+      <button type="button" class="btn ghost small" onclick="splitItem('${it._id}')" style="color:var(--macro);">Split into ingredients</button>
+    </div>
   </div>`;
 }
 
@@ -6029,6 +6038,49 @@ function applyQuickEdit(itemId){
   const cardEl = document.getElementById('card-'+itemId);
   if(cardEl) cardEl.outerHTML = buildResultCardHtml(it);
   refreshAddAllButtonState();
+}
+function splitItem(itemId){
+  const idx = pendingResults.findIndex(x=>x._id===itemId);
+  if(idx===-1) return;
+  const it = pendingResults[idx];
+  const raw = prompt(`Split "${it.name}" into ingredients\nFormat: name:grams, name:grams\nExample: paneer:90, palak gravy:171`);
+  if(!raw) return;
+  const parts = raw.split(',').map(s=>s.trim()).filter(Boolean);
+  if(parts.length < 2){ showToast('Enter at least 2 ingredients'); return; }
+  const parsed = [];
+  let totalGiven = 0;
+  for(const p of parts){
+    const m = p.match(/^(.+?):\s*(\d+(?:\.\d+)?)$/);
+    if(!m){ showToast(`Invalid format: "${p}". Use "name:grams"`); return; }
+    parsed.push({name:m[1].trim(), grams:Number(m[2])});
+    totalGiven += Number(m[2]);
+  }
+  const origGrams = Number(it.gramsEstimate) || totalGiven;
+  // Remove original
+  pendingResults.splice(idx, 1);
+  // Insert new items
+  const newItems = parsed.map((p,i)=>{
+    const grams = p.grams;
+    const id = generateId();
+    // Try deterministic match for each ingredient
+    const {refKey} = matchReferenceFood(p.name, null);
+    let nutrients = {};
+    if(refKey){
+      nutrients = deriveMacrosFromReference(refKey, grams);
+    }
+    return {
+      _id:id, name:p.name, gramsEstimate:grams,
+      nutrients: nutrients,
+      confidence:'medium',
+      assumptions:[`Split from "${it.name}" ${origGrams}g`],
+      _refKey: refKey || null,
+      _macroSource: refKey ? 'deterministic:'+refKey : null
+    };
+  });
+  pendingResults.splice(idx, 0, ...newItems);
+  renderPendingResults();
+  refreshAddAllButtonState();
+  showToast(`Split into ${parsed.length} items`);
 }
 
 function buildResultCardHtml(it){
