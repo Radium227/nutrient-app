@@ -2923,9 +2923,10 @@ function renderDashboard(day){
     if(!t || t<=0) return;
     totalCount++;
     const v = totals[n.id]||0;
-    const pctCapped = Math.min(100, (v/t)*100);
-    pctSum += pctCapped;
-    if(pctCapped>=100) metCount++;
+    const pctTrue = (v/t)*100;
+    const pctCapped = Math.min(100, pctTrue);
+    pctSum += nutrientGoodnessPct(n.id, pctTrue);
+    if(isNutrientMet(n.id, pctTrue)) metCount++;
     const barColorVal = nutrientStatusColor(n.id, pctCapped);
     const glow = pctCapped>=90 ? `box-shadow:0 0 6px -1px ${barColorVal};` : '';
     const catColor = (CAT_META[n.cat] && CAT_META[n.cat].color) || 'var(--line)';
@@ -3182,6 +3183,25 @@ function isUpperLimitNutrient(id){
 }
 function isOverLimit(id, pct){
   return pct!==null && pct!==undefined && pct>=100 && isUpperLimitNutrient(id);
+}
+// For "how much of this nutrient's target/limit have you hit" tallies
+// (the "X of Y nutrients at target" counts, the weekly "nutrients >=50%"
+// bars, the overall % complete headline): a floor nutrient (protein, fiber,
+// most vitamins/minerals) is "met" once you've reached 100% or more of it.
+// A ceiling/limit nutrient (saturated fat, sodium, cholesterol, added
+// sugars, trans fat) is the opposite -- it's "met"/good precisely because
+// you're AT OR UNDER 100%, and going over is the failure state, not the
+// success state. Every aggregate completion metric routes through these
+// two helpers so a nutrient can't silently count as "on target" in one
+// summary while showing red/over-limit in another.
+function isNutrientMet(id, pctTrue){
+  if(pctTrue===null || pctTrue===undefined || !Number.isFinite(pctTrue)) return false;
+  return isUpperLimitNutrient(id) ? pctTrue<=100 : pctTrue>=100;
+}
+function nutrientGoodnessPct(id, pctTrue){
+  if(pctTrue===null || pctTrue===undefined || !Number.isFinite(pctTrue)) return 0;
+  if(isUpperLimitNutrient(id)) return pctTrue<=100 ? 100 : Math.max(0, 100-(pctTrue-100));
+  return Math.min(100, pctTrue);
 }
 // Single source of truth for a nutrient's status color. Pass {gradient:true}
 // for elements that use the existing red gradient fill style (progress bars)
@@ -4701,7 +4721,7 @@ async function computeWeeklyBiologyMetrics(){
     const sum = nutrientsWithTargets.reduce((s,n)=>{
       const t = getTarget(n.id);
       const v = Number(totals[n.id]||0);
-      return s + Math.min(100, (v/t)*100);
+      return s + nutrientGoodnessPct(n.id, (v/t)*100);
     }, 0);
     return sum/nutrientsWithTargets.length;
   }
@@ -4710,7 +4730,14 @@ async function computeWeeklyBiologyMetrics(){
     return nutrientsWithTargets.filter(n=>{
       const t = getTarget(n.id);
       const v = Number(totals[n.id]||0);
-      return t>0 && (v/t)>=0.5;
+      // For a ceiling nutrient (sat fat, sodium, added sugars, etc.), being
+      // at/under 50% of the daily limit is the good outcome being counted
+      // here, not "only halfway to a goal" -- reusing isNutrientMet at a
+      // 50% threshold via nutrientGoodnessPct keeps this consistent with
+      // every other completion metric in the app instead of contradicting
+      // them (a low added-sugar day was previously counted AGAINST this
+      // "diversity" tally, when it should count in its favor).
+      return t>0 && nutrientGoodnessPct(n.id, (v/t)*100) >= 50;
     }).length;
   }
   // Normalizes a series of raw values into 4-30px bar heights for the
@@ -6942,7 +6969,9 @@ async function openNutrientDetail(id, fromInsight){
   const insightMentionsThis = insightResult && (insightResult.nutrients||[]).some(name=>resolveNutrientIdByName(name)===id);
   if(fromInsight && insightResult && insightMentionsThis){
     const statusBullet = t>0
-      ? (pct>=100 ? `Your ${n.name.toLowerCase()} intake is adequate today (${Math.round(pct)}% of target).` : `Your ${n.name.toLowerCase()} intake is only ${Math.round(pct)}% of target today.`)
+      ? isUpperLimitNutrient(id)
+        ? (pct<=100 ? `Your ${n.name.toLowerCase()} intake is within the recommended limit today (${Math.round(pct)}% of it).` : `Your ${n.name.toLowerCase()} intake is over the recommended limit today (${Math.round(pct)}% of it).`)
+        : (pct>=100 ? `Your ${n.name.toLowerCase()} intake is adequate today (${Math.round(pct)}% of target).` : `Your ${n.name.toLowerCase()} intake is only ${Math.round(pct)}% of target today.`)
       : `Your ${n.name.toLowerCase()} intake today is ${fmtAmount(v, n.unit)}.`;
     const reasoningBullets = String(insightResult.reasoning||'').split(/(?<=[.!?])\s+/).filter(Boolean).slice(0,3);
     whyHtml = `
@@ -7082,8 +7111,8 @@ async function openRemainingModal(){
     return {n, pct, v, t};
   }).sort((a,b)=> nutrientImportanceRank(a.n.id) - nutrientImportanceRank(b.n.id));
   lastRemainingList = list;
-  const avgPct = list.length ? Math.round(list.reduce((s,x)=>s+Math.min(100,x.pct),0)/list.length) : 0;
-  const metCount = list.filter(x=>x.pct>=100).length;
+  const avgPct = list.length ? Math.round(list.reduce((s,x)=>s+nutrientGoodnessPct(x.n.id, x.pct),0)/list.length) : 0;
+  const metCount = list.filter(x=>isNutrientMet(x.n.id, x.pct)).length;
   document.getElementById('remainingModalSummary').innerHTML = `
     <div class="remain-summary">
       <div class="big">${avgPct}%</div>
