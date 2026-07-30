@@ -1,6 +1,16 @@
 const FIREBASE_WEB_API_KEY = 'AIzaSyA5Jp_4A4hUTTn29_EsgbYxPqdWzomas3M';
+// Groq deprecated meta-llama/llama-4-scout-17b-16e-instruct (announced
+// June 17, 2026), which is why this returned a 404 "model does not exist"
+// -- it's not a code bug, the model itself stopped being served. Groq's
+// own migration guidance points to openai/gpt-oss-120b as the replacement.
+// Note: unlike Scout, gpt-oss-120b is text-only (no image input). That's
+// fine here since Groq is the SECOND fallback after Gemini -- if a photo
+// request ever reaches Groq, it'll fail fast on the missing image support
+// and fall through to OpenRouter (which does support vision models), same
+// as any other genuine Groq failure. If Groq's lineup changes again, check
+// https://console.groq.com/docs/models for a current vision-capable model.
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const JSON_ONLY_PROMPT = 'Return only a valid JSON object. Do not wrap it in markdown or add any extra text.';
 const REQUEST_TIMEOUT_MS = 90000;
@@ -10,18 +20,16 @@ function getAnalysisConfig(analysisMode) {
     return { timeoutMs: 25000, maxTokens: 2048 };
   }
   if (analysisMode === 'image') {
-    return { timeoutMs: 40000, maxTokens: 8192 };
+    // Was 8192 -- unnecessarily high for this task (a meal's nutrient JSON,
+    // even multi-item, comfortably fits well under this) and it's the
+    // reason OpenRouter's 402 said "requested up to 8192 tokens, but can
+    // only afford 3496": every fallback call was asking for far more
+    // headroom than it needed. Lowered to leave real margin for a complex
+    // multi-item photo without demanding an outsized token budget on every
+    // single request.
+    return { timeoutMs: 40000, maxTokens: 4096 };
   }
-  // Plain-text descriptions (the "Describe" tab) used to get a much smaller
-  // budget than photos (30s / 4096 tokens vs. photos' 40s / 8192 tokens),
-  // but a detailed multi-item meal described in text -- several foods, each
-  // needing its own full nutrient breakdown -- produces just as much JSON
-  // as a photo does. The old 4096-token cap meant that kind of response
-  // could get cut off mid-generation, which produces invalid JSON, which
-  // triggers a retry, which hits the same cap again -- burning through the
-  // retry budget and surfacing as "Analysis took too long" even though
-  // nothing was actually stuck, it just never had room to finish.
-  return { timeoutMs: 40000, maxTokens: 8192 };
+  return { timeoutMs: 30000, maxTokens: 3072 };
 }
 
 function delay(ms) {
